@@ -682,14 +682,14 @@ void Touch_Multi(gentity_t *self, gentity_t *other, trace_t *trace)
 		}
 
 		if (level.siegeMap == SIEGEMAP_HOTH && !Q_stricmp(self->target, "sidehack1_relay")) {
-			self->genericValue7 = g_fixHoth2ndObj.integer ? 0 : 10000;
+			self->genericValue7 = g_fixHoth2ndObj.integer ? 0 : self->genericValue7;
 			self->idealclass[0] = g_fixHoth2ndObj.integer ? '\0' : 'I';
 		}
 
 		if (self->genericValue7)
 		{ 
 			if (level.siegeMap == SIEGEMAP_HOTH && !Q_stricmp(self->target, "t712")) {
-				self->genericValue7 = g_hothHangarHack.integer & HOTHHANGARHACK_5SECONDS ? 5000 : 10000;
+				self->genericValue7 = g_hothHangarHack.integer & HOTHHANGARHACK_5SECONDS ? 5000 : self->genericValue7;
 				if (!Q_stricmpn(level.mapname, "siege_hoth3", 11))
 					self->idealClassType = g_hothHangarHack.integer & HOTHHANGARHACK_ANYCLASS ? 0 : CLASSTYPE_TECH;
 				else if (self->idealclass)
