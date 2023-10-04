@@ -1987,6 +1987,56 @@ static void DoEntrancedAddedSpawns(qboolean inSubBSP) {
 			HandleEntityAdjustment();
 		G_SpawnGEntityFromSpawnVars(inSubBSP);
 	}
+	
+	if (level.siegeMap == SIEGEMAP_DESERT) {
+        level.numSpawnVarChars = 0;
+        level.numSpawnVars = 0;
+        level.spawnVars[level.numSpawnVars][0] = G_AddSpawnVarToken("classname");
+        level.spawnVars[level.numSpawnVars++][1] = G_AddSpawnVarToken("misc_model_serverside");
+        level.spawnVars[level.numSpawnVars][0] = G_AddSpawnVarToken("origin");
+		level.spawnVars[level.numSpawnVars++][1] = G_AddSpawnVarToken("4520 -1136 -512");
+	    level.spawnVars[level.numSpawnVars][0] = G_AddSpawnVarToken("zoffset");
+        level.spawnVars[level.numSpawnVars++][1] = G_AddSpawnVarToken("64");
+        level.spawnVars[level.numSpawnVars][0] = G_AddSpawnVarToken("angle");
+        level.spawnVars[level.numSpawnVars++][1] = G_AddSpawnVarToken("180");
+        level.spawnVars[level.numSpawnVars][0] = G_AddSpawnVarToken("model");
+        level.spawnVars[level.numSpawnVars++][1] = G_AddSpawnVarToken("models/map_objects/bounty/wall_pipes.md3");
+        if (inSubBSP)
+            HandleEntityAdjustment();
+        G_SpawnGEntityFromSpawnVars(inSubBSP);
+		
+        level.numSpawnVarChars = 0;
+        level.numSpawnVars = 0;
+        level.spawnVars[level.numSpawnVars][0] = G_AddSpawnVarToken("classname");
+        level.spawnVars[level.numSpawnVars++][1] = G_AddSpawnVarToken("misc_model_serverside");
+        level.spawnVars[level.numSpawnVars][0] = G_AddSpawnVarToken("origin");
+        level.spawnVars[level.numSpawnVars++][1] = G_AddSpawnVarToken("3224 736 -512");
+	    level.spawnVars[level.numSpawnVars][0] = G_AddSpawnVarToken("zoffset");
+        level.spawnVars[level.numSpawnVars++][1] = G_AddSpawnVarToken("64");
+        level.spawnVars[level.numSpawnVars][0] = G_AddSpawnVarToken("angle");
+        level.spawnVars[level.numSpawnVars++][1] = G_AddSpawnVarToken("180");
+        level.spawnVars[level.numSpawnVars][0] = G_AddSpawnVarToken("model");
+        level.spawnVars[level.numSpawnVars++][1] = G_AddSpawnVarToken("models/map_objects/bounty/wall_pipes.md3");
+        if (inSubBSP)
+            HandleEntityAdjustment();
+        G_SpawnGEntityFromSpawnVars(inSubBSP);
+		
+        level.numSpawnVarChars = 0;
+        level.numSpawnVars = 0;
+        level.spawnVars[level.numSpawnVars][0] = G_AddSpawnVarToken("classname");
+        level.spawnVars[level.numSpawnVars++][1] = G_AddSpawnVarToken("misc_model_serverside");
+        level.spawnVars[level.numSpawnVars][0] = G_AddSpawnVarToken("origin");
+        level.spawnVars[level.numSpawnVars++][1] = G_AddSpawnVarToken("2776 -2432 -512");
+	    level.spawnVars[level.numSpawnVars][0] = G_AddSpawnVarToken("zoffset");
+        level.spawnVars[level.numSpawnVars++][1] = G_AddSpawnVarToken("64");
+        level.spawnVars[level.numSpawnVars][0] = G_AddSpawnVarToken("angle");
+        level.spawnVars[level.numSpawnVars++][1] = G_AddSpawnVarToken("180");
+        level.spawnVars[level.numSpawnVars][0] = G_AddSpawnVarToken("model");
+        level.spawnVars[level.numSpawnVars++][1] = G_AddSpawnVarToken("models/map_objects/bounty/wall_pipes.md3");
+        if (inSubBSP)
+            HandleEntityAdjustment();
+        G_SpawnGEntityFromSpawnVars(inSubBSP);	
+    }
 }
 
 /*
