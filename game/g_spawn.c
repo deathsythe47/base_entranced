@@ -1988,6 +1988,22 @@ static void DoEntrancedAddedSpawns(qboolean inSubBSP) {
 		G_SpawnGEntityFromSpawnVars(inSubBSP);
 	}
 	
+	if (!Q_stricmp(level.mapname, "mp/siege_hoth") && g_fixHothBunkerLift.integer) {
+		level.numSpawnVarChars = 0;
+		level.numSpawnVars = 0;
+		level.spawnVars[level.numSpawnVars][0] = G_AddSpawnVarToken("classname");
+		level.spawnVars[level.numSpawnVars++][1] = G_AddSpawnVarToken("misc_model_serverside");
+		level.spawnVars[level.numSpawnVars][0] = G_AddSpawnVarToken("origin");
+		level.spawnVars[level.numSpawnVars++][1] = G_AddSpawnVarToken("224 2530 -200");
+		level.spawnVars[level.numSpawnVars][0] = G_AddSpawnVarToken("angle");
+        level.spawnVars[level.numSpawnVars++][1] = G_AddSpawnVarToken("225");
+		level.spawnVars[level.numSpawnVars][0] = G_AddSpawnVarToken("model");
+		level.spawnVars[level.numSpawnVars++][1] = G_AddSpawnVarToken("models/map_objects/desert/switch_locked.md3");
+		if (inSubBSP)
+			HandleEntityAdjustment();
+		G_SpawnGEntityFromSpawnVars(inSubBSP);
+	}
+	
 	if (level.siegeMap == SIEGEMAP_DESERT) {
         level.numSpawnVarChars = 0;
         level.numSpawnVars = 0;
