@@ -2004,7 +2004,7 @@ static void DoEntrancedAddedSpawns(qboolean inSubBSP) {
 		G_SpawnGEntityFromSpawnVars(inSubBSP);
 	}
 	
-	if (level.siegeMap == SIEGEMAP_DESERT) {
+	if (level.siegeMap == SIEGEMAP_DESERT && g_fixDesertStationsModels.integer) {
         level.numSpawnVarChars = 0;
         level.numSpawnVars = 0;
         level.spawnVars[level.numSpawnVars][0] = G_AddSpawnVarToken("classname");
