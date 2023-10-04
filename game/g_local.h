@@ -2912,6 +2912,7 @@ extern vmCvar_t    g_rocketSurfing;
 extern vmCvar_t    g_improvedTeamchat;
 extern vmCvar_t    g_enableCloak;
 extern vmCvar_t    g_fixHothBunkerLift;
+extern vmCvar_t    g_fixDesertStationsModels;
 extern vmCvar_t    g_infiniteCharge;
 extern vmCvar_t    g_siegeTiebreakEnd;
 extern vmCvar_t	   g_moreTaunts;
