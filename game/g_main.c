@@ -167,6 +167,7 @@ vmCvar_t    g_rocketSurfing;
 vmCvar_t    g_improvedTeamchat;
 vmCvar_t    g_enableCloak;
 vmCvar_t    g_fixHothBunkerLift;
+vmCvar_t    g_fixDesertStationsModels;
 vmCvar_t    g_infiniteCharge;
 vmCvar_t    g_siegeTiebreakEnd;
 vmCvar_t    g_moreTaunts;
@@ -1123,6 +1124,7 @@ static cvarTable_t		gameCvarTable[] = {
 	{ &g_improvedTeamchat, "g_improvedTeamchat", "2", CVAR_ARCHIVE, 0, qtrue },
 	{ &g_enableCloak, "g_enableCloak", "0", CVAR_ARCHIVE, 0, qtrue },
 	{ &g_fixHothBunkerLift, "g_fixHothBunkerLift", "1", CVAR_ARCHIVE, 0, qtrue },
+	{ &g_fixDesertStationsModels, "g_fixDesertStationsModels", "1", CVAR_ARCHIVE, 0, qtrue },
 	{ &g_infiniteCharge, "g_infiniteCharge", "2", CVAR_ARCHIVE, 0, qtrue },
 	{ &g_siegeTiebreakEnd, "g_siegeTiebreakEnd", "1", CVAR_ARCHIVE, 0, qtrue },
 	{ &g_moreTaunts, "g_moreTaunts", "1", CVAR_ARCHIVE, 0, qtrue },
