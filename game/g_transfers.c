@@ -47,23 +47,42 @@ void G_PostScoreboardToWebhook(const char* stats) {
 	char round1OffenseString[64] = { 0 }, round2OffenseString[64] = { 0 };
 	if (level.siegeMatchWinner == SIEGEMATCHWINNER_ROUND1OFFENSE) {
 		msgColor = 255;
-		Com_sprintf(round1OffenseString, sizeof(round1OffenseString), "WIN (%s) :trophy:", round1OffenseTimeString);
 
-		const int missingObjs = level.numSiegeObjectivesOnMap - level.totalObjectivesCompleted;
-		if (missingObjs > 0)
-			Com_sprintf(round2OffenseString, sizeof(round2OffenseString), "LOSE (-%d obj)", missingObjs);
+		const int round1MissingObjs = siege_r1_objscompleted.string[0] && siege_r1_objscompleted.integer < level.numSiegeObjectivesOnMap ? level.numSiegeObjectivesOnMap - siege_r1_objscompleted.integer : 0;
+		if (round1MissingObjs > 0)
+			Com_sprintf(round1OffenseString, sizeof(round1OffenseString), "WIN (-%d obj) :trophy:", round1MissingObjs);
+		else
+			Com_sprintf(round1OffenseString, sizeof(round1OffenseString), "WIN (%s) :trophy:", round1OffenseTimeString);
+
+		const int round2MissingObjs = level.numSiegeObjectivesOnMap - level.totalObjectivesCompleted;
+		if (round2MissingObjs > 0)
+			Com_sprintf(round2OffenseString, sizeof(round2OffenseString), "LOSE (-%d obj)", round2MissingObjs);
 		else
 			Com_sprintf(round2OffenseString, sizeof(round2OffenseString), "LOSE");
 	}
 	else if (level.siegeMatchWinner == SIEGEMATCHWINNER_ROUND2OFFENSE) {
 		msgColor = 16711680;
-		Com_sprintf(round1OffenseString, sizeof(round1OffenseString), "LOSE (%s)", round1OffenseTimeString);
+		const int round1MissingObjs = siege_r1_objscompleted.string[0] && siege_r1_objscompleted.integer < level.numSiegeObjectivesOnMap ? level.numSiegeObjectivesOnMap - siege_r1_objscompleted.integer : 0;
+		if (round1MissingObjs > 0)
+			Com_sprintf(round1OffenseString, sizeof(round1OffenseString), "LOSE (-%d obj)", round1MissingObjs);
+		else
+			Com_sprintf(round1OffenseString, sizeof(round1OffenseString), "LOSE (%s)", round1OffenseTimeString);
+
 		Com_sprintf(round2OffenseString, sizeof(round2OffenseString), "WIN (%s) :trophy:", round2OffenseTimeString);
 	}
-	else {
+	else { // draw
 		msgColor = -1;
-		Com_sprintf(round1OffenseString, sizeof(round1OffenseString), "DRAW (%s) :handshake:", round1OffenseTimeString);
-		Com_sprintf(round2OffenseString, sizeof(round2OffenseString), "DRAW (%s) :handshake:", round2OffenseTimeString);
+		trap_Cvar_Update(&siege_r2_heldformaxat);
+		if (siege_r1_heldformaxat.string[0] && siege_r1_heldformaxat.integer > 0 &&
+			siege_r2_heldformaxat.string[0] && siege_r2_heldformaxat.integer == siege_r1_heldformaxat.integer) {
+			const int missingObjs = level.numSiegeObjectivesOnMap - level.totalObjectivesCompleted;
+			Com_sprintf(round1OffenseString, sizeof(round1OffenseString), "DRAW (-%d obj) :handshake:", missingObjs);
+			Com_sprintf(round2OffenseString, sizeof(round2OffenseString), "DRAW (-%d obj) :handshake:", missingObjs);
+		}
+		else {
+			Com_sprintf(round1OffenseString, sizeof(round1OffenseString), "DRAW (%s) :handshake:", round1OffenseTimeString);
+			Com_sprintf(round2OffenseString, sizeof(round2OffenseString), "DRAW (%s) :handshake:", round2OffenseTimeString);
+		}
 	}
 
 	// build a list of players in each team

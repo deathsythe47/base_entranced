@@ -1406,7 +1406,7 @@ static cvarTable_t		gameCvarTable[] = {
 	{ &siege_r2_obj15, "siege_r2_obj15", "", CVAR_ARCHIVE | CVAR_ROM, 0, qfalse },
 	{ &siege_r2_objscompleted, "siege_r2_objscompleted", "", CVAR_ARCHIVE | CVAR_ROM, 0, qfalse },
 	{ &siege_r2_heldformaxat, "siege_r2_heldformaxat", "", CVAR_ARCHIVE | CVAR_ROM, 0, qfalse },
-	{ &siege_r2_heldformaxat, "siege_r2_heldformaxtime", "", CVAR_ARCHIVE | CVAR_ROM, 0, qfalse },
+	{ &siege_r2_heldformaxtime, "siege_r2_heldformaxtime", "", CVAR_ARCHIVE | CVAR_ROM, 0, qfalse },
 
 	{ &vote_map_a, "vote_map_a", "", CVAR_ARCHIVE, 0, qtrue },
 	{ &vote_map_b, "vote_map_b", "", CVAR_ARCHIVE, 0, qtrue },
@@ -3667,7 +3667,10 @@ void BeginIntermission(void) {
 		// * the sum of these average integers is >= 4 (at least 2s)
 		// * both averages are within +/- 0.1 of their rounded values
 		// (accounts for subs, ragequits, random joins... 0.1 represents 2 mins of a 20 mins pug)
-		if (level.pugWasLiveAtSomePoint &&
+		if (
+#ifndef _DEBUG
+			level.pugWasLiveAtSomePoint &&
+#endif
 			level.siegeStage >= SIEGESTAGE_ROUND2 &&
 			avgRedInt == avgBlueInt &&
 			avgRedInt + avgBlueInt >= 4 &&
