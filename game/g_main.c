@@ -6928,9 +6928,15 @@ void G_RunFrame( int levelTime ) {
 			level.warmupTime += dt;
 		level.startTime += dt;
 
+#if 0
+		// disabled these two lines of sil code because of fucking with siege respawn checks
+		// could probably try to account for it, but more trouble than it's worth
+		// the only downside of removing this appears to be that the white timer could flicker
+		
 		// floor start time to avoid time flipering
 		if ((level.time - level.startTime) % 1000 >= 500)
 			level.startTime += (level.time - level.startTime) % 1000;
+#endif
 
 		// initial CS update time, needed!
 		if (!lastCSTime)
