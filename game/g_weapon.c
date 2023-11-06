@@ -1847,7 +1847,7 @@ void WP_DisruptorAltFire( gentity_t *ent )
 		VectorCopy(botTarget->client->ps.origin, botTargetAimSpot);
 		botTargetAimSpot[2] += botTarget->client->ps.viewheight;
 	}
-	else if (ent->client->sess.aimBoost && ent - g_entities < MAX_CLIENTS) {
+	else if (ent->client && ent->client->sess.aimBoost && ent - g_entities < MAX_CLIENTS) {
 		botTarget = PlayerThatPlayerIsAimingClosestTo(ent);
 		if (botTarget) {
 			VectorCopy(botTarget->client->ps.origin, botTargetAimSpot);

@@ -3036,6 +3036,8 @@ void ClientThink_real( gentity_t *ent ) {
 
 		qboolean changed = qfalse;
 		if (followee) { // we have someone to follow
+			if (!client->fakeSpec)
+				G_MuteSound(ent - g_entities, CHAN_VOICE); // mute death sounds at first, so they don't teleport to the follow target
 			if (!client->fakeSpec || client->fakeSpecClient != followee->client->ps.clientNum)
 				changed = qtrue;
 			client->fakeSpec = qtrue;
