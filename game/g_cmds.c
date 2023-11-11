@@ -6040,6 +6040,7 @@ void Cmd_SetViewpos_f( gentity_t *ent ) {
 
 void Cmd_Ignore_f( gentity_t *ent )
 {			   
+	return;
 	char buffer[64];
 	gentity_t* found = NULL;
 	int id = 0;
@@ -9866,6 +9867,7 @@ void Cmd_ServerStatus2_f(gentity_t *ent)
 	PrintCvar(g_rocketSurfing);
 	PrintCvar(g_runoffVote);
 	PrintCvar(g_saberDamageScale);
+	PrintCvar(g_saberHitsToKillSentry);
 	PrintCvar(g_sexyDisruptor);
 	PrintCvar(g_siegeHelp);
 	PrintCvar(g_siegeReflectionFix);
