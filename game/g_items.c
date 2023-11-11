@@ -1211,7 +1211,7 @@ void SP_PAS( gentity_t *base )
 
 	if ( !base->health )
 	{
-		base->health = 50;
+		base->health = SENTRY_HP;
 	}
 
 	base->takedamage = qtrue;

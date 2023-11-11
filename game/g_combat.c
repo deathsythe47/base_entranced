@@ -5476,6 +5476,17 @@ int G_Damage(gentity_t *targ, gentity_t *inflictor, gentity_t *attacker,
 		return 0;
 	}
 
+	if (mod == MOD_SABER && targ && VALIDSTRING(targ->classname) && !strcmp(targ->classname, "sentryGun") && g_gametype.integer == GT_SIEGE &&
+		attacker && attacker->client && attacker - g_entities < MAX_CLIENTS && g_saberHitsToKillSentry.integer > 0
+		/*&& attacker->client->ps.saberInFlight && attacker->client->ps.saberMove != LS_DUAL_FB && attacker->client->ps.saberMove != LS_DUAL_LR*/) {
+
+		if (level.time - attacker->client->saberThrowDamageTime[targ - g_entities] < 200)
+			return 0; // duoTODO: fix sabers to return instantly all the time...
+
+		attacker->client->saberThrowDamageTime[targ - g_entities] = level.time;
+		damage = Com_Clampi(1, SENTRY_HP, (int)ceilf((float)SENTRY_HP / (float)g_saberHitsToKillSentry.integer));
+	}
+
 	// guarantee sabers oneshot mines/detpacks (fix stupid low damage bug)
 	if (mod == MOD_SABER && targ && VALIDSTRING(targ->classname) && (!strcmp(targ->classname, "laserTrap") || !strcmp(targ->classname, "detpack"))
 		&& attacker && attacker->client && attacker - g_entities < MAX_CLIENTS) {

@@ -1215,7 +1215,7 @@ struct gclient_s {
 	qboolean	usingEmplaced;
 	qboolean	forcingEmplacedNoAttack;
 
-	int			saberThrowDamageTime[MAX_CLIENTS];
+	int			saberThrowDamageTime[MAX_GENTITIES];
 
 	qboolean fakeSpec;
 	int fakeSpecClient;
@@ -1842,6 +1842,7 @@ void SendVchatList(int clientNum);
 // g_items.c
 //
 #define TURRET_LIFETIME 60000
+#define SENTRY_HP	(50)
 void ItemUse_Binoculars(gentity_t *ent);
 void ItemUse_Shield(gentity_t *ent);
 void ItemUse_Sentry(gentity_t *ent);
@@ -2664,6 +2665,8 @@ extern	vmCvar_t	g_saberDefense1Angle;
 extern	vmCvar_t	g_saberDefense2Angle;
 extern	vmCvar_t	g_saberDefense3Angle;
 extern	vmCvar_t	g_saberDefenseDebug;
+
+extern	vmCvar_t	g_saberHitsToKillSentry;
 
 extern	vmCvar_t	g_allowHighPingDuelist;
 

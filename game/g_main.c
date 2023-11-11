@@ -106,6 +106,8 @@ vmCvar_t	g_saberDefense2Angle;
 vmCvar_t	g_saberDefense3Angle;
 vmCvar_t	g_saberDefenseDebug;
 
+vmCvar_t	g_saberHitsToKillSentry;
+
 vmCvar_t	g_allowHighPingDuelist;
 
 vmCvar_t	g_logClientInfo;
@@ -819,6 +821,8 @@ static cvarTable_t		gameCvarTable[] = {
 	{ &g_saberDefense2Angle, "g_saberDefense2Angle", "30", 0, 0, qtrue },
 	{ &g_saberDefense3Angle, "g_saberDefense3Angle", "73", 0, 0, qtrue },
 	{ &g_saberDefenseDebug, "g_saberDefenseDebug", "0", 0, 0, qtrue },
+
+	{ &g_saberHitsToKillSentry, "g_saberHitsToKillSentry", "2", 0, 0, qtrue },
 
 	{ &g_logClientInfo, "g_logClientInfo", "0", CVAR_ARCHIVE, 0, qtrue },
 
