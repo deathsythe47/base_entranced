@@ -691,6 +691,23 @@ void GlobalUse(gentity_t *self, gentity_t *other, gentity_t *activator)
 	CheckSiegeHelpFromUse(self->targetname);
 
 	self->use(self, other, activator);
+
+	// upon completing hangar, unlock side door and remove its hack
+	static qboolean didHothInfirmaryRebalance = qfalse;
+	if (level.siegeMap == SIEGEMAP_HOTH && !didHothInfirmaryRebalance && g_hothInfirmaryRebalance.integer &&
+		self && VALIDSTRING(self->targetname) && !strcmp(self->targetname, "imp_obj_4")) {
+		didHothInfirmaryRebalance = qtrue;
+		for (int i = MAX_CLIENTS; i < MAX_GENTITIES; i++) {
+			gentity_t *removeMe = &g_entities[i];
+			if (!removeMe->inuse)
+				continue;
+
+			if (VALIDSTRING(removeMe->targetname) && !strcmp(removeMe->targetname, "hangartomed"))
+				UnLockDoors(removeMe);
+			else if (VALIDSTRING(removeMe->target) && !strcmp(removeMe->target, "t712"))
+				G_FreeEntity(removeMe);
+		}
+	}
 }
 
 void TargetDelayCancelUse(gentity_t *self, gentity_t *other, gentity_t *activator)

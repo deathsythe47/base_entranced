@@ -2961,6 +2961,7 @@ extern vmCvar_t    g_intermissionKnockbackNPCs;
 extern vmCvar_t    g_emotes;
 extern vmCvar_t    g_siegeHelp;
 extern vmCvar_t		g_fixHoth2ndObj;
+extern vmCvar_t		g_hothInfirmaryRebalance;
 extern vmCvar_t		g_siegeTimeVisualAid;
 extern vmCvar_t		g_botAimbot;
 extern vmCvar_t		g_botDefaultSiegeClass;

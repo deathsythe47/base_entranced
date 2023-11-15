@@ -214,6 +214,7 @@ vmCvar_t	g_intermissionKnockbackNPCs;
 vmCvar_t	g_emotes;
 vmCvar_t	g_siegeHelp;
 vmCvar_t	g_fixHoth2ndObj;
+vmCvar_t	g_hothInfirmaryRebalance;
 vmCvar_t	g_siegeTimeVisualAid;
 vmCvar_t	g_botAimbot;
 vmCvar_t	g_botDefaultSiegeClass;
@@ -1156,6 +1157,7 @@ static cvarTable_t		gameCvarTable[] = {
 	{ &g_antiLaming, "g_antiLaming", "0", CVAR_ARCHIVE, 0, qtrue },
 	{ &g_probation, "g_probation", "2", CVAR_ARCHIVE, 0, qtrue },
 	{ &g_fixHoth2ndObj, "g_fixHoth2ndObj", "1", CVAR_ARCHIVE, 0, qtrue },
+	{ &g_hothInfirmaryRebalance, "g_hothInfirmaryRebalance", "1", CVAR_ARCHIVE | CVAR_LATCH, 0, qtrue },
 	{ &g_siegeTimeVisualAid , "g_siegeTimeVisualAid", "1", CVAR_ARCHIVE, 0, qtrue },
 	{ &g_botAimbot, "g_botAimbot", "1", CVAR_ARCHIVE, 0, qtrue },
 	{ &g_botDefaultSiegeClass, "g_botDefaultSiegeClass", "scout", CVAR_ARCHIVE, 0, qtrue },
@@ -7677,17 +7679,31 @@ void G_RunFrame( int levelTime ) {
 	CheckNewmodSiegeClassLimits();
 #endif
 
-	// duo: fix inconsistent atst spawning on hoth by always spawning it 5 seconds after round start
-	static qboolean didFirstAtstSpawn = qfalse;
-	if (!didFirstAtstSpawn && g_gametype.integer == GT_SIEGE && level.siegeMap == SIEGEMAP_HOTH && !didFirstAtstSpawn &&
+	static qboolean didInitialHothStuff = qfalse;
+	if (!didInitialHothStuff && g_gametype.integer == GT_SIEGE && level.siegeMap == SIEGEMAP_HOTH &&
 		(level.siegeStage == SIEGESTAGE_ROUND1 || level.siegeStage == SIEGESTAGE_ROUND2) &&
 		level.siegeRoundStartTime && level.time - level.siegeRoundStartTime >= 5000) {
-		didFirstAtstSpawn = qtrue;
+		didInitialHothStuff = qtrue;
+
+		// fix inconsistent atst spawning on hoth by always spawning it 5 seconds after round start
 		gentity_t *atst = G_Find(NULL, FOFS(targetname), "atst_1");
 		if (atst && !Q_stricmp(atst->classname, "npc_vehicle")) {
 			atst->delay = 0;
 			GlobalUse(atst, NULL, NULL);
 			atst->delay = 10000;
+		}
+
+		// remove infirmary lock to short
+		if (g_hothInfirmaryRebalance.integer) {
+			for (int i = MAX_CLIENTS; i < MAX_GENTITIES; i++) {
+				gentity_t *lock = &g_entities[i];
+				if (!lock->inuse)
+					continue;
+				if (VALIDSTRING(lock->target) && !strcmp(lock->target, "medlabplatb_lockdoor")) {
+					lock->die(lock, lock, lock, 999999, MOD_UNKNOWN);
+					break;
+				}
+			}
 		}
 	}
 
