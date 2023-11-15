@@ -702,9 +702,9 @@ void GlobalUse(gentity_t *self, gentity_t *other, gentity_t *activator)
 			if (!removeMe->inuse)
 				continue;
 
-			if (VALIDSTRING(removeMe->targetname) && !strcmp(removeMe->targetname, "hangartomed"))
+			if (VALIDSTRING(removeMe->targetname) && !strcmp(removeMe->targetname, "hangartomed") && VALIDSTRING(removeMe->classname) && !strcmp(removeMe->classname, "func_door"))
 				UnLockDoors(removeMe);
-			else if (VALIDSTRING(removeMe->target) && !strcmp(removeMe->target, "t712"))
+			else if (VALIDSTRING(removeMe->target) && !strcmp(removeMe->target, "t712") && VALIDSTRING(removeMe->classname) && !strcmp(removeMe->classname, "trigger_once"))
 				G_FreeEntity(removeMe);
 		}
 	}
