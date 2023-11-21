@@ -789,10 +789,10 @@ void Cmd_Kill_f( gentity_t *ent ) {
 		if (timeSinceRespawn < 3000 && !HasDetpackInWorld(ent)) { // normal players cannot sk within 1 second AFTER the spawn wave, unless they have a detpack in the world
 			return;
 		}
-		if (ent->client->sess.skillBoost) {
+		if (ent->client->sess.skillBoost || g_antiSelfMax.integer) {
 			int oneSecBeforeRespawn = (g_siegeRespawn.integer - 1) * 1000;
 			if (timeSinceRespawn >= oneSecBeforeRespawn && !HasDetpackInWorld(ent)) { // skillboosted players cannot sk within 1 second BEFORE the spawn wave, too
-				trap_SendServerCommand(ent - g_entities, "print \"Your selfkill was blocked because it would have maxed you, and you are skillboosted, which prevents this.\n\"");
+				trap_SendServerCommand(ent - g_entities, "print \"Your selfkill was blocked because it would have maxed you.\n\"");
 				return;
 			}
 		}
@@ -1980,10 +1980,10 @@ void Cmd_SiegeClass_f(gentity_t *ent)
 		if (timeSinceRespawn < 3000 && !HasDetpackInWorld(ent)) { // normal players cannot sk within 1 second AFTER the spawn wave
 			return;
 		}
-		if (ent->client->sess.skillBoost && ent->health > 0 && !(ent->client->tempSpectate >= level.time)) {
+		if ((ent->client->sess.skillBoost || g_antiSelfMax.integer) && ent->health > 0 && !(ent->client->tempSpectate >= level.time)) {
 			int oneSecBeforeRespawn = (g_siegeRespawn.integer - 1) * 1000;
 			if (timeSinceRespawn >= oneSecBeforeRespawn && !HasDetpackInWorld(ent)) { // skillboosted players cannot sk within 1 second BEFORE the spawn wave, too
-				trap_SendServerCommand(ent - g_entities, "print \"Your class change was blocked because it would have maxed you, and you are skillboosted, which prevents this.\n\"");
+				trap_SendServerCommand(ent - g_entities, "print \"Your class change was blocked because it would have maxed you.\n\"");
 				return;
 			}
 		}
@@ -2243,10 +2243,10 @@ void Cmd_Join_f(gentity_t *ent)
 		if (timeSinceRespawn < 3000 && !HasDetpackInWorld(ent)) { // normal players cannot sk within 1 second AFTER the spawn wave, unless they have a detpack in the world
 			return;
 		}
-		if (ent->client->sess.skillBoost && ent->health > 0 && !(ent->client->tempSpectate >= level.time)) {
+		if ((ent->client->sess.skillBoost || g_antiSelfMax.integer) && ent->health > 0 && !(ent->client->tempSpectate >= level.time)) {
 			int oneSecBeforeRespawn = (g_siegeRespawn.integer - 1) * 1000;
 			if (timeSinceRespawn >= oneSecBeforeRespawn && !HasDetpackInWorld(ent)) { // skillboosted players cannot sk within 1 second BEFORE the spawn wave, too
-				trap_SendServerCommand(ent - g_entities, "print \"Your class change was blocked because it would have maxed you, and you are skillboosted, which prevents this.\n\"");
+				trap_SendServerCommand(ent - g_entities, "print \"Your class change was blocked because it would have maxed you.\n\"");
 				return;
 			}
 		}
@@ -2353,10 +2353,10 @@ void Cmd_Class_f(gentity_t *ent)
 		if (timeSinceRespawn < 3000 && !HasDetpackInWorld(ent)) { // normal players cannot sk within 1 second AFTER the spawn wave, unless they have a detpack in the world
 			return;
 		}
-		if (ent->client->sess.skillBoost && ent->health > 0 && !(ent->client->tempSpectate >= level.time)) {
+		if ((ent->client->sess.skillBoost || g_antiSelfMax.integer) && ent->health > 0 && !(ent->client->tempSpectate >= level.time)) {
 			int oneSecBeforeRespawn = (g_siegeRespawn.integer - 1) * 1000;
 			if (timeSinceRespawn >= oneSecBeforeRespawn && !HasDetpackInWorld(ent)) { // skillboosted players cannot sk within 1 second BEFORE the spawn wave, too
-				trap_SendServerCommand(ent - g_entities, "print \"Your class change was blocked because it would have maxed you, and you are skillboosted, which prevents this.\n\"");
+				trap_SendServerCommand(ent - g_entities, "print \"Your class change was blocked because it would have maxed you.\n\"");
 				return;
 			}
 		}
