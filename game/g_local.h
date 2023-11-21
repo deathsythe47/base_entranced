@@ -1976,6 +1976,7 @@ gentity_t *GetVehicleFromPilot(gentity_t *pilotEnt);
 qboolean PlayerIsHiddenPilot(gentity_t *pilotEnt);
 void Q_strstrip(char *string, const char *strip, const char *repl);
 void PrintIngame(int clientNum, const char *s, ...);
+void PrintIngameToPlayerAndFollowersIncludingGhosts(int clientNum, const char *msg, ...);
 char *vtos2(const vec3_t v);
 
 //

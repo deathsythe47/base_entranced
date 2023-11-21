@@ -3447,3 +3447,49 @@ char *vtos2(const vec3_t v) {
 
 	return s;
 }
+
+void PrintIngameToPlayerAndFollowersIncludingGhosts(int clientNum, const char *msg, ...) {
+	assert(clientNum < MAX_CLIENTS);
+	gentity_t *target = &g_entities[clientNum];
+
+	// send to specified player
+	va_list argptr;
+	va_start(argptr, msg);
+	PrintIngame(clientNum, msg, argptr);
+	va_end(argptr);
+
+	if (!target->client || target->client->sess.sessionTeam == TEAM_SPECTATOR)
+		return; // he's a spec, so no followers
+
+	// send to followers
+	for (int i = 0; i < MAX_CLIENTS; i++) {
+		gentity_t *follower = &g_entities[i];
+		if (!follower->client || follower->client->pers.connected == CON_DISCONNECTED || !follower->inuse || follower == target)
+			continue;
+		
+		qboolean followingMyGuy = qfalse;
+		if (follower->client->sess.sessionTeam == TEAM_SPECTATOR) {
+			if (follower->client->sess.spectatorState == SPECTATOR_FOLLOW && follower->client->sess.spectatorClient == clientNum) {
+				followingMyGuy = qtrue; // this guy is a spec following the target directly
+			}
+			else if (follower->client->sess.spectatorState == SPECTATOR_FOLLOW && follower->client->sess.spectatorClient != clientNum &&
+				follower->client->sess.spectatorClient < MAX_CLIENTS && g_entities[follower->client->sess.spectatorClient].inuse &&
+				g_entities[follower->client->sess.spectatorClient].client && g_entities[follower->client->sess.spectatorClient].client->fakeSpec &&
+				g_entities[follower->client->sess.spectatorClient].client->sess.sessionTeam == target->client->sess.sessionTeam &&
+				g_entities[follower->client->sess.spectatorClient].client->fakeSpecClient == clientNum) {
+				followingMyGuy = qtrue; // this guy is a spec following a teammate of the target who is currently ghosting the target
+			}
+		}
+		else if (g_gametype.integer == GT_SIEGE && g_siegeGhosting.integer &&
+			follower->client->sess.sessionTeam == target->client->sess.sessionTeam && follower->client->fakeSpec && follower->client->fakeSpecClient == clientNum) {
+			followingMyGuy = qtrue; // this guy is a teammate of the target who is currently ghosting the target
+		}
+
+		if (!followingMyGuy)
+			continue;
+
+		va_start(argptr, msg);
+		PrintIngame(i, msg, argptr);
+		va_end(argptr);
+	}
+}

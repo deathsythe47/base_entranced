@@ -751,6 +751,62 @@ static qboolean HasDetpackInWorld(gentity_t *ent) {
 	return qfalse;
 }
 
+static void SendAntiSelfMaxMessage(int clientNum, qboolean isClassChange) {
+	if (clientNum >= MAX_CLIENTS) {
+		assert(qfalse);
+		return;
+	}
+
+	gentity_t *selfkiller = &g_entities[clientNum];
+	if (!selfkiller->client || selfkiller->client->sess.sessionTeam == TEAM_SPECTATOR) // sanity check (should never happen)
+		return;
+
+	if (isClassChange)
+		PrintIngame(clientNum, "You were blocked from changing class to prevent a self-max.\n");
+	else
+		PrintIngame(clientNum, "You were blocked from selfkilling to prevent a self-max.\n");
+
+	static int lastMessageTime[MAX_CLIENTS][MAX_CLIENTS] = { 0 };
+
+	for (int i = 0; i < MAX_CLIENTS; i++) {
+		gentity_t *thisGuy = &g_entities[i];
+		if (!thisGuy->client || thisGuy->client->pers.connected == CON_DISCONNECTED || !thisGuy->inuse || i == clientNum)
+			continue;
+
+		if (lastMessageTime[clientNum][i] && level.time - lastMessageTime[clientNum][i] < 2000)
+			continue; // don't spam
+
+		qboolean sendYouTriedToSelfkillMessage = qfalse, sendTeammateTriedToSelfkillMessage = qfalse;
+		if (thisGuy->client->sess.sessionTeam == TEAM_SPECTATOR) {
+			if (thisGuy->client->sess.spectatorState == SPECTATOR_FOLLOW && thisGuy->client->sess.spectatorClient == clientNum) {
+				sendYouTriedToSelfkillMessage = qtrue; // this guy is a spec following the selfkiller directly
+			}
+			else if (thisGuy->client->sess.spectatorState == SPECTATOR_FOLLOW && thisGuy->client->sess.spectatorClient != clientNum &&
+				thisGuy->client->sess.spectatorClient < MAX_CLIENTS && g_entities[thisGuy->client->sess.spectatorClient].inuse &&
+				g_entities[thisGuy->client->sess.spectatorClient].client && g_entities[thisGuy->client->sess.spectatorClient].client->sess.sessionTeam == selfkiller->client->sess.sessionTeam) {
+				sendTeammateTriedToSelfkillMessage = qtrue; // this guy is a spec following a teammate of the selfkiller
+			}
+		}
+		else if (thisGuy->client->sess.sessionTeam == selfkiller->client->sess.sessionTeam) {
+			sendTeammateTriedToSelfkillMessage = qtrue; // this guy is a teammate of the selfkiller
+		}
+
+		if (sendYouTriedToSelfkillMessage) {
+			lastMessageTime[clientNum][i] = level.time;
+			if (isClassChange)
+				PrintIngame(i, "You were blocked from changing class to prevent a self-max.\n");
+			else
+				PrintIngame(i, "You were blocked from selfkilling to prevent a self-max.\n");
+		}
+		else if (sendTeammateTriedToSelfkillMessage) {
+			lastMessageTime[clientNum][i] = level.time;
+			if (isClassChange)
+				PrintIngame(i, "%s%s^7 was blocked from changing class to prevent a self-max.\n", NM_SerializeUIntToColor(clientNum), selfkiller->client->pers.netname);
+			else
+				PrintIngame(i, "%s%s^7 was blocked from selfkilling to prevent a self-max.\n", NM_SerializeUIntToColor(clientNum), selfkiller->client->pers.netname);
+		}
+	}
+}
 
 /*
 =================
@@ -786,13 +842,13 @@ void Cmd_Kill_f( gentity_t *ent ) {
 
 	if (g_gametype.integer == GT_SIEGE && g_antiSelfMax.integer && g_siegeRespawn.integer >= 10 && (level.siegeStage == SIEGESTAGE_ROUND1 || level.siegeStage == SIEGESTAGE_ROUND2)) {
 		int timeSinceRespawn = (level.time + (g_siegeRespawn.integer * 1000)) - level.siegeRespawnCheck;
-		if (timeSinceRespawn < 3000 && !HasDetpackInWorld(ent)) { // normal players cannot sk within 1 second AFTER the spawn wave, unless they have a detpack in the world
+		if (timeSinceRespawn < 3000 && !HasDetpackInWorld(ent)) { // players cannot sk within 3 seconds AFTER the spawn wave, unless they have a detpack in the world
 			return;
 		}
 		if (ent->client->sess.skillBoost || g_antiSelfMax.integer) {
 			int oneSecBeforeRespawn = (g_siegeRespawn.integer - 1) * 1000;
-			if (timeSinceRespawn >= oneSecBeforeRespawn && !HasDetpackInWorld(ent)) { // skillboosted players cannot sk within 1 second BEFORE the spawn wave, too
-				trap_SendServerCommand(ent - g_entities, "print \"Your selfkill was blocked because it would have maxed you.\n\"");
+			if (timeSinceRespawn >= oneSecBeforeRespawn && !HasDetpackInWorld(ent)) { // cannot sk within 1 second BEFORE the spawn wave, too
+				SendAntiSelfMaxMessage(ent - g_entities, qfalse);
 				return;
 			}
 		}
@@ -1977,13 +2033,13 @@ void Cmd_SiegeClass_f(gentity_t *ent)
 	if (g_gametype.integer == GT_SIEGE && g_antiSelfMax.integer && g_siegeRespawn.integer >= 10 && (level.siegeStage == SIEGESTAGE_ROUND1 || level.siegeStage == SIEGESTAGE_ROUND2) &&
 		ent->client->sess.sessionTeam != TEAM_SPECTATOR) {
 		int timeSinceRespawn = (level.time + (g_siegeRespawn.integer * 1000)) - level.siegeRespawnCheck;
-		if (timeSinceRespawn < 3000 && !HasDetpackInWorld(ent)) { // normal players cannot sk within 1 second AFTER the spawn wave
+		if (timeSinceRespawn < 3000 && !HasDetpackInWorld(ent)) { // players cannot sk within 3 seconds AFTER the spawn wave, unless they have a detpack in the world
 			return;
 		}
 		if ((ent->client->sess.skillBoost || g_antiSelfMax.integer) && ent->health > 0 && !(ent->client->tempSpectate >= level.time)) {
 			int oneSecBeforeRespawn = (g_siegeRespawn.integer - 1) * 1000;
-			if (timeSinceRespawn >= oneSecBeforeRespawn && !HasDetpackInWorld(ent)) { // skillboosted players cannot sk within 1 second BEFORE the spawn wave, too
-				trap_SendServerCommand(ent - g_entities, "print \"Your class change was blocked because it would have maxed you.\n\"");
+			if (timeSinceRespawn >= oneSecBeforeRespawn && !HasDetpackInWorld(ent)) { // cannot sk within 1 second BEFORE the spawn wave, too
+				SendAntiSelfMaxMessage(ent - g_entities, qtrue);
 				return;
 			}
 		}
@@ -2240,13 +2296,13 @@ void Cmd_Join_f(gentity_t *ent)
 	if (g_antiSelfMax.integer && g_siegeRespawn.integer >= 10 && (level.siegeStage == SIEGESTAGE_ROUND1 || level.siegeStage == SIEGESTAGE_ROUND2) &&
 		ent->client->sess.sessionTeam != TEAM_SPECTATOR) {
 		int timeSinceRespawn = (level.time + (g_siegeRespawn.integer * 1000)) - level.siegeRespawnCheck;
-		if (timeSinceRespawn < 3000 && !HasDetpackInWorld(ent)) { // normal players cannot sk within 1 second AFTER the spawn wave, unless they have a detpack in the world
+		if (timeSinceRespawn < 3000 && !HasDetpackInWorld(ent)) { // players cannot sk within 3 seconds AFTER the spawn wave, unless they have a detpack in the world
 			return;
 		}
 		if ((ent->client->sess.skillBoost || g_antiSelfMax.integer) && ent->health > 0 && !(ent->client->tempSpectate >= level.time)) {
 			int oneSecBeforeRespawn = (g_siegeRespawn.integer - 1) * 1000;
-			if (timeSinceRespawn >= oneSecBeforeRespawn && !HasDetpackInWorld(ent)) { // skillboosted players cannot sk within 1 second BEFORE the spawn wave, too
-				trap_SendServerCommand(ent - g_entities, "print \"Your class change was blocked because it would have maxed you.\n\"");
+			if (timeSinceRespawn >= oneSecBeforeRespawn && !HasDetpackInWorld(ent)) { // cannot sk within 1 second BEFORE the spawn wave, too
+				SendAntiSelfMaxMessage(ent - g_entities, qtrue);
 				return;
 			}
 		}
@@ -2350,13 +2406,13 @@ void Cmd_Class_f(gentity_t *ent)
 
 	if (g_antiSelfMax.integer && g_siegeRespawn.integer >= 10 && (level.siegeStage == SIEGESTAGE_ROUND1 || level.siegeStage == SIEGESTAGE_ROUND2)) {
 		int timeSinceRespawn = (level.time + (g_siegeRespawn.integer * 1000)) - level.siegeRespawnCheck;
-		if (timeSinceRespawn < 3000 && !HasDetpackInWorld(ent)) { // normal players cannot sk within 1 second AFTER the spawn wave, unless they have a detpack in the world
+		if (timeSinceRespawn < 3000 && !HasDetpackInWorld(ent)) { // players cannot sk within 3 seconds AFTER the spawn wave, unless they have a detpack in the world
 			return;
 		}
 		if ((ent->client->sess.skillBoost || g_antiSelfMax.integer) && ent->health > 0 && !(ent->client->tempSpectate >= level.time)) {
 			int oneSecBeforeRespawn = (g_siegeRespawn.integer - 1) * 1000;
-			if (timeSinceRespawn >= oneSecBeforeRespawn && !HasDetpackInWorld(ent)) { // skillboosted players cannot sk within 1 second BEFORE the spawn wave, too
-				trap_SendServerCommand(ent - g_entities, "print \"Your class change was blocked because it would have maxed you.\n\"");
+			if (timeSinceRespawn >= oneSecBeforeRespawn && !HasDetpackInWorld(ent)) { // cannot sk within 1 second BEFORE the spawn wave, too
+				SendAntiSelfMaxMessage(ent - g_entities, qtrue);
 				return;
 			}
 		}
