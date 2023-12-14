@@ -212,21 +212,29 @@ const char* G_DoesMapSupportGametype(const char *mapname, int gametype)
 G_LoadArenas
 ===============
 */
+#define LOADARENAS_DIRLIST_SIZE		(0x80000)
 void G_LoadArenas( void ) {
 	int			numdirs;
-	char		filename[128];
-	char		dirlist[4096];
 	char*		dirptr;
 	int			i, n;
 	int			dirlen;
 
 	g_numArenas = 0;
 
+	char *dirlist = malloc(LOADARENAS_DIRLIST_SIZE);
+	if (!dirlist) {
+		Com_Error(ERR_FATAL, "Unable to allocate memory for G_LoadArenas");
+		return;
+	}
+
+
 	// get all arenas from .arena files
-	numdirs = trap_FS_GetFileList("scripts", ".arena", dirlist, sizeof(dirlist) );
+	numdirs = trap_FS_GetFileList("scripts", ".arena", dirlist, LOADARENAS_DIRLIST_SIZE);
 	dirptr  = dirlist;
 	for (i = 0; i < numdirs; i++, dirptr += dirlen+1) {
 		dirlen = strlen(dirptr);
+
+		char filename[128];
 		strcpy(filename, "scripts/");
 		strcat(filename, dirptr);
 		G_LoadArenasFromFile(filename);
@@ -237,6 +245,8 @@ void G_LoadArenas( void ) {
 	}
 
 	G_RefreshNextMap(g_gametype.integer, qfalse);
+
+	free(dirlist);
 }
 
 //rww - auto-obtain nextmap. I could've sworn Q3 had something like this, but I guess not.
