@@ -71,6 +71,8 @@ extern vec3_t gPainPoint;
 
 #define CARGO_FANGRATING_NUM	(227)
 
+#define AIRSHOT_GROUND_DISTANCE_THRESHOLD (50.0f)
+
 //primarily used by NPCs
 #define	START_TIME_LINK_ENTS		FRAMETIME*1 // time-delay after map start at which all ents have been spawned, so can link them
 #define	START_TIME_FIND_LINKS		FRAMETIME*2 // time-delay after map start at which you can find linked entities
@@ -1219,6 +1221,9 @@ struct gclient_s {
 
 	qboolean fakeSpec;
 	int fakeSpecClient;
+
+	int lastAiredOtherClientTime[MAX_CLIENTS];
+	int lastAiredOtherClientMeansOfDeath[MAX_CLIENTS];
 };
 
 //Interest points
@@ -2820,6 +2825,7 @@ extern vmCvar_t     g_hackLog;
 
 extern vmCvar_t     g_fixPitKills;
 extern vmCvar_t     g_fixGripKills;
+extern vmCvar_t     g_creditAirKills;
 
 
 extern vmCvar_t		g_allow_vote_customTeams;

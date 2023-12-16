@@ -432,6 +432,98 @@ void G_MissileBounceEffect( gentity_t *ent, vec3_t org, vec3_t dir )
 	}
 }
 
+qboolean LogAccuracyHitSameTeamOkay(gentity_t *target, gentity_t *attacker) {
+	if (!target->takedamage) {
+		return qfalse;
+	}
+
+	if (target == attacker) {
+		return qfalse;
+	}
+
+	if (!target->client) {
+		return qfalse;
+	}
+
+	if (!attacker)
+	{
+		return qfalse;
+	}
+
+	if (!attacker->client) {
+		return qfalse;
+	}
+
+	if (target->client->ps.stats[STAT_HEALTH] <= 0) {
+		return qfalse;
+	}
+
+	/*if (OnSameTeam(target, attacker)) {
+		return qfalse;
+	}*/
+
+	return qtrue;
+}
+
+static qboolean CountsForAirshotStat(gentity_t *missile) {
+	assert(missile);
+	switch (missile->methodOfDeath) {
+	case MOD_BOWCASTER:
+	case MOD_REPEATER_ALT:
+	case MOD_FLECHETTE_ALT_SPLASH:
+	case MOD_ROCKET:
+	case MOD_THERMAL:
+	case MOD_CONC:
+		return qtrue;
+	case MOD_ROCKET_HOMING:
+		return !!!(missile->enemy); // alt rockets can count if they are unhomed
+	case MOD_BRYAR_PISTOL_ALT:
+		return !!(missile->s.generic1 > 1); // require a little bit of charge
+	default:
+		return qfalse;
+	}
+}
+
+qboolean CheckAccuracyAndAirshot(gentity_t *missile, gentity_t *victim, qboolean isSurfedRocket) {
+	qboolean hitClient = qfalse;
+
+	if (missile->r.ownerNum >= MAX_CLIENTS)
+		return qfalse;
+	gentity_t *missileOwner = &g_entities[missile->r.ownerNum];
+	if (!missileOwner->inuse || !missileOwner->client)
+		return qfalse;
+
+	if (LogAccuracyHitSameTeamOkay(victim, missileOwner) && !missile->isReflected) {
+		hitClient = qtrue;
+
+		if (isSurfedRocket && CountsForAirshotStat(missile)) {
+			if (victim - g_entities < MAX_CLIENTS) {
+				missileOwner->client->lastAiredOtherClientTime[victim - g_entities] = level.time;
+				missileOwner->client->lastAiredOtherClientMeansOfDeath[victim - g_entities] = missile->methodOfDeath;
+			}
+		}
+		else if (victim->playerState->groundEntityNum == ENTITYNUM_NONE && CountsForAirshotStat(missile)) {
+			// hit while in air; make sure the victim is decently in the air though (not just 1 nanometer from the gorund)
+			trace_t tr;
+			vec3_t down;
+			VectorCopy(victim->r.currentOrigin, down);
+			down[2] -= 4096;
+			trap_Trace(&tr, victim->r.currentOrigin, victim->r.mins, victim->r.maxs, down, victim - g_entities, MASK_SOLID);
+			VectorSubtract(victim->r.currentOrigin, tr.endpos, down);
+			float groundDist = VectorLength(down);
+			if (groundDist >= AIRSHOT_GROUND_DISTANCE_THRESHOLD) {
+				if (victim - g_entities < MAX_CLIENTS) {
+					missileOwner->client->lastAiredOtherClientTime[victim - g_entities] = level.time;
+					missileOwner->client->lastAiredOtherClientMeansOfDeath[victim - g_entities] = missile->methodOfDeath;
+				}
+			}
+			//PrintIngame(-1, "Ground distance is %0.2f\n", groundDist);
+		}
+	}
+
+	return hitClient;
+}
+
 /*
 ================
 G_MissileImpact
@@ -775,11 +867,7 @@ void G_MissileImpact( gentity_t *ent, trace_t *trace ) {
 			vec3_t	velocity;
 			qboolean didDmg = qfalse;
 
-			if( LogAccuracyHit( other, &g_entities[ent->r.ownerNum] ) &&
-				!ent->isReflected) {
-				g_entities[ent->r.ownerNum].client->accuracy_hits++;
-				hitClient = qtrue;
-			}
+			hitClient = CheckAccuracyAndAirshot(ent, other, qfalse);
 			BG_EvaluateTrajectoryDelta( &ent->s.pos, level.time, velocity );
 			if ( VectorLength( velocity ) == 0 ) {
 				velocity[2] = 1;	// stepped on a grenade

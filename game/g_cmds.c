@@ -9871,6 +9871,7 @@ void Cmd_ServerStatus2_f(gentity_t *ent)
 	PrintCvar(g_botJumping);
 	PrintCvar(g_breakRNG);
 	PrintCvar(g_coneReflectAngle);
+	PrintCvar(g_creditAirKills);
 	PrintCvar(g_dismember);
 	PrintCvar(g_dispenserLifetime);
 	PrintCvar(g_emotes);

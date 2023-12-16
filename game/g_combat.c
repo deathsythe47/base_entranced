@@ -2779,6 +2779,27 @@ void player_die( gentity_t *self, gentity_t *inflictor, gentity_t *attacker, int
 		}
 	}
 
+	qboolean isAirFrag = qfalse;
+	if (self && self->client && self - g_entities < MAX_CLIENTS &&
+		attacker && attacker->client && attacker - g_entities < MAX_CLIENTS &&
+		attacker->client->lastAiredOtherClientTime[self - g_entities] && level.time - attacker->client->lastAiredOtherClientTime[self - g_entities] <= 50 &&
+		attacker->client->lastAiredOtherClientMeansOfDeath[self - g_entities] == meansOfDeath) {
+
+		switch (meansOfDeath) {
+		case MOD_BOWCASTER:
+		case MOD_REPEATER_ALT:
+		case MOD_FLECHETTE_ALT_SPLASH:
+		case MOD_ROCKET:
+		case MOD_ROCKET_HOMING:
+		case MOD_THERMAL:
+		case MOD_CONC:
+		case MOD_BRYAR_PISTOL_ALT:
+		case MOD_SABER:
+			isAirFrag = qtrue;
+			break;
+		}
+	}
+
 	if (meansOfDeath == MOD_TRIGGER_HURT && level.siegeMap == SIEGEMAP_URBAN) {
 		if (!attacker || attacker == self || (VALIDSTRING(attacker->classname) && !Q_stricmp(attacker->classname, "trigger_hurt"))) {
 			if (self->client && self->client->ps.origin[1] >= 9800)
@@ -2888,6 +2909,8 @@ void player_die( gentity_t *self, gentity_t *inflictor, gentity_t *attacker, int
 		ent->s.isJediMaster = wasJediMaster;
 		assert(customObituary >= 0 && customObituary < MAX_CUSTOMOBITUARIES);
 		ent->s.emplacedOwner = customObituary;
+		if (isAirFrag && g_creditAirKills.integer)
+			ent->s.userInt2 = 1;
 	}
 
 	self->enemy = attacker;
@@ -5423,6 +5446,24 @@ int G_Damage(gentity_t *targ, gentity_t *inflictor, gentity_t *attacker,
 		}
 		if (mod != MOD_DISRUPTOR && mod != MOD_DISRUPTOR_SNIPER && mod != MOD_DEMP2 && mod != MOD_DEMP2_ALT)
 			return 0; // only allow disruptor and demp mouse2
+	}
+
+	if (g_gametype.integer == GT_SIEGE && mod == MOD_SABER &&
+		targ && targ->client && targ - g_entities < MAX_CLIENTS &&
+		attacker && attacker->client && attacker - g_entities < MAX_CLIENTS &&
+		targ->s.groundEntityNum == ENTITYNUM_NONE) {
+		trace_t tr;
+		vec3_t down;
+		VectorCopy(targ->r.currentOrigin, down);
+		down[2] -= 4096;
+		trap_Trace(&tr, targ->r.currentOrigin, targ->r.mins, targ->r.maxs, down, targ - g_entities, MASK_SOLID);
+		VectorSubtract(targ->r.currentOrigin, tr.endpos, down);
+		float groundDist = VectorLength(down);
+		if (groundDist >= AIRSHOT_GROUND_DISTANCE_THRESHOLD) {
+			attacker->client->lastAiredOtherClientTime[targ - g_entities] = level.time;
+			attacker->client->lastAiredOtherClientMeansOfDeath[targ - g_entities] = MOD_SABER;
+		}
+		//PrintIngame(-1, "Ground distance is %0.2f\n", groundDist);
 	}
 
 	if ( targ && targ->client && targ->client->ps.duelInProgress )
