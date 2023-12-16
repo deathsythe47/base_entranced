@@ -493,7 +493,7 @@ qboolean CheckAccuracyAndAirshot(gentity_t *missile, gentity_t *victim, qboolean
 	if (!missileOwner->inuse || !missileOwner->client)
 		return qfalse;
 
-	if (LogAccuracyHitSameTeamOkay(victim, missileOwner) && !missile->isReflected) {
+	if (LogAccuracyHitSameTeamOkay(victim, missileOwner)) {
 		hitClient = qtrue;
 
 		if (isSurfedRocket && CountsForAirshotStat(missile)) {
