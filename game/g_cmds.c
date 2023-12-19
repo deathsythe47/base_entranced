@@ -2950,7 +2950,7 @@ static void WriteTextForToken( gentity_t *ent, const char token, char *buffer, s
 		Com_sprintf( buffer, bufferSize, "%d", value );
 		break;
 	case 'm': case 'M':
-		if (!weaponData[cl->ps.weapon].energyPerShot && !weaponData[cl->ps.weapon].energyPerShot || cl->ps.stats[STAT_HEALTH] <= 0 || (g_gametype.integer == GT_SIEGE && cl->tempSpectate > level.time))
+		if (!weaponData[cl->ps.weapon].energyPerShot && !weaponData[cl->ps.weapon].altEnergyPerShot || cl->ps.stats[STAT_HEALTH] <= 0 || (g_gametype.integer == GT_SIEGE && cl->tempSpectate > level.time))
 			value = 0;
 		else
 			value = Com_Clampi(0, 999, cl->ps.ammo[weaponData[cl->ps.weapon].ammoIndex]);
