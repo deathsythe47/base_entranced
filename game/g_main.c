@@ -1037,12 +1037,12 @@ static cvarTable_t		gameCvarTable[] = {
 	{ &g_coneReflectAngle , "g_coneReflectAngle", "30", CVAR_ARCHIVE, 0, qtrue },
 
 #ifdef _DEBUG
-	{ &z_debug1, "z_debug1", "", 0, 0, qtrue },
-	{ &z_debug2, "z_debug2", "", 0, 0, qtrue },
-	{ &z_debug3, "z_debug3", "", 0, 0, qtrue },
-	{ &z_debug4, "z_debug4", "", 0, 0, qtrue },
-	{ &z_debugSiegeTime, "z_debugSiegeTime", "", 0, 0, qtrue },
-	{ &z_debugUse, "z_debugUse", "1", 0, 0, qtrue },
+	{ &z_debug1, "z_debug1",					"", 0, 0, qtrue },
+	{ &z_debug2, "z_debug2",					"", 0, 0, qtrue },
+	{ &z_debug3, "z_debug3",					"", 0, 0, qtrue },
+	{ &z_debug4, "z_debug4",					"", 0, 0, qtrue },
+	{ &z_debugSiegeTime, "z_debugSiegeTime",	"", 0, 0, qtrue },
+	{ &z_debugUse, "z_debugUse",				"0", 0, 0, qtrue },
 #endif
 
 	{ &g_saveCaptureRecords, "g_saveCaptureRecords", "1", CVAR_ARCHIVE | CVAR_LATCH, 0, qtrue },
@@ -1074,7 +1074,7 @@ static cvarTable_t		gameCvarTable[] = {
 
 	{ &g_inMemoryDB, "g_inMemoryDB", "1", CVAR_ARCHIVE | CVAR_LATCH, 0, qfalse },
 
-	{ &g_traceSQL, "g_traceSQL", "0", CVAR_ARCHIVE | CVAR_LATCH, 0, qfalse },
+	{ &g_traceSQL, "g_traceSQL", "1", CVAR_ARCHIVE | CVAR_LATCH, 0, qfalse },
 
     { &g_restart_countdown, "g_restart_countdown", "0", CVAR_ARCHIVE, 0, qtrue }, 
 
@@ -1103,7 +1103,7 @@ static cvarTable_t		gameCvarTable[] = {
 	{ &g_allow_vote_pug, "g_allow_vote_pug", "0", CVAR_ARCHIVE, 0, qtrue },
 	{ &g_allow_vote_pub, "g_allow_vote_pub", "0", CVAR_ARCHIVE, 0, qtrue },
 	{ &g_allow_vote_lockteams, "g_allow_vote_lockteams", "1", CVAR_ARCHIVE, 0, qtrue },
-	{ &g_allow_vote_quickSpawns, "g_allow_vote_quickSpawns", "1", CVAR_ARCHIVE, 0, qtrue },
+	{ &g_allow_vote_quickSpawns, "g_allow_vote_quickSpawns", "0", CVAR_ARCHIVE, 0, qtrue },
 
 	{ &g_hackLog,	"g_hackLog"	, "hacks.log"	, CVAR_ARCHIVE, 0, qtrue },
 
@@ -1162,7 +1162,7 @@ static cvarTable_t		gameCvarTable[] = {
 	{ &g_hothInfirmaryRebalance, "g_hothInfirmaryRebalance", "1", CVAR_ARCHIVE | CVAR_LATCH, 0, qtrue },
 	{ &g_siegeTimeVisualAid , "g_siegeTimeVisualAid", "1", CVAR_ARCHIVE, 0, qtrue },
 	{ &g_botAimbot, "g_botAimbot", "1", CVAR_ARCHIVE, 0, qtrue },
-	{ &g_botDefaultSiegeClass, "g_botDefaultSiegeClass", "scout", CVAR_ARCHIVE, 0, qtrue },
+	{ &g_botDefaultSiegeClass, "g_botDefaultSiegeClass",	"scout", CVAR_ARCHIVE, 0, qtrue },
 	{ &g_speedrunRoundOneRestart, "g_speedrunRoundOneRestart", "1", CVAR_ARCHIVE, 0, qtrue },
 	{ &g_siegeGhosting, "g_siegeGhosting", "2", CVAR_ARCHIVE | CVAR_LATCH, 0, qtrue },
 	{ &g_fixHothHangarTurrets, "g_fixHothHangarTurrets", "1", CVAR_ARCHIVE, 0, qtrue },
@@ -2327,11 +2327,13 @@ extern void G_LoadVoteMapsPools(void);
 extern void InitUnhandledExceptionFilter();
 
 void G_InitGame( int levelTime, int randomSeed, int restart, void *serverDbPtr ) {
-	int					i;
-	vmCvar_t	mapname;
-	vmCvar_t	ckSum;
+	G_Printf("------- Game Initialization -------\n");
+	G_Printf("gamename: %s\n", GAMEVERSION);
+	G_Printf("gamedate: %s\n", __DATE__);
+	srand(randomSeed);
+	G_RegisterCvars();
+	G_DBLoadDatabase(serverDbPtr);
 
-	InitUnhandledExceptionFilter();
 	InitializeMapName();
 
 	// if we changed siege maps, reset back to round 1
@@ -2344,11 +2346,17 @@ void G_InitGame( int levelTime, int randomSeed, int restart, void *serverDbPtr )
 	trap_Cvar_Set("lastMapName", level.mapname);
 
 #ifdef _XBOX
-	if(restart) {
+	if (restart) {
 		BG_ClearVehicleParseParms();
 		RemoveAllWP();
 	}
 #endif
+
+	int					i;
+	vmCvar_t	mapname;
+	vmCvar_t	ckSum;
+
+	InitUnhandledExceptionFilter();
 
 	//Init RMG to 0, it will be autoset to 1 if there is terrain on the level.
 	trap_Cvar_Set("RMG", "0");
@@ -2365,14 +2373,6 @@ void G_InitGame( int levelTime, int randomSeed, int restart, void *serverDbPtr )
 
 	//Load external vehicle data
 	BG_VehicleLoadParms();
-
-	G_Printf ("------- Game Initialization -------\n");
-	G_Printf ("gamename: %s\n", GAMEVERSION);
-	G_Printf ("gamedate: %s\n", __DATE__);
-
-	srand( randomSeed );
-
-	G_RegisterCvars();
 
 	G_ProcessGetstatusIPBans();
 
@@ -2553,8 +2553,6 @@ void G_InitGame( int levelTime, int randomSeed, int restart, void *serverDbPtr )
 	trap_Cvar_Register( &ckSum, "sv_mapChecksum", "", CVAR_ROM );
 
 	navCalculatePaths	= ( trap_Nav_Load( mapname.string, ckSum.integer ) == qfalse );
-
-	G_DBLoadDatabase(serverDbPtr);
 
 	// parse the key/value pairs and spawn gentities
 	G_SpawnEntitiesFromString(qfalse);
