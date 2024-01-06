@@ -168,6 +168,7 @@ static void PrintObjStat(int objective, int heldForMax) {
 
 	// debug message to help investigate bugged times
 	if (ms < 0 || ms > level.time - level.siegeRoundStartTime) {
+#if 0
 		Com_Printf("PRINTOBJSTAT DEBUG: %s %s %s %s %s/%s %s %s %s %s/%s %s %s %s %s/%s %s %s %s %s/%s %s %s %s %s/%s %s %s %s %s/%s %s %s %s %s/%s %s %s\n",
 			siege_r1_obj0.string, siege_r1_obj1.string, siege_r1_obj2.string,
 			siege_r1_obj3.string, siege_r1_obj4.string, siege_r1_obj5.string,
@@ -183,6 +184,7 @@ static void PrintObjStat(int objective, int heldForMax) {
 			siege_r2_obj12.string, siege_r2_obj13.string, siege_r2_obj14.string,
 			siege_r2_obj15.string, siege_r2_objscompleted.string,
 			siege_r2_heldformaxat.string, siege_r2_heldformaxtime.string);
+#endif
 	}
 }
 
@@ -1946,7 +1948,7 @@ void SpeedRunModeRuined(const char *reason) {
 	if (level.mapCaptureRecords.speedRunModeRuined)
 		return;
 	level.mapCaptureRecords.speedRunModeRuined = qtrue;
-#ifdef _DEBUG
+#if 0
 	Com_Printf("^1Speed run mode ruined! Reason: %s^7\n", reason);
 #endif
 }
@@ -3624,7 +3626,7 @@ void SiegeObjectiveCompleted(int team, int objective, int final, int client) {
 		for (int i = 0; i < MAX_SAVED_OBJECTIVES; i++) {
 			if (level.worldspawnCombinedObjs[i] == (1 << (objective - 1))) {
 				// this combined obj is exactly the obj we just completed
-#ifdef _DEBUG
+#if 0
 				Com_Printf("Obj complete exactly matching a combined obj; running top times on combined obj %d\n", i + 1);
 #endif
 				topTimesObjNum = i + 1;
@@ -3646,7 +3648,7 @@ void SiegeObjectiveCompleted(int team, int objective, int final, int client) {
 					}
 					if (combinedObjHasAllObjsCompleted) {
 						// the combined obj has had all sub-objs completed; run top times
-#ifdef _DEBUG
+#if 0
 						Com_Printf("Obj complete and all sub-objs complete; running toptimes on combined obj %d with time savedTime %d + ms %d == %d\n", i + 1, savedTime, ms, savedTime + ms);
 #endif
 						topTimesObjNum = i + 1;
@@ -3655,7 +3657,7 @@ void SiegeObjectiveCompleted(int team, int objective, int final, int client) {
 					}
 					else {
 						// don't run top times yet; the combined obj has not yet had all sub-objs completed
-#ifdef _DEBUG
+#if 0
 						Com_Printf("Obj complete but not all sub-objs of combined obj; saving obj time: %d += %d == %d\n", savedTime, ms, savedTime + ms);
 #endif
 						savedTime += ms;
