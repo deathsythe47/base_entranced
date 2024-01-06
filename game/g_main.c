@@ -1371,7 +1371,7 @@ static cvarTable_t		gameCvarTable[] = {
 
 	{ &playedPugMaps, "playedPugMaps", "", CVAR_ARCHIVE | CVAR_ROM, 0, qfalse },
 	{ &desiredPugMaps, "desiredPugMaps", "", CVAR_ARCHIVE | CVAR_ROM, 0 , qfalse },
-	{ &g_defaultPugMaps, "g_defaultPugMaps", "hncub", CVAR_ARCHIVE, 0, qtrue },
+	{ &g_defaultPugMaps, "g_defaultPugMaps", "hncu", CVAR_ARCHIVE, 0, qtrue },
 
 	{ &debug_shieldLog, "debug_shieldLog", "0", CVAR_ARCHIVE, 0, qtrue },
 	{ &debug_duoTest, "debug_duoTest", "0", CVAR_ARCHIVE, 0, qtrue },
