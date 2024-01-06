@@ -5028,7 +5028,7 @@ int G_Damage(gentity_t *targ, gentity_t *inflictor, gentity_t *attacker,
 			jediSplashDmgReduction = sdp->jediSplashDamageReduction;
 			nonJediSaberDmgIncrease = sdp->nonJediSaberDamageIncrease;
 #ifdef _DEBUG
-			Com_Printf("Outgoing damage param: damage %d -> %d, knockback multiplier %.3f\n", originalDamage, damage, specialDamageParamKnockbackMultiplier);
+			//Com_Printf("Outgoing damage param: damage %d -> %d, knockback multiplier %.3f\n", originalDamage, damage, specialDamageParamKnockbackMultiplier);
 #endif
 			if (!damage)
 				return 0;
@@ -5078,7 +5078,7 @@ int G_Damage(gentity_t *targ, gentity_t *inflictor, gentity_t *attacker,
 			jediSplashDmgReduction = sdp->jediSplashDamageReduction;
 			nonJediSaberDmgIncrease = sdp->nonJediSaberDamageIncrease;
 #ifdef _DEBUG
-			Com_Printf("Incoming damage param: damage %d -> %d, knockback multiplier %.3f\n", originalDamage, damage, specialDamageParamKnockbackMultiplier);
+			//Com_Printf("Incoming damage param: damage %d -> %d, knockback multiplier %.3f\n", originalDamage, damage, specialDamageParamKnockbackMultiplier);
 #endif
 			if (!damage)
 				return 0;
@@ -6132,7 +6132,7 @@ int G_Damage(gentity_t *targ, gentity_t *inflictor, gentity_t *attacker,
 		asave = 0;
 
 #ifdef _DEBUG
-	Com_Printf("%d damaged by %d with mod %d for %d (original damage: %d)\n", targ ? targ - g_entities : -1, attacker ? attacker - g_entities : -1, mod, take, originalDamage);
+	//Com_Printf("%d damaged by %d with mod %d for %d (original damage: %d)\n", targ ? targ - g_entities : -1, attacker ? attacker - g_entities : -1, mod, take, originalDamage);
 #endif
 
 	if (asave)

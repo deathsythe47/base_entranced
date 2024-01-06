@@ -19,7 +19,7 @@ static int TraceCallback( unsigned int type, void* ctx, void* ptr, void* info ) 
 	if ( type == SQLITE_TRACE_STMT ) {
 		char* sql = ( char* )info;
 
-		Com_Printf( "Executing SQL: \n" );
+		//Com_Printf( "Executing SQL: \n" );
 
 		if ( !Q_stricmpn( sql, "--", 2 ) ) {
 			// a comment, which means this is a trigger, log it directly

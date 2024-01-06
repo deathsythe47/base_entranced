@@ -585,7 +585,7 @@ qboolean PatchEngine( void )
 	int i;
 	qboolean success = qtrue;
 
-    Com_Printf("Patching engine.\n");
+    //Com_Printf("Patching engine.\n");
 
 	memset(connectingIPLog, 0, sizeof(connectingIPLog));
 
@@ -618,7 +618,7 @@ qboolean UnpatchEngine( void )
 		return qtrue;
 	}
 
-    Com_Printf("Unpatching engine.\n");
+    //Com_Printf("Unpatching engine.\n");
 	
 	//Remove hooks
 	for ( i=0; i<numHooks; i++ ){

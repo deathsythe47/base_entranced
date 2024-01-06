@@ -657,7 +657,7 @@ void CheckSiegeHelpFromUse(const char *targetname) {
 
 void GlobalUse(gentity_t *self, gentity_t *other, gentity_t *activator)
 {
-#ifdef _DEBUG
+#if 0
 	if (z_debugUse.integer) {
 		char *selfClassname = self && VALIDSTRING(self->classname) ? self->classname : "";
 		char *selfTargetname = self && VALIDSTRING(self->targetname) ? self->targetname : "";

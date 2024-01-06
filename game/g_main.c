@@ -5775,7 +5775,7 @@ void InitializeSiegeHelpMessages(void) {
 	cJSON *root = cJSON_Parse(buf);
 	if (!root) {
 		Com_Printf("^1No valid siege help messages found. The siegehelp file was probably configured incorrectly. Check commas, etc.^7\n");
-		Com_DebugPrintf("Error pointer: %s\n", cJSON_GetErrorPtr());
+		//Com_DebugPrintf("Error pointer: %s\n", cJSON_GetErrorPtr());
 		free(buf);
 		return;
 	}
