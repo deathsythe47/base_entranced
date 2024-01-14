@@ -3024,6 +3024,7 @@ extern vmCvar_t	   g_unlaggedSkeletonTime;
 extern vmCvar_t	   g_unlaggedFactor;
 extern vmCvar_t	   g_unlaggedOffset;
 extern vmCvar_t	   g_unlaggedDebug;
+extern vmCvar_t	   g_unlaggedFix;
 #endif
 
 #define DAMAGEFIXES_SABERTHROW_GUNNERS		(1 << 0)

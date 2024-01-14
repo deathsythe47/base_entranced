@@ -115,11 +115,18 @@ Returns a vector "frac" times the distance between "start" and "end"
 =============
 */
 void TimeShiftLerp(float frac, vec3_t start, vec3_t end, vec3_t result) {
-	float	comp = 1.0f - frac;
+	if (!g_unlaggedFix.integer) { // broken eternaljk code that i blindly imported
+		float	comp = 1.0f - frac;
 
-	result[0] = frac * start[0] + comp * end[0];
-	result[1] = frac * start[1] + comp * end[1];
-	result[2] = frac * start[2] + comp * end[2];
+		result[0] = frac * start[0] + comp * end[0];
+		result[1] = frac * start[1] + comp * end[1];
+		result[2] = frac * start[2] + comp * end[2];
+	}
+	else { // correct implementation
+		result[0] = start[0] + frac * (end[0] - start[0]);
+		result[1] = start[1] + frac * (end[1] - start[1]);
+		result[2] = start[2] + frac * (end[2] - start[2]);
+	}
 }
 
 static void TimeShiftAnimLerp(float frac, int anim1, int anim2, int time1, int time2, int *outTime) {
