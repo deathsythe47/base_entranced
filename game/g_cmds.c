@@ -1987,6 +1987,28 @@ void SetSiegeClass(gentity_t *ent, char* className)
 	}
 }
 
+static qboolean ClassChangeLimitExceeded(gentity_t *ent) {
+	if (!ent || !ent->client) {
+		assert(qfalse);
+		return qfalse;
+	}
+
+	qboolean exceeded = qfalse;
+
+	if (g_classChangeLimit.integer > 0 && ent->client->pers.classChangeSentTime && (level.time - ent->client->pers.classChangeSentTime) < g_classChangeLimitPeriodMilliseconds.integer) { // we are in tracking second for current user, check limit
+		exceeded = ent->client->pers.classChangeSentCount >= g_classChangeLimit.integer;
+		++ent->client->pers.classChangeSentCount;
+	}
+	else { // this is the first and only one that has been sent in the last second
+		ent->client->pers.classChangeSentCount = 1;
+	}
+
+	// in any case, reset the timer so people have to unpress their spam binds while blocked to be unblocked
+	ent->client->pers.classChangeSentTime = level.time;
+
+	return exceeded;
+}
+
 /*
 =================
 Cmd_SiegeClass_f
@@ -2012,9 +2034,8 @@ void Cmd_SiegeClass_f(gentity_t *ent)
 		return;
 	}
 
-	if (ent->client->switchClassTime > level.time && level.inSiegeCountdown != qtrue)
-	{
-		trap_SendServerCommand(ent - g_entities, va("print \"Please wait %i seconds before switching classes.\n\"", (ent->client->switchClassTime - level.time + 500) / 1000));
+	if (ClassChangeLimitExceeded(ent)) {
+		trap_SendServerCommand(ent - g_entities, "print \"Please wait before switching classes.\n\"");
 		return;
 	}
 
@@ -2277,9 +2298,8 @@ void Cmd_Join_f(gentity_t *ent)
 		return;
 	}
 
-	if (ent->client->switchClassTime > level.time && level.inSiegeCountdown != qtrue)
-	{
-		trap_SendServerCommand(ent - g_entities, va("print \"Please wait %i seconds before switching classes.\n\"", (ent->client->switchClassTime - level.time + 500) / 1000));
+	if (ClassChangeLimitExceeded(ent)) {
+		trap_SendServerCommand(ent - g_entities, "print \"Please wait before switching classes.\n\"");
 		return;
 	}
 
@@ -2386,9 +2406,8 @@ void Cmd_Class_f(gentity_t *ent)
 		return;
 	}
 
-	if (ent->client->switchClassTime > level.time && level.inSiegeCountdown != qtrue)
-	{
-		trap_SendServerCommand(ent - g_entities, va("print \"Please wait %i seconds before switching classes.\n\"", (ent->client->switchClassTime - level.time + 500) / 1000));
+	if (ClassChangeLimitExceeded(ent)) {
+		trap_SendServerCommand(ent - g_entities, "print \"Please wait before switching classes.\n\"");
 		return;
 	}
 
@@ -9870,6 +9889,8 @@ void Cmd_ServerStatus2_f(gentity_t *ent)
 	PrintCvar(g_botAimbot);
 	PrintCvar(g_botJumping);
 	PrintCvar(g_breakRNG);
+	PrintCvar(g_classChangeLimit);
+	PrintCvar(g_classChangeLimitPeriodMilliseconds);
 	PrintCvar(g_coneReflectAngle);
 	PrintCvar(g_creditAirKills);
 	PrintCvar(g_dismember);

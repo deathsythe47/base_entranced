@@ -876,6 +876,9 @@ typedef struct {
 	int			fragsSinceObjStart;
 
 	int			lastInputTime;
+
+	int			classChangeSentTime;
+	int			classChangeSentCount;
 } clientPersistant_t;
 
 typedef struct renderInfo_s
@@ -2980,6 +2983,8 @@ extern vmCvar_t		g_fixLiftkillTraps;
 extern vmCvar_t		g_fixDempSaberThrow;
 extern vmCvar_t		g_fixDodge;
 extern vmCvar_t		g_joinMenuHack;
+extern vmCvar_t		g_classChangeLimit;
+extern vmCvar_t		g_classChangeLimitPeriodMilliseconds;
 
 extern vmCvar_t		g_preventJoiningLargerTeam;
 extern vmCvar_t		g_lastIntermissionStartTime;
