@@ -2785,6 +2785,7 @@ void ForceSiegeGhostUpdateForFollowers(int followedClientNum) {
 	}
 }
 
+extern void Cmd_Amtele_f(gentity_t *ent);
 /*
 ==============
 ClientThink
@@ -4571,47 +4572,47 @@ void ClientThink_real( gentity_t *ent ) {
 		pm.checkDuelLoss = 0;
 	}
 
-	if (pm.cmd.generic_cmd &&
-		(pm.cmd.generic_cmd != ent->client->lastGenCmd || ent->client->lastGenCmdTime < level.time))
+	//if (pm.cmd.generic_cmd && (pm.cmd.generic_cmd != ent->client->lastGenCmd || ent->client->lastGenCmdTime < level.time))
+	if (pm.cmd.generic_cmd)
 	{
-		ent->client->lastGenCmd = pm.cmd.generic_cmd;
-		if (pm.cmd.generic_cmd != GENCMD_FORCE_THROW &&
-			pm.cmd.generic_cmd != GENCMD_FORCE_PULL)
-		{ //these are the only two where you wouldn't care about a delay between
-			ent->client->lastGenCmdTime = level.time + 300; //default 100ms debounce between issuing the same command.
-		}
+		//ent->client->lastGenCmd = pm.cmd.generic_cmd;
+		//if (pm.cmd.generic_cmd != GENCMD_FORCE_THROW && pm.cmd.generic_cmd != GENCMD_FORCE_PULL)
+		//{ //these are the only two where you wouldn't care about a delay between
+		//	ent->client->lastGenCmdTime = level.time + 300; //default 100ms debounce between issuing the same command.
+		//}
 
-		switch(pm.cmd.generic_cmd)
+		switch (pm.cmd.generic_cmd)
 		{
 		case 0:
 			break;
 		case GENCMD_SABERSWITCH:
+			if (ent->client->genCmdDebounce[GENCMD_DELAY_SABER] > level.time - 300)
+				break;
+			ent->client->genCmdDebounce[GENCMD_DELAY_SABER] = level.time;
 			Cmd_ToggleSaber_f(ent);
 			break;
 		case GENCMD_ENGAGE_DUEL:
-			if ( g_gametype.integer == GT_DUEL || g_gametype.integer == GT_POWERDUEL )
-			{//already in a duel, made it a taunt command
-			}
+			if (ent->client->genCmdDebounce[GENCMD_DELAY_DUEL] > level.time - 300)
+				break;
+			ent->client->genCmdDebounce[GENCMD_DELAY_DUEL] = level.time;
+			if (g_gametype.integer == GT_SIEGE)
+				Cmd_SiegeDuel_f(ent);
 			else
-			{
-				if (g_gametype.integer == GT_SIEGE)
-				{
-					Cmd_SiegeDuel_f(ent);
-				}
-				else
-				{
-					Cmd_EngageDuel_f(ent);
-				}
-			}
-			break;
+				Cmd_EngageDuel_f(ent);
 		case GENCMD_FORCE_HEAL:
 			if (ent && ent->client && ent->client->emoted)
 				break;
+			if (ent->client->genCmdDebounce[GENCMD_DELAY_HEAL] > level.time - 300)
+				break;
+			ent->client->genCmdDebounce[GENCMD_DELAY_HEAL] = level.time;
 			ForceHeal(ent);
 			break;
 		case GENCMD_FORCE_SPEED:
 			if (ent && ent->client && ent->client->emoted)
 				break;
+			if (ent->client->genCmdDebounce[GENCMD_DELAY_SPEED] > level.time - 300)
+				break;
+			ent->client->genCmdDebounce[GENCMD_DELAY_SPEED] = level.time;
 			ForceSpeed(ent, 0);
 			break;
 		case GENCMD_FORCE_THROW:
@@ -4627,24 +4628,38 @@ void ClientThink_real( gentity_t *ent ) {
 		case GENCMD_FORCE_DISTRACT:
 			if (ent && ent->client && ent->client->emoted)
 				break;
+			if (ent->client->genCmdDebounce[GENCMD_DELAY_TRICK] > level.time - 300)
+				break;
+			ent->client->genCmdDebounce[GENCMD_DELAY_TRICK] = level.time;
 			ForceTelepathy(ent);
 			break;
 		case GENCMD_FORCE_RAGE:
 			if (ent && ent->client && ent->client->emoted)
 				break;
+			if (ent->client->genCmdDebounce[GENCMD_DELAY_RAGE] > level.time - 300)
+				break;
+			ent->client->genCmdDebounce[GENCMD_DELAY_RAGE] = level.time;
 			ForceRage(ent);
 			break;
 		case GENCMD_FORCE_PROTECT:
 			if (ent && ent->client && ent->client->emoted)
 				break;
+			if (ent->client->genCmdDebounce[GENCMD_DELAY_PROTECT] > level.time - 300)
+				break;
+			ent->client->genCmdDebounce[GENCMD_DELAY_PROTECT] = level.time;
 			ForceProtect(ent);
 			break;
 		case GENCMD_FORCE_ABSORB:
 			if (ent && ent->client && ent->client->emoted)
 				break;
+			if (ent->client->genCmdDebounce[GENCMD_DELAY_ABSORB] > level.time - 300)
+				break;
+			ent->client->genCmdDebounce[GENCMD_DELAY_ABSORB] = level.time;
 			ForceAbsorb(ent);
 			break;
 		case GENCMD_FORCE_HEALOTHER:
+			if (ent && ent->client && ent->client->emoted)
+				break;
 			if (ent && ent->client && ent->client->emoted)
 				break;
 			ForceTeamHeal(ent);
@@ -4652,29 +4667,34 @@ void ClientThink_real( gentity_t *ent ) {
 		case GENCMD_FORCE_FORCEPOWEROTHER:
 			if (ent && ent->client && ent->client->emoted)
 				break;
+			if (ent && ent->client && ent->client->emoted)
+				break;
 			ForceTeamForceReplenish(ent);
 			break;
 		case GENCMD_FORCE_SEEING:
 			if (ent && ent->client && ent->client->emoted)
 				break;
+			if (ent->client->genCmdDebounce[GENCMD_DELAY_SEEING] > level.time - 300)
+				break;
+			ent->client->genCmdDebounce[GENCMD_DELAY_SEEING] = level.time;
 			ForceSeeing(ent);
 			break;
 		case GENCMD_USE_SEEKER:
 			if (ent && ent->client && ent->client->emoted)
 				break;
-			if ( (ent->client->ps.stats[STAT_HOLDABLE_ITEMS] & (1 << HI_SEEKER)) &&
-				G_ItemUsable(&ent->client->ps, HI_SEEKER) )
+			if ((ent->client->ps.stats[STAT_HOLDABLE_ITEMS] & (1 << HI_SEEKER)) &&
+				G_ItemUsable(&ent->client->ps, HI_SEEKER))
 			{
 				ItemUse_Seeker(ent);
-				G_AddEvent(ent, EV_USE_ITEM0+HI_SEEKER, 0);
+				G_AddEvent(ent, EV_USE_ITEM0 + HI_SEEKER, 0);
 				ent->client->ps.stats[STAT_HOLDABLE_ITEMS] &= ~(1 << HI_SEEKER);
 			}
 			break;
 		case GENCMD_USE_FIELD:
 			if (ent && ent->client && ent->client->emoted)
 				break;
-			if ( (ent->client->ps.stats[STAT_HOLDABLE_ITEMS] & (1 << HI_SHIELD)) &&
-				G_ItemUsable(&ent->client->ps, HI_SHIELD) )
+			if ((ent->client->ps.stats[STAT_HOLDABLE_ITEMS] & (1 << HI_SHIELD)) &&
+				G_ItemUsable(&ent->client->ps, HI_SHIELD))
 			{
 				if (g_gametype.integer == GT_SIEGE && !iLikeToShieldSpam.integer && !G_ShieldSpamAllowed(ent - g_entities) && (ent->client->sess.sessionTeam == TEAM_RED || ent->client->sess.sessionTeam == TEAM_BLUE) && !level.canShield[ent->client->sess.sessionTeam]) {
 					trap_SendServerCommand(ent - g_entities, "print \"You are not allowed to place a shield at the moment.\n\"");
@@ -4695,67 +4715,73 @@ void ClientThink_real( gentity_t *ent ) {
 		case GENCMD_USE_BACTA:
 			if (ent && ent->client && ent->client->emoted)
 				break;
-			if ( (ent->client->ps.stats[STAT_HOLDABLE_ITEMS] & (1 << HI_MEDPAC)) &&
-				G_ItemUsable(&ent->client->ps, HI_MEDPAC) )
+			if ((ent->client->ps.stats[STAT_HOLDABLE_ITEMS] & (1 << HI_MEDPAC)) &&
+				G_ItemUsable(&ent->client->ps, HI_MEDPAC))
 			{
 				ItemUse_MedPack(ent);
-				G_AddEvent(ent, EV_USE_ITEM0+HI_MEDPAC, 0);
+				G_AddEvent(ent, EV_USE_ITEM0 + HI_MEDPAC, 0);
 				ent->client->ps.stats[STAT_HOLDABLE_ITEMS] &= ~(1 << HI_MEDPAC);
 			}
 			break;
 		case GENCMD_USE_BACTABIG:
 			if (ent && ent->client && ent->client->emoted)
 				break;
-			if ( (ent->client->ps.stats[STAT_HOLDABLE_ITEMS] & (1 << HI_MEDPAC_BIG)) &&
-				G_ItemUsable(&ent->client->ps, HI_MEDPAC_BIG) )
+			if ((ent->client->ps.stats[STAT_HOLDABLE_ITEMS] & (1 << HI_MEDPAC_BIG)) &&
+				G_ItemUsable(&ent->client->ps, HI_MEDPAC_BIG))
 			{
 				ItemUse_MedPack_Big(ent);
-				G_AddEvent(ent, EV_USE_ITEM0+HI_MEDPAC_BIG, 0);
+				G_AddEvent(ent, EV_USE_ITEM0 + HI_MEDPAC_BIG, 0);
 				ent->client->ps.stats[STAT_HOLDABLE_ITEMS] &= ~(1 << HI_MEDPAC_BIG);
 			}
 			break;
 		case GENCMD_USE_ELECTROBINOCULARS:
 			if (ent && ent->client && ent->client->emoted)
 				break;
-			if ( (ent->client->ps.stats[STAT_HOLDABLE_ITEMS] & (1 << HI_BINOCULARS)) &&
-				G_ItemUsable(&ent->client->ps, HI_BINOCULARS) )
+			if (ent->client->genCmdDebounce[GENCMD_DELAY_BINOCS] > level.time - 300)
+				break;
+			ent->client->genCmdDebounce[GENCMD_DELAY_BINOCS] = level.time;
+			if ((ent->client->ps.stats[STAT_HOLDABLE_ITEMS] & (1 << HI_BINOCULARS)) &&
+				G_ItemUsable(&ent->client->ps, HI_BINOCULARS))
 			{
 				ItemUse_Binoculars(ent);
 				if (ent->client->ps.zoomMode == 0)
 				{
-					G_AddEvent(ent, EV_USE_ITEM0+HI_BINOCULARS, 1);
+					G_AddEvent(ent, EV_USE_ITEM0 + HI_BINOCULARS, 1);
 				}
 				else
 				{
-					G_AddEvent(ent, EV_USE_ITEM0+HI_BINOCULARS, 2);
+					G_AddEvent(ent, EV_USE_ITEM0 + HI_BINOCULARS, 2);
 				}
 			}
 			break;
 		case GENCMD_ZOOM:
 			if (ent && ent->client && ent->client->emoted)
 				break;
-			if ( (ent->client->ps.stats[STAT_HOLDABLE_ITEMS] & (1 << HI_BINOCULARS)) &&
-				G_ItemUsable(&ent->client->ps, HI_BINOCULARS) )
+			if (ent->client->genCmdDebounce[GENCMD_DELAY_ZOOM] > level.time - 300)
+				break;
+			ent->client->genCmdDebounce[GENCMD_DELAY_ZOOM] = level.time;
+			if ((ent->client->ps.stats[STAT_HOLDABLE_ITEMS] & (1 << HI_BINOCULARS)) &&
+				G_ItemUsable(&ent->client->ps, HI_BINOCULARS))
 			{
 				ItemUse_Binoculars(ent);
 				if (ent->client->ps.zoomMode == 0)
 				{
-					G_AddEvent(ent, EV_USE_ITEM0+HI_BINOCULARS, 1);
+					G_AddEvent(ent, EV_USE_ITEM0 + HI_BINOCULARS, 1);
 				}
 				else
 				{
-					G_AddEvent(ent, EV_USE_ITEM0+HI_BINOCULARS, 2);
+					G_AddEvent(ent, EV_USE_ITEM0 + HI_BINOCULARS, 2);
 				}
 			}
 			break;
 		case GENCMD_USE_SENTRY:
 			if (ent && ent->client && ent->client->emoted)
 				break;
-			if ( (ent->client->ps.stats[STAT_HOLDABLE_ITEMS] & (1 << HI_SENTRY_GUN)) &&
-				G_ItemUsable(&ent->client->ps, HI_SENTRY_GUN) )
+			if ((ent->client->ps.stats[STAT_HOLDABLE_ITEMS] & (1 << HI_SENTRY_GUN)) &&
+				G_ItemUsable(&ent->client->ps, HI_SENTRY_GUN))
 			{
 				ItemUse_Sentry(ent);
-				G_AddEvent(ent, EV_USE_ITEM0+HI_SENTRY_GUN, 0);
+				G_AddEvent(ent, EV_USE_ITEM0 + HI_SENTRY_GUN, 0);
 				if (ent - g_entities >= 0 && ent - g_entities < MAX_CLIENTS && g_gametype.integer == GT_SIEGE && ent->client->siegeClass != -1 && bgSiegeClasses[ent->client->siegeClass].maxSentries > 0 && level.sentriesUsedThisLife[ent - g_entities] < bgSiegeClasses[ent->client->siegeClass].maxSentries)
 					ent->client->ps.stats[STAT_HOLDABLE_ITEMS] |= (1 << HI_SENTRY_GUN);
 				else
@@ -4763,74 +4789,112 @@ void ClientThink_real( gentity_t *ent ) {
 			}
 			break;
 		case GENCMD_USE_JETPACK:
-			if ( (ent->client->ps.stats[STAT_HOLDABLE_ITEMS] & (1 << HI_JETPACK)) &&
-				G_ItemUsable(&ent->client->ps, HI_JETPACK) )
+			if (ent && ent->client && ent->client->emoted)
+				break;
+			if (ent->client->genCmdDebounce[GENCMD_DELAY_JETPACK] > level.time - 300)
+				break;
+			ent->client->genCmdDebounce[GENCMD_DELAY_JETPACK] = level.time;
+			if ((ent->client->ps.stats[STAT_HOLDABLE_ITEMS] & (1 << HI_JETPACK)) &&
+				G_ItemUsable(&ent->client->ps, HI_JETPACK))
 			{
 				ItemUse_Jetpack(ent);
-				G_AddEvent(ent, EV_USE_ITEM0+HI_JETPACK, 0);
+				G_AddEvent(ent, EV_USE_ITEM0 + HI_JETPACK, 0);
 			}
 			break;
 		case GENCMD_USE_HEALTHDISP:
 			if (ent && ent->client && ent->client->emoted)
 				break;
-			if ( (ent->client->ps.stats[STAT_HOLDABLE_ITEMS] & (1 << HI_HEALTHDISP)) &&
-				G_ItemUsable(&ent->client->ps, HI_HEALTHDISP) )
+			if ((ent->client->ps.stats[STAT_HOLDABLE_ITEMS] & (1 << HI_HEALTHDISP)) &&
+				G_ItemUsable(&ent->client->ps, HI_HEALTHDISP))
 			{
-				G_AddEvent(ent, EV_USE_ITEM0+HI_HEALTHDISP, 0);
+				//ItemUse_UseDisp(ent, HI_HEALTHDISP);
+				G_AddEvent(ent, EV_USE_ITEM0 + HI_HEALTHDISP, 0);
 			}
 			break;
 		case GENCMD_USE_AMMODISP:
 			if (ent && ent->client && ent->client->emoted)
 				break;
-			if ( (ent->client->ps.stats[STAT_HOLDABLE_ITEMS] & (1 << HI_AMMODISP)) &&
-				G_ItemUsable(&ent->client->ps, HI_AMMODISP) )
+			if ((ent->client->ps.stats[STAT_HOLDABLE_ITEMS] & (1 << HI_AMMODISP)) &&
+				G_ItemUsable(&ent->client->ps, HI_AMMODISP))
 			{
-				G_AddEvent(ent, EV_USE_ITEM0+HI_AMMODISP, 0);
+				//ItemUse_UseDisp(ent, HI_AMMODISP);
+				G_AddEvent(ent, EV_USE_ITEM0 + HI_AMMODISP, 0);
 			}
 			break;
 		case GENCMD_USE_EWEB:
 			if (ent && ent->client && ent->client->emoted)
 				break;
-			if ( (ent->client->ps.stats[STAT_HOLDABLE_ITEMS] & (1 << HI_EWEB)) &&
-				G_ItemUsable(&ent->client->ps, HI_EWEB) )
+			if (ent->client->genCmdDebounce[GENCMD_DELAY_EWEB] > level.time - 300)
+				break;
+			ent->client->genCmdDebounce[GENCMD_DELAY_EWEB] = level.time;
+			if ((ent->client->ps.stats[STAT_HOLDABLE_ITEMS] & (1 << HI_EWEB)) &&
+				G_ItemUsable(&ent->client->ps, HI_EWEB))
 			{
 				ItemUse_UseEWeb(ent);
-				G_AddEvent(ent, EV_USE_ITEM0+HI_EWEB, 0);
+				G_AddEvent(ent, EV_USE_ITEM0 + HI_EWEB, 0);
 			}
 			break;
 		case GENCMD_USE_CLOAK:
 			if (ent && ent->client && ent->client->emoted)
 				break;
-			if ( (ent->client->ps.stats[STAT_HOLDABLE_ITEMS] & (1 << HI_CLOAK)) &&
-				G_ItemUsable(&ent->client->ps, HI_CLOAK) )
+			if (ent->client->genCmdDebounce[GENCMD_DELAY_CLOAK] > level.time - 300)
+				break;
+			ent->client->genCmdDebounce[GENCMD_DELAY_CLOAK] = level.time;
+			if ((ent->client->ps.stats[STAT_HOLDABLE_ITEMS] & (1 << HI_CLOAK)) &&
+				G_ItemUsable(&ent->client->ps, HI_CLOAK))
 			{
-				if ( ent->client->ps.powerups[PW_CLOAKED] )
+				if (ent->client->ps.powerups[PW_CLOAKED])
 				{//decloak
-					Jedi_Decloak( ent );
+					Jedi_Decloak(ent);
 				}
 				else
 				{//cloak
-					Jedi_Cloak( ent );
+					Jedi_Cloak(ent);
 				}
 			}
 			break;
 		case GENCMD_SABERATTACKCYCLE:
-			Cmd_SaberAttackCycle_f(ent);
-			break;
+		{
+			int delay = 300;
+			if (qtrue) { // faster single saber switching
+				if (!(ent->client->saber[0].singleBladeStyle || (ent->client->saber[1].model && ent->client->saber[1].model[0]))) // single
+					delay = 100;
+			}
+			if (ent->client->genCmdDebounce[GENCMD_DELAY_SABERSWITCH] > level.time - delay)
+				break;
+		}
+		ent->client->genCmdDebounce[GENCMD_DELAY_SABERSWITCH] = level.time;
+		Cmd_SaberAttackCycle_f(ent);
+		break;
 		case GENCMD_TAUNT:
-			G_SetTauntAnim( ent, TAUNT_TAUNT );
+			if (ent->client->genCmdDebounce[GENCMD_DELAY_TAUNT] > level.time - 300)
+				break;
+			ent->client->genCmdDebounce[GENCMD_DELAY_TAUNT] = level.time;
+			G_SetTauntAnim(ent, TAUNT_TAUNT);
 			break;
 		case GENCMD_BOW:
-			G_SetTauntAnim( ent, TAUNT_BOW );
+			if (ent->client->genCmdDebounce[GENCMD_DELAY_EMOTE] > level.time - 300)
+				break;
+			ent->client->genCmdDebounce[GENCMD_DELAY_EMOTE] = level.time;
+			G_SetTauntAnim(ent, TAUNT_BOW);
 			break;
 		case GENCMD_MEDITATE:
-			G_SetTauntAnim( ent, TAUNT_MEDITATE );
+			if (ent->client->genCmdDebounce[GENCMD_DELAY_EMOTE] > level.time - 300)
+				break;
+			ent->client->genCmdDebounce[GENCMD_DELAY_EMOTE] = level.time;
+			G_SetTauntAnim(ent, TAUNT_MEDITATE);
 			break;
 		case GENCMD_FLOURISH:
-			G_SetTauntAnim( ent, TAUNT_FLOURISH );
+			if (ent->client->genCmdDebounce[GENCMD_DELAY_TAUNT] > level.time - 300)
+				break;
+			ent->client->genCmdDebounce[GENCMD_DELAY_TAUNT] = level.time;
+			G_SetTauntAnim(ent, TAUNT_FLOURISH);
 			break;
 		case GENCMD_GLOAT:
-			G_SetTauntAnim( ent, TAUNT_GLOAT );
+			if (ent->client->genCmdDebounce[GENCMD_DELAY_TAUNT] > level.time - 300)
+				break;
+			ent->client->genCmdDebounce[GENCMD_DELAY_TAUNT] = level.time;
+			G_SetTauntAnim(ent, TAUNT_GLOAT);
 			break;
 		default:
 			break;

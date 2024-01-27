@@ -953,6 +953,27 @@ typedef struct renderInfo_s
 	int			boltValidityTime;
 } renderInfo_t;
 
+typedef enum {
+	GENCMD_DELAY_SABER,
+	GENCMD_DELAY_SABERSWITCH,
+	GENCMD_DELAY_TAUNT,
+	GENCMD_DELAY_EMOTE,
+	GENCMD_DELAY_DUEL,
+	GENCMD_DELAY_HEAL,
+	GENCMD_DELAY_SPEED,
+	GENCMD_DELAY_TRICK,
+	GENCMD_DELAY_RAGE,
+	GENCMD_DELAY_PROTECT,
+	GENCMD_DELAY_ABSORB,
+	GENCMD_DELAY_SEEING,
+	GENCMD_DELAY_BINOCS,
+	GENCMD_DELAY_ZOOM,
+	GENCMD_DELAY_JETPACK,
+	GENCMD_DELAY_EWEB,
+	GENCMD_DELAY_CLOAK,
+	MAX_GENCMD_DELAYS
+} genCmdType_t;
+
 void G_StoreTrail(gentity_t *ent);
 void G_ResetTrail(gentity_t *ent);
 void G_TimeShiftClient(gentity_t *ent, int time, qboolean timeshiftAnims);
@@ -1206,6 +1227,8 @@ struct gclient_s {
 	int			pushOffWallTime;
 	qboolean	jumpedOrCrouched; // invalidates the walk category
 	qboolean	usedForwardOrBackward; // invalidates the ad category
+
+	int			genCmdDebounce[MAX_GENCMD_DELAYS];
 
 #ifdef NEWMOD_SUPPORT
 	qboolean	isLagging; // mark lagger without actually changing EF_CONNECTION
