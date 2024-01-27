@@ -2785,7 +2785,6 @@ void ForceSiegeGhostUpdateForFollowers(int followedClientNum) {
 	}
 }
 
-extern void Cmd_Amtele_f(gentity_t *ent);
 /*
 ==============
 ClientThink
