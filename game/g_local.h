@@ -442,6 +442,8 @@ struct gentity_s {
 	int remainUsableIfUnlocked;
 
 	int			lowestHealth;
+
+	float		originalYaw;
 };
 
 #define DAMAGEREDIRECT_HEAD		1
@@ -3008,6 +3010,7 @@ extern vmCvar_t		g_fixDodge;
 extern vmCvar_t		g_joinMenuHack;
 extern vmCvar_t		g_classChangeLimit;
 extern vmCvar_t		g_classChangeLimitPeriodMilliseconds;
+extern vmCvar_t		g_corpseExplosivesBounce;
 
 extern vmCvar_t		g_preventJoiningLargerTeam;
 extern vmCvar_t		g_lastIntermissionStartTime;

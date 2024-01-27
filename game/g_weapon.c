@@ -12,6 +12,11 @@
 static	vec3_t	forward, vright, up;
 static	vec3_t	muzzle;
 
+#define CORPSE_EXPLOSIVES_BOUNCE_XY		(128)
+#define CORPSE_EXPLOSIVES_BOUNCE_Z		(128)
+#define CORPSE_EXPLOSIVES_BOUNCE_BITFLAG_MINES		(1 << 0)
+#define CORPSE_EXPLOSIVES_BOUNCE_BITFLAG_DETPACKS	(1 << 1)
+
 // Bryar Pistol
 //--------
 #define BRYAR_PISTOL_VEL			1600
@@ -3782,10 +3787,24 @@ void touchLaserTrap( gentity_t *ent, gentity_t *other, trace_t *trace )
 	  //in the air after getting stuck to a moving door
 		if ( ent->activator != other )
 		{
-			ent->touch = 0;
-			ent->nextthink = level.time + FRAMETIME;
-			ent->think = laserTrapExplode;
-			VectorCopy(trace->plane.normal, ent->s.pos.trDelta);
+			if ((g_corpseExplosivesBounce.integer & CORPSE_EXPLOSIVES_BOUNCE_BITFLAG_MINES) && VALIDSTRING(other->classname) && !strcmp(other->classname, "bodyque")) {
+				vec3_t vec, fwd;
+				vec[0] = 0;
+				vec[1] = fmod(ent->originalYaw + 180, 360);
+				vec[2] = 0;
+				AngleVectors(vec, fwd, NULL, NULL);
+				float totalVelocity = sqrt((fwd[0] * fwd[0]) + (fwd[1] * fwd[1]));
+				float factor = CORPSE_EXPLOSIVES_BOUNCE_XY / totalVelocity;
+				ent->s.pos.trDelta[0] = fwd[0] * factor;
+				ent->s.pos.trDelta[1] = fwd[1] * factor;
+				ent->s.pos.trDelta[2] = CORPSE_EXPLOSIVES_BOUNCE_Z;
+			}
+			else {
+				ent->touch = 0;
+				ent->nextthink = level.time + FRAMETIME;
+				ent->think = laserTrapExplode;
+				VectorCopy(trace->plane.normal, ent->s.pos.trDelta);
+			}
 		}
 	}
 	else
@@ -4124,6 +4143,8 @@ void WP_PlaceLaserTrap( gentity_t *ent, qboolean alt_fire )
 		VectorScale( dir, 256, laserTrap->s.pos.trDelta );
 	}
 
+	laserTrap->originalYaw = ent && ent->client ? ent->client->ps.viewangles[YAW] : 0;
+
 	trap_LinkEntity(laserTrap);
 }
 
@@ -4165,19 +4186,35 @@ void charge_stick (gentity_t *self, gentity_t *other, trace_t *trace)
 	else if (other && other->s.number < ENTITYNUM_WORLD &&
 		(other->client || !other->s.weapon))
 	{ //hit another entity that is not stickable, "bounce" off
-		vec3_t vNor, tN;
+		if ((g_corpseExplosivesBounce.integer & CORPSE_EXPLOSIVES_BOUNCE_BITFLAG_DETPACKS) && VALIDSTRING(other->classname) && !strcmp(other->classname, "bodyque")) {
+			vec3_t vec, fwd;
+			vec[0] = 0;
+			vec[1] = fmod(self->originalYaw + 180, 360);
+			vec[2] = 0;
+			AngleVectors(vec, fwd, NULL, NULL);
+			float totalVelocity = sqrt((fwd[0] * fwd[0]) + (fwd[1] * fwd[1]));
+			float factor = CORPSE_EXPLOSIVES_BOUNCE_XY / totalVelocity;
+			self->s.pos.trDelta[0] = fwd[0] * factor;
+			self->s.pos.trDelta[1] = fwd[1] * factor;
+			self->s.pos.trDelta[2] = CORPSE_EXPLOSIVES_BOUNCE_Z;
+			self->touch = charge_stick;
+			return;
+		}
+		else {
+			vec3_t vNor, tN;
 
-		VectorCopy(trace->plane.normal, vNor);
-		VectorNormalize(vNor);
-		VectorNPos(self->s.pos.trDelta, tN);
-		self->s.pos.trDelta[0] += vNor[0]*(tN[0]*(((float)Q_irand(1, 10))*0.1));
-		self->s.pos.trDelta[1] += vNor[1]*(tN[1]*(((float)Q_irand(1, 10))*0.1));
-		self->s.pos.trDelta[2] += vNor[1]*(tN[2]*(((float)Q_irand(1, 10))*0.1));
+			VectorCopy(trace->plane.normal, vNor);
+			VectorNormalize(vNor);
+			VectorNPos(self->s.pos.trDelta, tN);
+			self->s.pos.trDelta[0] += vNor[0] * (tN[0] * (((float)Q_irand(1, 10)) * 0.1));
+			self->s.pos.trDelta[1] += vNor[1] * (tN[1] * (((float)Q_irand(1, 10)) * 0.1));
+			self->s.pos.trDelta[2] += vNor[1] * (tN[2] * (((float)Q_irand(1, 10)) * 0.1));
 
-		vectoangles(vNor, self->s.angles);
-		vectoangles(vNor, self->s.apos.trBase);
-		self->touch = charge_stick;
-		return;
+			vectoangles(vNor, self->s.angles);
+			vectoangles(vNor, self->s.apos.trBase);
+			self->touch = charge_stick;
+			return;
+		}
 	}
 	else if (other && other->s.number < ENTITYNUM_WORLD)
 	{ //hit an entity that we just want to explode on (probably another projectile or something)
@@ -4361,6 +4398,8 @@ void drop_charge (gentity_t *self, vec3_t start, vec3_t dir)
 	bolt->s.apos.trTime = level.time;
 
 	bolt->siegeItemSpawnTime = level.time;
+
+	bolt->originalYaw = self && self->client ? self->client->ps.viewangles[YAW] : 0;
 
 	trap_LinkEntity(bolt);
 }
