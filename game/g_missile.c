@@ -30,7 +30,7 @@ void G_ReflectMissile( gentity_t *ent, gentity_t *missile, vec3_t forward, qbool
 	vec3_t		bounce_dir;
 	int			i;
 	float		speed;
-	qboolean	isOwner, breakRng;
+	qboolean	isOwner = qfalse, breakRng;
 
 #if 0
 	vec3_t eyePoint;

@@ -5457,6 +5457,10 @@ void ClientEndFrame( gentity_t *ent ) {
 		ent->client->pers.teamState.flagsince.startTime += time_delta; // base_enhanced
 		ent->client->pers.protsince += time_delta; // force stats
         ent->client->respawnTime += time_delta;
+		if (ent->client->ps.saberDidThrowTime)
+			ent->client->ps.saberDidThrowTime += time_delta;
+		if (ent->client->ps.saberThrowDelay)
+			ent->client->ps.saberThrowDelay += time_delta;
 		if (ent->client->invulnerableTimer)
 			ent->client->invulnerableTimer += time_delta;
         ent->pain_debounce_time += time_delta;

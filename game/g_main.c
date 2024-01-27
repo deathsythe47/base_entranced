@@ -5628,6 +5628,10 @@ void G_RunThink(gentity_t *ent) {
 		if (ent->siegeItemSpawnTime)
 			ent->siegeItemSpawnTime += dt;
 
+		// saberthrow
+		if (VALIDSTRING(ent->classname) && !strcmp(ent->classname, "lightsaber") && ent->s.pos.trTime)
+			ent->s.pos.trTime += dt;
+
 		// turrets
 		if (ent->think == turretG2_base_think || ent->think == turret_base_think) {
 			ent->bounceCount += dt;
