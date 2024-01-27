@@ -5443,8 +5443,6 @@ void ClientEndFrame( gentity_t *ent ) {
     if ( level.pause.state != PAUSE_NONE ) {
 		//OSP: pause
 		//      If we're paused, make sure other timers stay in sync
-        int i;
-
 		if (ent->client->ps.hackingTime)
 			ent->client->ps.hackingTime += time_delta;
         ent->client->airOutTime += time_delta;
@@ -5463,6 +5461,22 @@ void ClientEndFrame( gentity_t *ent ) {
 			ent->client->ps.saberThrowDelay += time_delta;
 		if (ent->client->invulnerableTimer)
 			ent->client->invulnerableTimer += time_delta;
+		for (int i = 0; i < MAX_GENTITIES; i++) {
+			if (ent->client->saberThrowDamageTime[i])
+				ent->client->saberThrowDamageTime[i] += time_delta;
+		}
+		if (ent->client->saberIgniteTime)
+			ent->client->saberIgniteTime += time_delta;
+		if (ent->client->saberUnigniteTime)
+			ent->client->saberUnigniteTime += time_delta;
+		if (ent->client->saberBonusTime)
+			ent->client->saberBonusTime += time_delta;
+		if (ent->client->pushOffWallTime)
+			ent->client->pushOffWallTime += time_delta;
+		if (ent->client->saberKnockedTime)
+			ent->client->saberKnockedTime += time_delta;
+		if (ent->client->homingLockTime)
+			ent->client->homingLockTime += time_delta;
         ent->pain_debounce_time += time_delta;
         ent->client->ps.fd.forcePowerRegenDebounceTime += time_delta;
 		if (ent->client->tempSpectate)
@@ -5470,7 +5484,7 @@ void ClientEndFrame( gentity_t *ent ) {
 			ent->client->tempSpectate += time_delta;
 		}
 		// update force powers durations
-		for(i=0;i < NUM_FORCE_POWERS;++i) {
+		for(int i=0;i < NUM_FORCE_POWERS;++i) {
 			if (ent->client->ps.fd.forcePowerDuration[i])
 				ent->client->ps.fd.forcePowerDuration[i] += time_delta;
 		}

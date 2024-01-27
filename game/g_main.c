@@ -5593,6 +5593,7 @@ extern void ShieldThink(gentity_t *ent);
 extern void ShieldGoSolid(gentity_t *ent);
 extern void turretG2_base_think(gentity_t *self);
 extern void turret_base_think(gentity_t *self);
+extern void DownedSaberThink(gentity_t *saberent);
 
 void G_RunThink(gentity_t *ent) {
 	int	thinktime;
@@ -5629,7 +5630,7 @@ void G_RunThink(gentity_t *ent) {
 			ent->siegeItemSpawnTime += dt;
 
 		// saberthrow
-		if (VALIDSTRING(ent->classname) && !strcmp(ent->classname, "lightsaber") && ent->s.pos.trTime)
+		if (VALIDSTRING(ent->classname) && !strcmp(ent->classname, "lightsaber") && ent->s.pos.trTime && ent->think != DownedSaberThink)
 			ent->s.pos.trTime += dt;
 
 		// turrets
