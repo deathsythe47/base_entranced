@@ -1381,8 +1381,7 @@ void SP_worldspawn( void )
 		// mod overrides
 		if (level.siegeMap == SIEGEMAP_HOTH) {
 			hwLimit[1] = 1;
-			if (Q_stricmpn(level.mapname, "siege_hoth3", 11))
-				techLimit[1] = 1;
+			techLimit[1] = 1;
 		}
 		else if (level.siegeMap == SIEGEMAP_NAR) {
 			hwLimit[1] = 1;
