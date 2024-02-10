@@ -3119,7 +3119,7 @@ void ClientThink_real( gentity_t *ent ) {
 							level.ghostCameraOrigin[2] = -22;
 							level.ghostCameraYaw = 0;
 							break;
-						case 3:
+						case 3: case 5:
 							level.ghostCameraOrigin[0] = 1065;
 							level.ghostCameraOrigin[1] = -641;
 							level.ghostCameraOrigin[2] = 36;
@@ -3130,12 +3130,6 @@ void ClientThink_real( gentity_t *ent ) {
 							level.ghostCameraOrigin[1] = 1924;
 							level.ghostCameraOrigin[2] = -134;
 							level.ghostCameraYaw = 45;
-							break;
-						case 5:
-							level.ghostCameraOrigin[0] = -3354;
-							level.ghostCameraOrigin[1] = 7;
-							level.ghostCameraOrigin[2] = -167;
-							level.ghostCameraYaw = 90;
 							break;
 						default:
 							level.ghostCameraOrigin[0] = -438;
