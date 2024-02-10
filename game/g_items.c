@@ -510,7 +510,7 @@ void CreateShield(gentity_t *ent)
 	if (g_gametype.integer == GT_SIEGE)
 	{
 		if (ent->isSmallShield)
-			ent->health = ceil((float)(400 * 1));
+			ent->health = ceil((float)(300 * 1));
 		else
 			ent->health = ceil((float)(SHIELD_SIEGE_HEALTH * 1));
 	}
