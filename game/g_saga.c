@@ -3027,6 +3027,12 @@ void SiegeBeginRound(int entNum)
 		}
 	}
 
+	for (int i = MAX_CLIENTS; i < MAX_GENTITIES; i++) {
+		gentity_t *ent = &g_entities[i];
+		if (ent->inuse && ent->healingteam == -1)
+			GlobalUse(ent, NULL, NULL);
+	}
+
 	if (!Q_stricmp(level.mapname, "siege_codes"))
 	{
 		//hacky fix to remove icons for useless ammo generators that shouldn't be in the map

@@ -3111,6 +3111,108 @@ void ClientThink_real( gentity_t *ent ) {
 					return;
 				}
 				if (g_siegeGhosting.integer == 2) { // force you to a specific camera spot if everyone is dead
+					if (level.siegeMap == SIEGEMAP_HOTH) {
+						switch (level.totalObjectivesCompleted) {
+						case 1: case 2:
+							level.ghostCameraOrigin[0] = 4284;
+							level.ghostCameraOrigin[1] = -249;
+							level.ghostCameraOrigin[2] = -22;
+							level.ghostCameraYaw = 0;
+							break;
+						case 3:
+							level.ghostCameraOrigin[0] = 1065;
+							level.ghostCameraOrigin[1] = -641;
+							level.ghostCameraOrigin[2] = 36;
+							level.ghostCameraYaw = -115;
+							break;
+						case 4:
+							level.ghostCameraOrigin[0] = -1514;
+							level.ghostCameraOrigin[1] = 1924;
+							level.ghostCameraOrigin[2] = -134;
+							level.ghostCameraYaw = 45;
+							break;
+						case 5:
+							level.ghostCameraOrigin[0] = -3354;
+							level.ghostCameraOrigin[1] = 7;
+							level.ghostCameraOrigin[2] = -167;
+							level.ghostCameraYaw = 90;
+							break;
+						default:
+							level.ghostCameraOrigin[0] = -438;
+							level.ghostCameraOrigin[1] = 17;
+							level.ghostCameraOrigin[2] = 496;
+							level.ghostCameraYaw = 180;
+							break;
+						}
+					}
+					else if (level.siegeMap == SIEGEMAP_CARGO && Q_stricmp(level.mapname, "siege_cargobarge")) {
+						switch (level.totalObjectivesCompleted) {
+						case 0: case 5:
+							level.ghostCameraOrigin[0] = 2560;
+							level.ghostCameraOrigin[1] = 3074;
+							level.ghostCameraOrigin[2] = 614;
+							level.ghostCameraYaw = -90;
+							break;
+						case 1:
+							level.ghostCameraOrigin[0] = 4141;
+							level.ghostCameraOrigin[1] = -723;
+							level.ghostCameraOrigin[2] = 74;
+							level.ghostCameraYaw = 180;
+							break;
+						case 2: case 3: case 4:
+							level.ghostCameraOrigin[0] = 3692;
+							level.ghostCameraOrigin[1] = 1016;
+							level.ghostCameraOrigin[2] = 118;
+							level.ghostCameraYaw = 180;
+							break;
+						case 6:
+							level.ghostCameraOrigin[0] = 6264;
+							level.ghostCameraOrigin[1] = -1100;
+							level.ghostCameraOrigin[2] = 30;
+							level.ghostCameraYaw = 90;
+							break;
+						default:
+							level.ghostCameraOrigin[0] = 1820;
+							level.ghostCameraOrigin[1] = 989;
+							level.ghostCameraOrigin[2] = 168;
+							level.ghostCameraYaw = 160;
+							break;
+						}
+					}
+					else if (level.siegeMap == SIEGEMAP_URBAN) {
+						switch (level.totalObjectivesCompleted) {
+						case 1:
+							level.ghostCameraOrigin[0] = -1538;
+							level.ghostCameraOrigin[1] = -3518;
+							level.ghostCameraOrigin[2] = 104;
+							level.ghostCameraYaw = 0;
+							break;
+						case 2:
+							level.ghostCameraOrigin[0] = -492;
+							level.ghostCameraOrigin[1] = -1921;
+							level.ghostCameraOrigin[2] = 138;
+							level.ghostCameraYaw = 0;
+							break;
+						case 3:
+							level.ghostCameraOrigin[0] = 1319;
+							level.ghostCameraOrigin[1] = 1287;
+							level.ghostCameraOrigin[2] = 86;
+							level.ghostCameraYaw = -90;
+							break;
+						case 4: case 5:
+							level.ghostCameraOrigin[0] = 4506;
+							level.ghostCameraOrigin[1] = 6354;
+							level.ghostCameraOrigin[2] = 60;
+							level.ghostCameraYaw = 90;
+							break;
+						default:
+							level.ghostCameraOrigin[0] = 2235;
+							level.ghostCameraOrigin[1] = -2540;
+							level.ghostCameraOrigin[2] = 506;
+							level.ghostCameraYaw = -180;
+							break;
+						}
+					}
 					float distToCamera = Distance(client->ps.origin, level.ghostCameraOrigin);
 					if (distToCamera > 50)
 						client->ps.eFlags ^= EF_TELEPORT_BIT; // don't predict
