@@ -662,8 +662,11 @@ void Touch_Multi(gentity_t *self, gentity_t *other, trace_t *trace)
 			return;
 		}
 
-		if ((other->client->ps.weaponTime > 0 && other->client->ps.torsoAnim != BOTH_BUTTON_HOLD && other->client->ps.torsoAnim != BOTH_CONSOLE1) || other->health < 1 ||
-			(other->client->ps.pm_flags & PMF_FOLLOW) || other->client->sess.sessionTeam == TEAM_SPECTATOR ||
+		if ((other->client->ps.weaponTime > 0 && other->client->ps.torsoAnim != BOTH_BUTTON_HOLD && other->client->ps.torsoAnim != BOTH_CONSOLE1 &&
+			!(other->client->ps.saberInFlight && other->client->ps.hackingTime && g_fixHackSaberThrow.integer)) ||
+			other->health < 1 ||
+			(other->client->ps.pm_flags & PMF_FOLLOW) ||
+			other->client->sess.sessionTeam == TEAM_SPECTATOR ||
 			other->client->ps.forceHandExtend != HANDEXTEND_NONE)
 		{ //player has to be free of other things to use.
 			return;

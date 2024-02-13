@@ -9904,6 +9904,7 @@ void Cmd_ServerStatus2_f(gentity_t *ent)
 	PrintCvar(g_fixEweb);
 	PrintCvar(g_fixFallingSounds);
 	PrintCvar(g_fixGripKills);
+	PrintCvar(g_fixHackSaberThrow);
 	PrintCvar(g_fixHothBunkerLift);
 	PrintCvar(g_fixHothDoorSounds);
 	PrintCvar(g_fixHothHangarTurrets);
