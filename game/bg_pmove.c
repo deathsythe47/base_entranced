@@ -4279,6 +4279,12 @@ static void PM_CheckDuck (void)
                 pm->maxs[2] = pm->ps->standheight;
                 pm->ps->pm_flags &= ~PMF_ROLLING;
             }
+			else if (g_fixRoll.integer && pm->ps->legsTimer < 1 && pm->ps->legsAnim >= BOTH_CROUCH1 && pm->ps->legsAnim <= BOTH_CROUCH1WALKBACK) {
+				pm->maxs[2] = pm->ps->crouchheight;
+				pm->ps->viewheight = CROUCH_VIEWHEIGHT;
+				pm->ps->pm_flags &= ~PMF_ROLLING;
+				pm->ps->pm_flags |= PMF_DUCKED;
+			}
 			//// try to stand up
 		}
 		else if (pm->cmd.upmove < 0 ||

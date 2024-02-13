@@ -2863,6 +2863,8 @@ extern vmCvar_t		g_fixSniperSwitch;
 extern vmCvar_t		g_fixGolanDamage;
 extern vmCvar_t		g_locationBasedDamage_splash;
 
+extern vmCvar_t		g_fixRoll;
+
 // flags for g_balanceSaber
 #define SB_KICK				(1<<0) // kick with all sabers
 #define SB_BACKFLIP			(1<<1) // backflip with all sabers
