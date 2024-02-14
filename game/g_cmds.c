@@ -9925,6 +9925,7 @@ void Cmd_ServerStatus2_f(gentity_t *ent)
 	PrintCvar(g_improvedTeamchat);
 	PrintCvar(g_infiniteCharge);
 	PrintCvar(g_intermissionKnockbackNPCs);
+	PrintCvar(g_ownMineDetpackCollision);
 	PrintCvar(g_unlagged);
 #ifdef _DEBUG
 	PrintCvar(g_unlaggedDebug);

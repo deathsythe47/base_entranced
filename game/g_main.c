@@ -230,6 +230,7 @@ vmCvar_t	g_joinMenuHack;
 vmCvar_t	g_classChangeLimit;
 vmCvar_t	g_classChangeLimitPeriodMilliseconds;
 vmCvar_t	g_corpseExplosivesBounce;
+vmCvar_t	g_ownMineDetpackCollision;
 
 vmCvar_t	g_preventJoiningLargerTeam;
 vmCvar_t	g_lastIntermissionStartTime;
@@ -1183,6 +1184,7 @@ static cvarTable_t		gameCvarTable[] = {
 	{ &g_classChangeLimit, "g_classChangeLimit", "5", CVAR_ARCHIVE, 0, qtrue },
 	{ &g_classChangeLimitPeriodMilliseconds, "g_classChangeLimitPeriodMilliseconds", "2000", CVAR_ARCHIVE, 0, qtrue },
 	{ &g_corpseExplosivesBounce, "g_corpseExplosivesBounce", "-1", CVAR_ARCHIVE, 0, qtrue },
+	{ &g_ownMineDetpackCollision, "g_ownMineDetpackCollision", "0", CVAR_ARCHIVE, 0, qtrue },
 
 	{ &g_preventJoiningLargerTeam, "g_preventJoiningLargerTeam", "0", CVAR_ARCHIVE, 0, qtrue },
 	{ &g_lastIntermissionStartTime, "g_lastIntermissionStartTime", "", CVAR_TEMP | CVAR_ROM, 0, qfalse },
@@ -6675,6 +6677,30 @@ void G_RunFrame( int levelTime ) {
 	void		*timer_Queues;
 #endif
 	static int lastMsgTime = 0;
+
+	if (g_ownMineDetpackCollision.integer) {
+		for (int i = MAX_CLIENTS; i < MAX_GENTITIES; i++) {
+			gentity_t *ent = &g_entities[i];
+			if (!ent->inuse || ent->health <= 0 || !VALIDSTRING(ent->classname))
+				continue;
+			if (!(!strcmp(ent->classname, "laserTrap") && ent->count) && strcmp(ent->classname, "detpack"))
+				continue; // not proxy mine or detpack
+			if (!(ent->r.svFlags & SVF_OWNERNOTSHARED))
+				continue; // not yet stuck to a wall
+			if (ent->r.ownerNum == ENTITYNUM_NONE)
+				continue; // we already got this one
+			if (!ent->parent || ent->parent->health <= 0 || !ent->parent->client || ent->parent->client->pers.connected != CON_CONNECTED || ent->parent->client->sess.sessionTeam == TEAM_SPECTATOR)
+				continue; // no reason to trace
+
+			trace_t tr;
+			trap_Trace(&tr, ent->r.currentOrigin, ent->r.mins, ent->r.maxs, ent->r.currentOrigin, ent - g_entities, CONTENTS_BODY);
+			if (tr.entityNum != ent->parent - g_entities) {
+				// it isn't inside its owner; make it collidable with the owner
+				ent->r.ownerNum = ENTITYNUM_NONE; // serverside
+				ent->s.genericenemyindex = ENTITYNUM_NONE + MAX_GENTITIES; // clientside prediction
+			}
+		}
+	}
 
 #ifdef NEWMOD_SUPPORT
 	for (i = 0; i < MAX_CLIENTS; i++)

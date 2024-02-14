@@ -3014,6 +3014,7 @@ extern vmCvar_t		g_joinMenuHack;
 extern vmCvar_t		g_classChangeLimit;
 extern vmCvar_t		g_classChangeLimitPeriodMilliseconds;
 extern vmCvar_t		g_corpseExplosivesBounce;
+extern vmCvar_t		g_ownMineDetpackCollision;
 
 extern vmCvar_t		g_preventJoiningLargerTeam;
 extern vmCvar_t		g_lastIntermissionStartTime;
