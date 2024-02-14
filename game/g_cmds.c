@@ -9911,6 +9911,7 @@ void Cmd_ServerStatus2_f(gentity_t *ent)
 	PrintCvar(g_fixLiftkillTraps);
 	PrintCvar(g_fixPitKills);
 	PrintCvar(g_fixRancorCharge);
+	PrintCvar(g_fixRoll);
 	PrintCvar(g_fixShield);
 	PrintCvar(g_fixSiegeScoring);
 	PrintCvar(g_fixVoiceChat);
