@@ -6684,7 +6684,7 @@ void G_RunFrame( int levelTime ) {
 			if (!ent->inuse || ent->health <= 0 || !VALIDSTRING(ent->classname))
 				continue;
 			if (!(!strcmp(ent->classname, "laserTrap") && ent->count) && strcmp(ent->classname, "detpack"))
-				continue; // not proxy mine or detpack
+				continue; // not laser mine or detpack
 			if (!(ent->r.svFlags & SVF_OWNERNOTSHARED))
 				continue; // not yet stuck to a wall
 			if (ent->r.ownerNum == ENTITYNUM_NONE)
