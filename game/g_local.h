@@ -775,9 +775,15 @@ typedef struct {
 	qboolean	basementNeckbeardsTriggered;
 
 	qboolean disableShittySaberMoves;
+	int restoreDataTime;
 
 	char		country[128];
 	int			qport;
+
+	enum {
+		CLIENT_TYPE_NORMAL = 0,
+		CLIENT_TYPE_JKCHAT
+	} clientType;
 
 	struct {
 		qboolean	wasFollowing;
@@ -1717,6 +1723,8 @@ typedef struct {
 
 	char		mTeamFilter[MAX_QPATH];
 
+	list_t		disconnectedPlayerList;
+
     struct {
             int state;              //OSP: paused state of the match
             int time;
@@ -2291,6 +2299,57 @@ void NormalizeName(const char *in, char *out, int outSize, int colorlessSize);
 void G_BroadcastServerFeatureList(int clientNum);
 #endif
 extern gentity_t *gJMSaberEnt;
+typedef struct {
+	node_t			node;
+	unsigned int	ip;
+	char			cuidHash[CRYPTO_HASH_HEX_SIZE];
+	team_t			team;
+	playerState_t	ps;
+	int				health;
+	int				armor;
+
+	char			siegeClassStr[64];
+	char			spawnedSiegeClass[64];
+	char			spawnedSiegeModel[64];
+	int				spawnedSiegeMaxHealth;
+
+	int				siegeClass;
+	qboolean		isHacking;
+	vec3_t			hackingAngles;
+	int				ewebIndex;
+	int				ewebTime;
+	int				ewebHealth;
+	int				tempSpectate;
+	int				saberIgniteTime;
+	int				saberUnigniteTime;
+	int				saberBonusTime;
+	int				pushOffWallTime;
+	qboolean		usingEmplaced;
+	qboolean		forcingEmplacedNoAttack;
+	int				saberThrowDamageTime[MAX_GENTITIES];
+	int				homingLockTime;
+	int				homingLockTarget;
+	qboolean		fakeSpec;
+	int				fakeSpecClient;
+	int				lastAiredOtherClientTime[MAX_CLIENTS];
+	int				lastAiredOtherClientMeansOfDeath[MAX_CLIENTS];
+	int				isMedHealed;
+	int				isMedHealingSomeone;
+	int				isMedSupplied;
+	int				isMedSupplyingSomeone;
+	int				jetPackTime;
+	qboolean		jetPackOn;
+	int				jetPackToggleTime;
+	int				jetPackDebRecharge;
+	int				jetPackDebReduce;
+	int				cloakToggleTime;
+	int				cloakDebRecharge;
+	int				cloakDebReduce;
+	int				airOutTime;
+	int				invulnerableTimer;
+	int				saberKnockedTime;
+} disconnectedPlayerData_t;
+qboolean RestoreDisconnectedPlayerData(gentity_t *ent);
 
 //
 // g_svcmds.c

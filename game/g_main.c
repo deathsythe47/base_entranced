@@ -2769,6 +2769,7 @@ void G_ShutdownGame( int restart ) {
 
 	ListClear(&level.mapCaptureRecords.captureRecordsList);
 	ListClear(&level.siegeHelpList);
+	ListClear(&level.disconnectedPlayerList);
 
     //G_LogDbLogLevelEnd(level.db.levelId);
 
@@ -6702,6 +6703,21 @@ void G_RunFrame( int levelTime ) {
 		}
 	}
 
+	if (level.pause.state != PAUSE_NONE && g_autoPauseDisconnect.integer == 2 && level.wasRestarted && !g_cheats.integer && level.isLivePug == ISLIVEPUG_YES) {
+		const int now = trap_Milliseconds();
+
+		for (i = 0; i < MAX_CLIENTS; i++) {
+			gentity_t *ent = &g_entities[i];
+
+			if (ent->inuse && ent->client && ent->client->pers.connected == CON_CONNECTED && ent->client->sess.restoreDataTime && now >= ent->client->sess.restoreDataTime) {
+				if (RestoreDisconnectedPlayerData(ent))
+					ClientUserinfoChanged(ent - g_entities);
+				ent->client->sess.restoreDataTime = 0;
+			}
+
+		}
+	}
+
 #ifdef NEWMOD_SUPPORT
 	for (i = 0; i < MAX_CLIENTS; i++)
 		level.clients[i].realPing = level.clients[i].ps.ping;
@@ -6784,7 +6800,8 @@ void G_RunFrame( int levelTime ) {
 					continue;
 				}
 				if (cl->ps.saberHolstered) {
-					cl->saberUnigniteTime += (level.time - lastTime);
+					if (level.pause.state == PAUSE_NONE)
+						cl->saberUnigniteTime += (level.time - lastTime);
 					if (cl->saberUnigniteTime >= 3000 && !notified[i]) {
 						int j;
 						for (j = 0; j < MAX_CLIENTS; j++) {
@@ -7012,6 +7029,51 @@ void G_RunFrame( int levelTime ) {
 
 		if (g_gametype.integer == GT_SIEGE)
 		{
+			for (int i = MAX_CLIENTS; i < MAX_GENTITIES; i++) {
+				gentity_t *ent = &g_entities[i];
+				if (ent->inuse && ent->m_pVehicle && ent->m_pVehicle->m_iBoarding)
+					ent->m_pVehicle->m_iBoarding += dt;
+			}
+
+			iterator_t iter;
+			ListIterate(&level.disconnectedPlayerList, &iter, qfalse);
+			while (IteratorHasNext(&iter)) {
+				disconnectedPlayerData_t *data = IteratorNext(&iter);
+				if (data->ps.hackingTime)
+					data->ps.hackingTime += dt;
+				if (data->airOutTime)
+					data->airOutTime += dt;
+				if (data->ps.saberDidThrowTime)
+					data->ps.saberDidThrowTime += dt;
+				if (data->ps.saberThrowDelay)
+					data->ps.saberThrowDelay += dt;
+				if (data->invulnerableTimer)
+					data->invulnerableTimer += dt;
+				for (int i = 0; i < MAX_CLIENTS; i++) {
+					if (data->saberThrowDamageTime[i])
+						data->saberThrowDamageTime[i] += dt;
+				}
+				if (data->saberIgniteTime)
+					data->saberIgniteTime += dt;
+				/*if (data->saberUnigniteTime)
+					data->saberUnigniteTime += dt;*/
+				if (data->saberBonusTime)
+					data->saberBonusTime += dt;
+				if (data->pushOffWallTime)
+					data->pushOffWallTime += dt;
+				if (data->saberKnockedTime)
+					data->saberKnockedTime += dt;
+				if (data->homingLockTime)
+					data->homingLockTime += dt;
+				data->ps.fd.forcePowerRegenDebounceTime += dt;
+				if (data->tempSpectate)
+					data->tempSpectate += dt;
+				for (int i = 0; i < NUM_FORCE_POWERS; ++i) {
+					if (data->ps.fd.forcePowerDuration[i])
+						data->ps.fd.forcePowerDuration[i] += dt;
+				}
+			}
+
 			static int accumulatedDt = 0;
 
 			level.siegeRoundStartTime += dt;

@@ -1216,13 +1216,15 @@ void respawn( gentity_t *ent ) {
 	}
 	else
 	{
-		gentity_t	*tent;
 
 		ClientSpawn(ent, qfalse);
 
-		// add a teleportation effect
-		tent = G_TempEntity( ent->client->ps.origin, EV_PLAYER_TELEPORT_IN );
-		tent->s.clientNum = ent->s.clientNum;
+		if (level.pause.state == PAUSE_NONE) {
+			// add a teleportation effect
+			gentity_t *tent;
+			tent = G_TempEntity(ent->client->ps.origin, EV_PLAYER_TELEPORT_IN);
+			tent->s.clientNum = ent->s.clientNum;
+		}
 	}
 }
 
@@ -2412,6 +2414,20 @@ void ClientUserinfoChanged( int clientNum ) {
 		team = client->sess.sessionTeam;
 	}
 
+	// detect assetsless clients (jkchat users)
+	if (strcmp(client->pers.netname, "^7elo BOT") && !client->sess.nmVer[0] && !Q_stricmp(forcePowers, "7-1-032330000000001333") && !Q_stricmp(model, "kyle/default") &&
+		!Q_stricmp(Info_ValueForKey(userinfo, "rate"), "25000") && !Q_stricmp(Info_ValueForKey(userinfo, "snaps"), "40")
+#if 0
+		&& !Q_stricmp(Info_ValueForKey(userinfo, "engine"), "jkclient") && !Q_stricmp(Info_ValueForKey(userinfo, "assets"), "0")
+#endif
+		) {
+
+		client->sess.clientType = CLIENT_TYPE_JKCHAT;
+	}
+	else {
+		client->sess.clientType = CLIENT_TYPE_NORMAL;
+	}
+
 	//Set the siege class
 	if (g_gametype.integer == GT_SIEGE)
 	{
@@ -3455,6 +3471,8 @@ void ClientBegin( int clientNum, qboolean allowTeamReset ) {
 	//assign the pointer for bg entity access
 	ent->playerState = &ent->client->ps;
 
+	//RestoreDisconnectedPlayerData(ent);
+
 	client->pers.connected = CON_CONNECTED;
 	client->pers.enterTime = level.time;
 	client->pers.teamState.state = TEAM_BEGIN;
@@ -3599,9 +3617,11 @@ void ClientBegin( int clientNum, qboolean allowTeamReset ) {
 	}
 
 	if ( client->sess.sessionTeam != TEAM_SPECTATOR ) {
-		// send event
-		tent = G_TempEntity( ent->client->ps.origin, EV_PLAYER_TELEPORT_IN );
-		tent->s.clientNum = ent->s.clientNum;
+		if (level.pause.state == PAUSE_NONE) {
+			// send event
+			tent = G_TempEntity(ent->client->ps.origin, EV_PLAYER_TELEPORT_IN);
+			tent->s.clientNum = ent->s.clientNum;
+		}
 
 		if ( /*g_gametype.integer != GT_DUEL ||*/ g_gametype.integer == GT_POWERDUEL ) {
 			trap_SendServerCommand( -1, va("print \"%s%s" S_COLOR_WHITE " %s\n\"", NM_SerializeUIntToColor(client - level.clients), client->pers.netname, G_GetStringEdString("MP_SVGAME", "PLENTER")) );
@@ -5044,6 +5064,147 @@ void ClientSpawn(gentity_t *ent, qboolean forceUpdateInfo) {
 	}
 }
 
+static qboolean DisconnectedPlayerMatches(genericNode_t *node, void *userData) {
+	disconnectedPlayerData_t *existing = (disconnectedPlayerData_t *)node;
+	disconnectedPlayerData_t *find = (disconnectedPlayerData_t *)userData;
+
+	if (!existing || !find)
+		return qfalse;
+
+	if (existing->ip == find->ip)
+		return qtrue;
+
+	if (!Q_stricmp(existing->cuidHash, find->cuidHash))
+		return qtrue;
+
+	return qfalse;
+}
+
+qboolean RestoreDisconnectedPlayerData(gentity_t *ent) {
+	if (!ent || !ent->client)
+		return qfalse;
+
+	if (!ent->inuse || ent->client->pers.connected != CON_CONNECTED || (ent->r.svFlags & SVF_BOT) || ent->client->sess.clientType != CLIENT_TYPE_NORMAL)
+		return qfalse;
+	
+	disconnectedPlayerData_t findMe = { 0 };
+	findMe.ip = ent->client->sess.ip;
+	if (ent->client->sess.cuidHash[0])
+		memcpy(findMe.cuidHash, ent->client->sess.cuidHash, sizeof(findMe.cuidHash));
+	disconnectedPlayerData_t *data = ListFind(&level.disconnectedPlayerList, DisconnectedPlayerMatches, &findMe, NULL);
+
+	if (!data)
+		return qfalse;
+
+	PrintIngame(-1, "Restoring %s^7's pre-disconnect state.\n", ent->client->pers.netname);
+	ent->client->sess.canJoin = qtrue;
+	SetTeam(ent, data->team == TEAM_RED ? "r" : "b", qtrue);
+
+	int commandTime = ent->client->ps.commandTime;
+	int pm_time = ent->client->ps.pm_time;
+	memcpy(&ent->client->ps, &data->ps, sizeof(playerState_t));
+	ent->client->ps.commandTime = ent->playerState->commandTime = commandTime;
+	ent->client->ps.pm_time = ent->playerState->pm_time = pm_time;
+	ent->client->ps.stats[STAT_HEALTH] = ent->health = data->health;
+	ent->client->ps.stats[STAT_ARMOR] = data->armor;
+
+	Q_strncpyz(ent->client->sess.siegeClass, data->siegeClassStr, sizeof(ent->client->sess.siegeClass));
+	Q_strncpyz(ent->client->sess.spawnedSiegeClass, data->spawnedSiegeClass, sizeof(ent->client->sess.spawnedSiegeClass));
+	Q_strncpyz(ent->client->sess.spawnedSiegeModel, data->spawnedSiegeModel, sizeof(ent->client->sess.spawnedSiegeModel));
+	ent->client->sess.spawnedSiegeMaxHealth = data->spawnedSiegeMaxHealth;
+
+	ent->client->siegeClass = data->siegeClass;
+	ent->client->isHacking = data->isHacking;
+	memcpy(ent->client->hackingAngles, data->hackingAngles, sizeof(ent->client->hackingAngles));
+	ent->client->ewebHealth = data->ewebHealth;
+	ent->client->ewebIndex = data->ewebIndex;
+	ent->client->ewebTime = data->ewebTime;
+	ent->client->tempSpectate = data->tempSpectate;
+	ent->client->saberIgniteTime = data->saberIgniteTime;
+	ent->client->saberUnigniteTime = data->saberUnigniteTime;
+	ent->client->saberBonusTime = data->saberBonusTime;
+	ent->client->pushOffWallTime = data->pushOffWallTime;
+	ent->client->usingEmplaced = data->usingEmplaced;
+	ent->client->forcingEmplacedNoAttack = data->forcingEmplacedNoAttack;
+	memcpy(ent->client->saberThrowDamageTime, data->saberThrowDamageTime, sizeof(ent->client->saberThrowDamageTime));
+	ent->client->homingLockTime = data->homingLockTime;
+	ent->client->homingLockTarget = data->homingLockTarget;
+	ent->client->fakeSpec = data->fakeSpec;
+	ent->client->fakeSpecClient = data->fakeSpecClient;
+	memcpy(ent->client->lastAiredOtherClientTime, data->lastAiredOtherClientTime, sizeof(ent->client->lastAiredOtherClientTime));
+	memcpy(ent->client->lastAiredOtherClientMeansOfDeath, data->lastAiredOtherClientMeansOfDeath, sizeof(ent->client->lastAiredOtherClientMeansOfDeath));
+	ent->client->isMedHealed = data->isMedHealed;
+	ent->client->isMedHealingSomeone = data->isMedHealingSomeone;
+	ent->client->isMedSupplied = data->isMedSupplied;
+	ent->client->isMedSupplyingSomeone = data->isMedSupplyingSomeone;
+	ent->client->jetPackTime = data->jetPackTime;
+	ent->client->jetPackOn = data->jetPackOn;
+	ent->client->jetPackToggleTime = data->jetPackToggleTime;
+	ent->client->jetPackDebRecharge = data->jetPackDebRecharge;
+	ent->client->jetPackDebReduce = data->jetPackDebReduce;
+	ent->client->cloakToggleTime = data->cloakToggleTime;
+	ent->client->cloakDebRecharge = data->cloakDebRecharge;
+	ent->client->cloakDebReduce = data->cloakDebReduce;
+	ent->client->airOutTime = data->airOutTime;
+	ent->client->invulnerableTimer = data->invulnerableTimer;
+	ent->client->saberKnockedTime = data->saberKnockedTime;
+	
+	BG_PlayerStateToEntityState(&ent->client->ps, &ent->s, qfalse);
+
+	// vehicle fuckery
+	if (ent->client->ps.m_iVehicleNum && ent->client->ps.m_iVehicleNum != ENTITYNUM_NONE) {
+		gentity_t *veh = &g_entities[ent->client->ps.m_iVehicleNum];
+		if (veh->inuse && veh->m_pVehicle) {
+			const int oldBoarding = veh->m_pVehicle->m_iBoarding;
+			ent->client->ps.m_iVehicleNum = 0;
+			veh->m_pVehicle->m_iBoarding = 0;
+			veh->m_pVehicle->m_pVehicleInfo->Board(veh->m_pVehicle, (bgEntity_t *)ent);
+			veh->m_pVehicle->m_iBoarding = oldBoarding;
+			ent->client->ps.m_iVehicleNum = veh - g_entities; // sanity check, probably not necessary
+		}
+		else { // some how the vehicle is gone? take away our vehicle
+			ent->client->ps.m_iVehicleNum = 0;
+		}
+	}
+
+	// siege item fuckery
+	if (ent->client->holdingObjectiveItem >= MAX_CLIENTS && ent->client->holdingObjectiveItem < ENTITYNUM_WORLD) {
+		gentity_t *siegeItem = &g_entities[ent->client->holdingObjectiveItem];
+		if (siegeItem && siegeItem->inuse && siegeItem->touch) { // touch the item we dropped
+			siegeItem->genericValue2 = 1;
+			siegeItem->genericValue8 = ent->s.number;
+			siegeItem->genericValue9 = 0;
+
+			// see if we need to kill a "pick up this item" siege help message
+			qboolean needUpdate = qfalse;
+			iterator_t iter = { 0 };
+			ListIterate(&level.siegeHelpList, &iter, qfalse);
+			while (IteratorHasNext(&iter)) {
+				siegeHelp_t *help = IteratorNext(&iter);
+				if (help->ended)
+					continue;
+				if (help->started && help->item[0] && (!Q_stricmp(siegeItem->targetname, help->item) || !Q_stricmp(siegeItem->goaltarget, help->item))) {
+					help->forceHideItem = qtrue;
+					needUpdate = qtrue;
+				}
+			}
+			if (needUpdate)
+				level.siegeHelpMessageTime = -SIEGE_HELP_INTERVAL;
+			UpdateNewmodSiegeItems();
+			siegeItem->genericValue5 = 1;
+			if (siegeItem->specialIconTreatment)
+				siegeItem->s.eFlags &= ~EF_RADAROBJECT;
+			siegeItem->s.time2 = 0xFFFFFFFF;
+		}
+		else { // somehow the item is gone? take away our item i guess
+			ent->client->holdingObjectiveItem = 0;
+		}
+	}
+
+	ListRemove(&level.disconnectedPlayerList, data);
+
+	return qtrue;
+}
 
 /*
 ===========
@@ -5086,6 +5247,65 @@ void ClientDisconnect( int clientNum ) {
 
 		level.pause.state = PAUSE_PAUSED;
 		NoteClientsOnLiftAtPause();
+
+		if (g_autoPauseDisconnect.integer != 1 && ent->health > 0 && !ent->client->ps.fallingToDeath) {
+			disconnectedPlayerData_t findMe = { 0 };
+			findMe.ip = ent->client->sess.ip;
+			if (ent->client->sess.cuidHash[0])
+				memcpy(findMe.cuidHash, ent->client->sess.cuidHash, sizeof(findMe.cuidHash));
+			disconnectedPlayerData_t *data = ListFind(&level.disconnectedPlayerList, DisconnectedPlayerMatches, &findMe, NULL);
+			if (!data)
+				data = ListAdd(&level.disconnectedPlayerList, sizeof(disconnectedPlayerData_t));
+			data->ip = ent->client->sess.ip;
+			if (ent->client->sess.cuidHash[0])
+				memcpy(data->cuidHash, ent->client->sess.cuidHash, sizeof(data->cuidHash));
+
+			data->team = ent->client->sess.siegeDesiredTeam;
+			data->health = ent->health;
+			data->armor = ent->client->ps.stats[STAT_ARMOR];
+
+			Q_strncpyz(data->siegeClassStr, ent->client->sess.siegeClass, sizeof(data->siegeClassStr));
+			Q_strncpyz(data->spawnedSiegeClass, ent->client->sess.spawnedSiegeClass, sizeof(data->spawnedSiegeClass));
+			Q_strncpyz(data->spawnedSiegeModel, ent->client->sess.spawnedSiegeModel, sizeof(data->spawnedSiegeModel));
+			data->spawnedSiegeMaxHealth = ent->client->sess.spawnedSiegeMaxHealth;
+
+			data->siegeClass = ent->client->siegeClass;
+			memcpy(&data->ps, &ent->client->ps, sizeof(playerState_t));
+			data->isHacking = ent->client->isHacking;
+			memcpy(data->hackingAngles, ent->client->hackingAngles, sizeof(data->hackingAngles));
+			data->ewebHealth = ent->client->ewebHealth;
+			data->ewebIndex = ent->client->ewebIndex;
+			data->ewebTime = ent->client->ewebTime;
+			data->tempSpectate = ent->client->tempSpectate;
+			data->saberIgniteTime = ent->client->saberIgniteTime;
+			data->saberUnigniteTime = ent->client->saberUnigniteTime;
+			data->saberBonusTime = ent->client->saberBonusTime;
+			data->pushOffWallTime = ent->client->pushOffWallTime;
+			data->usingEmplaced = ent->client->usingEmplaced;
+			data->forcingEmplacedNoAttack = ent->client->forcingEmplacedNoAttack;
+			memcpy(data->saberThrowDamageTime, ent->client->saberThrowDamageTime, sizeof(data->saberThrowDamageTime));
+			data->homingLockTime = ent->client->homingLockTime;
+			data->homingLockTarget = ent->client->homingLockTarget;
+			data->fakeSpec = ent->client->fakeSpec;
+			data->fakeSpecClient = ent->client->fakeSpecClient;
+			memcpy(data->lastAiredOtherClientTime, ent->client->lastAiredOtherClientTime, sizeof(data->lastAiredOtherClientTime));
+			memcpy(data->lastAiredOtherClientMeansOfDeath, ent->client->lastAiredOtherClientMeansOfDeath, sizeof(data->lastAiredOtherClientMeansOfDeath));
+			data->isMedHealed = ent->client->isMedHealed;
+			data->isMedHealingSomeone = ent->client->isMedHealingSomeone;
+			data->isMedSupplied = ent->client->isMedSupplied;
+			data->isMedSupplyingSomeone = ent->client->isMedSupplyingSomeone;
+			data->jetPackTime = ent->client->jetPackTime;
+			data->jetPackOn = ent->client->jetPackOn;
+			data->jetPackToggleTime = ent->client->jetPackToggleTime;
+			data->jetPackDebRecharge = ent->client->jetPackDebRecharge;
+			data->jetPackDebReduce = ent->client->jetPackDebReduce;
+			data->cloakToggleTime = ent->client->cloakToggleTime;
+			data->cloakDebRecharge = ent->client->cloakDebRecharge;
+			data->cloakDebReduce = ent->client->cloakDebReduce;
+			data->airOutTime = ent->client->airOutTime;
+			data->invulnerableTimer = ent->client->invulnerableTimer;
+			data->saberKnockedTime = ent->client->saberKnockedTime;
+		}
 	}
 
 	if (clientNum < MAX_CLIENTS) {
@@ -5147,8 +5367,7 @@ void ClientDisconnect( int clientNum ) {
 	}
 
 	// send effect if they were completely connected
-	if ( ent->client->pers.connected == CON_CONNECTED 
-		&& ent->client->sess.sessionTeam != TEAM_SPECTATOR ) {
+	if ( ent->client->pers.connected == CON_CONNECTED && ent->client->sess.sessionTeam != TEAM_SPECTATOR && level.pause.state == PAUSE_NONE) {
 		tent = G_TempEntity( ent->client->ps.origin, EV_PLAYER_TELEPORT_OUT );
 		tent->s.clientNum = ent->s.clientNum;
 

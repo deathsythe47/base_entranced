@@ -2437,6 +2437,7 @@ void player_die( gentity_t *self, gentity_t *inflictor, gentity_t *attacker, int
 
 	self->client->emoted = qfalse;
 
+#if 0
 	// idiot selfkilled at the start of the round for some reason; note this
 	if (level.wasRestarted && g_gametype.integer == GT_SIEGE && self - g_entities < MAX_CLIENTS && (!attacker || self == attacker) &&
 		self->client && (self->client->sess.sessionTeam == TEAM_RED || self->client->sess.sessionTeam == TEAM_BLUE) &&
@@ -2444,6 +2445,7 @@ void player_die( gentity_t *self, gentity_t *inflictor, gentity_t *attacker, int
 		level.siegeRoundStartTime && level.time - level.siegeRoundStartTime <= LIVEPUG_CHECK_TIME) {
 		level.selfKilledAtStart[self - g_entities] = qtrue;
 	}
+#endif
 
 	if (self - g_entities >= 0 && self - g_entities < MAX_CLIENTS) {
 		level.siegeTopTimes[self - g_entities].hasDied = qtrue;

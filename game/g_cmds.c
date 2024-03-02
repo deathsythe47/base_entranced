@@ -830,6 +830,14 @@ void Cmd_Kill_f( gentity_t *ent ) {
     if ( level.pause.state != PAUSE_NONE )
             return;
 
+	// idiot tried to selfkill at the very beginning of the round
+	if (level.wasRestarted && g_gametype.integer == GT_SIEGE && g_siegeRespawn.integer > 1 &&
+		(ent->client->sess.sessionTeam == TEAM_RED || ent->client->sess.sessionTeam == TEAM_BLUE) &&
+		(level.siegeStage == SIEGESTAGE_ROUND1 || level.siegeStage == SIEGESTAGE_ROUND2) &&
+		level.siegeRoundStartTime && level.time - level.siegeRoundStartTime <= LIVEPUG_CHECK_TIME) {
+		return;
+	}
+
 	if ((g_gametype.integer == GT_DUEL || g_gametype.integer == GT_POWERDUEL) &&
 		level.numPlayingClients > 1 && !level.warmupTime)
 	{
@@ -1268,7 +1276,7 @@ void SetTeam( gentity_t *ent, char *s, qboolean forceteamed ) {
 
 	//make a disappearing effect where they were before teleporting them to the appropriate spawn point,
 	//if we were not on the spec team
-	if (oldTeam != TEAM_SPECTATOR)
+	if (oldTeam != TEAM_SPECTATOR && level.pause.state == PAUSE_NONE)
 	{
 		gentity_t *tent = G_TempEntity( client->ps.origin, EV_PLAYER_TELEPORT_OUT );
 		tent->s.clientNum = clientNum;
@@ -1635,6 +1643,14 @@ void Cmd_Team_f( gentity_t *ent ) {
 	if (g_gametype.integer == GT_POWERDUEL)
 	{ //don't let clients change teams manually at all in powerduel, it will be taken care of through automated stuff
 		trap_SendServerCommand( ent-g_entities, "print \"Cannot switch teams in Power Duel\n\"" );
+		return;
+	}
+
+	// idiot tried to selfkill at the very beginning of the round
+	if (level.wasRestarted && g_gametype.integer == GT_SIEGE && g_siegeRespawn.integer > 1 &&
+		(ent->client->sess.sessionTeam == TEAM_RED || ent->client->sess.sessionTeam == TEAM_BLUE) &&
+		(level.siegeStage == SIEGESTAGE_ROUND1 || level.siegeStage == SIEGESTAGE_ROUND2) &&
+		level.siegeRoundStartTime && level.time - level.siegeRoundStartTime <= LIVEPUG_CHECK_TIME) {
 		return;
 	}
 
@@ -2298,6 +2314,14 @@ void Cmd_Join_f(gentity_t *ent)
 		return;
 	}
 
+	// idiot tried to selfkill at the very beginning of the round
+	if (level.wasRestarted && g_gametype.integer == GT_SIEGE && g_siegeRespawn.integer > 1 &&
+		(ent->client->sess.sessionTeam == TEAM_RED || ent->client->sess.sessionTeam == TEAM_BLUE) &&
+		(level.siegeStage == SIEGESTAGE_ROUND1 || level.siegeStage == SIEGESTAGE_ROUND2) &&
+		level.siegeRoundStartTime && level.time - level.siegeRoundStartTime <= LIVEPUG_CHECK_TIME) {
+		return;
+	}
+
 	if (ClassChangeLimitExceeded(ent)) {
 		trap_SendServerCommand(ent - g_entities, "print \"Please wait before switching classes.\n\"");
 		return;
@@ -2403,6 +2427,14 @@ void Cmd_Class_f(gentity_t *ent)
 	if (trap_Argc() < 1)
 	{
 		trap_SendServerCommand(ent - g_entities, "print \"Usage: class <number> or class <first letter of class name> (e.g. '^5class a^7' for assault)\n\"");
+		return;
+	}
+
+	// idiot tried to selfkill at the very beginning of the round
+	if (level.wasRestarted && g_gametype.integer == GT_SIEGE && g_siegeRespawn.integer > 1 &&
+		(ent->client->sess.sessionTeam == TEAM_RED || ent->client->sess.sessionTeam == TEAM_BLUE) &&
+		(level.siegeStage == SIEGESTAGE_ROUND1 || level.siegeStage == SIEGESTAGE_ROUND2) &&
+		level.siegeRoundStartTime && level.time - level.siegeRoundStartTime <= LIVEPUG_CHECK_TIME) {
 		return;
 	}
 
@@ -8831,6 +8863,8 @@ static void Cmd_Svauth_f( gentity_t *ent ) {
 			Crypto_Hash( s, ent->client->sess.cuidHash, sizeof( ent->client->sess.cuidHash ) );
 			G_Printf( "Newmod client %d authenticated successfully (cuid hash: %s)\n", ent - g_entities, ent->client->sess.cuidHash );
 			ent->client->sess.auth++;
+			ent->client->sess.restoreDataTime = trap_Milliseconds() + 1000;
+			//RestoreDisconnectedPlayerData(ent);
 			ClientUserinfoChanged( ent - g_entities );
 
 			return;

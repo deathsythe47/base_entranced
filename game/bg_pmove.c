@@ -1401,7 +1401,8 @@ qboolean PM_AdjustAngleForWallRunUp( playerState_t *ps, usercmd_t *ucmd, qboolea
 				pm->ps->velocity[2] += 400;
 				PM_SetAnim(SETANIM_BOTH, BOTH_FORCEWALLRUNFLIP_ALT, SETANIM_FLAG_OVERRIDE|SETANIM_FLAG_HOLD, 0);
 				pm->ps->pm_flags |= PMF_JUMP_HELD;
-				PM_AddEvent(EV_JUMP);
+				if (level.pause.state == PAUSE_NONE)
+					PM_AddEvent(EV_JUMP);
 				ucmd->upmove = 0;
 				return qfalse;
 			}
@@ -1467,7 +1468,8 @@ qboolean PM_AdjustAngleForWallRunUp( playerState_t *ps, usercmd_t *ucmd, qboolea
 			ps->pm_flags |= PMF_JUMP_HELD;
 
 			//FIXME do I need this in mp?
-			PM_AddEvent(EV_JUMP);
+			if (level.pause.state == PAUSE_NONE)
+				PM_AddEvent(EV_JUMP);
 			ucmd->upmove = 0;
 		}
 
@@ -1675,7 +1677,8 @@ float forceJumpHeightMax[NUM_FORCE_POWER_LEVELS] =
 void PM_GrabWallForJump( int anim )
 {//NOTE!!! assumes an appropriate anim is being passed in!!!
 	PM_SetAnim( SETANIM_BOTH, anim, SETANIM_FLAG_RESTART|SETANIM_FLAG_OVERRIDE|SETANIM_FLAG_HOLD, 0 );
-	PM_AddEvent( EV_JUMP );//make sound for grab
+	if (level.pause.state == PAUSE_NONE)
+		PM_AddEvent( EV_JUMP );//make sound for grab
 	pm->ps->pm_flags |= PMF_STUCK_TO_WALL;
 }
 
@@ -2346,7 +2349,8 @@ static qboolean PM_CheckJump( void )
 						//FIXME: do damage to traceEnt, like above?
 						//ha ha, so silly with your silly jumpy fally flags.
 						pm->cmd.upmove = 0;
-						PM_AddEvent( EV_JUMP );
+						if (level.pause.state == PAUSE_NONE)
+							PM_AddEvent( EV_JUMP );
 					}
 				}
 				if ( pm->cmd.upmove != 0 )
@@ -2528,7 +2532,8 @@ static qboolean PM_CheckJump( void )
 	pm->ps->groundEntityNum = ENTITYNUM_NONE;
 	PM_SetForceJumpZStart(pm->ps->origin[2]);
 
-	PM_AddEvent( EV_JUMP );
+	if (level.pause.state == PAUSE_NONE)
+		PM_AddEvent( EV_JUMP );
 
 	//Set the animations
 	if ( pm->ps->gravity > 0 && !BG_InSpecialJump( pm->ps->legsAnim ) )
@@ -3704,22 +3709,26 @@ static void PM_CrashLand( void ) {
 
 			if (didRoll)
 			{ //Add the appropriate event..
-				PM_AddEventWithParm( EV_ROLL, delta_send );
+				if (level.pause.state == PAUSE_NONE)
+					PM_AddEventWithParm( EV_ROLL, delta_send );
 			}
 			else
 			{
-				PM_AddEventWithParm( EV_FALL, delta_send );
+				if (level.pause.state == PAUSE_NONE)
+					PM_AddEventWithParm( EV_FALL, delta_send );
 			}
 		}
 		else
 		{
 			if (didRoll)
 			{
-				PM_AddEventWithParm( EV_ROLL, 0 );
+				if (level.pause.state == PAUSE_NONE)
+					PM_AddEventWithParm( EV_ROLL, 0 );
 			}
 			else
 			{
-				PM_AddEventWithParm( EV_FOOTSTEP, PM_FootstepForSurface() );
+				if (level.pause.state == PAUSE_NONE)
+					PM_AddEventWithParm( EV_FOOTSTEP, PM_FootstepForSurface() );
 			}
 		}
 	}
@@ -5125,7 +5134,8 @@ static void PM_Footsteps( void ) {
 			pm->ps->legsTimer = 0;
 			pm->ps->legsAnim = 0;
 			PM_SetAnim(SETANIM_BOTH,rolled,SETANIM_FLAG_OVERRIDE|SETANIM_FLAG_HOLD, 150);
-			PM_AddEventWithParm( EV_ROLL, 0 );
+			if (level.pause.state == PAUSE_NONE)
+				PM_AddEventWithParm( EV_ROLL, 0 );
 			pm->maxs[2] = pm->ps->crouchheight;
 			pm->ps->viewheight = DEFAULT_VIEWHEIGHT;
 			pm->ps->pm_flags &= ~PMF_DUCKED;
@@ -9181,7 +9191,8 @@ static ID_INLINE void PM_CmdForSaberMoves(usercmd_t *ucmd)
 						pm->ps->velocity[2] = 250;
 						pm->ps->fd.forceJumpZStart = pm->ps->origin[2];//so we don't take damage if we land at same height
 						//FIXME: NPCs yell?
-						PM_AddEvent(EV_JUMP);
+						if (level.pause.state == PAUSE_NONE)
+							PM_AddEvent(EV_JUMP);
 					}
 				}
 				else
@@ -9245,7 +9256,8 @@ static ID_INLINE void PM_CmdForSaberMoves(usercmd_t *ucmd)
 					}
 					pm->ps->fd.forceJumpZStart = pm->ps->origin[2];//so we don't take damage if we land at same height
 					//FIXME: NPCs yell?
-					PM_AddEvent(EV_JUMP);
+					if (level.pause.state == PAUSE_NONE)
+						PM_AddEvent(EV_JUMP);
 				}
 				else
 				{//FIXME: if this is the second jump, maybe we should just stop the anim?
@@ -9285,7 +9297,8 @@ static ID_INLINE void PM_CmdForSaberMoves(usercmd_t *ucmd)
 				pm->ps->fd.forceJumpZStart = pm->ps->origin[2]; //so we don't take damage if we land at same height
 
 				//FIXME: NPCs yell?
-				PM_AddEvent(EV_JUMP);
+				if (level.pause.state == PAUSE_NONE)
+					PM_AddEvent(EV_JUMP);
 				ucmd->upmove = 0; //clear any actual jump command
 			}
 		}
@@ -9753,7 +9766,8 @@ void PM_MoveForKata(usercmd_t *ucmd)
 				pm->ps->velocity[2] = 250;
 				pm->ps->fd.forceJumpZStart = pm->ps->origin[2];//so we don't take damage if we land at same height
 				//FIXME: NPCs yell?
-				PM_AddEvent(EV_JUMP);
+				if (level.pause.state == PAUSE_NONE)
+					PM_AddEvent(EV_JUMP);
 			}
 		}
 	}

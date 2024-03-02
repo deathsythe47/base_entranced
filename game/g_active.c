@@ -5563,8 +5563,8 @@ void ClientEndFrame( gentity_t *ent ) {
 		}
 		if (ent->client->saberIgniteTime)
 			ent->client->saberIgniteTime += time_delta;
-		if (ent->client->saberUnigniteTime)
-			ent->client->saberUnigniteTime += time_delta;
+		/*if (ent->client->saberUnigniteTime)
+			ent->client->saberUnigniteTime += time_delta;*/
 		if (ent->client->saberBonusTime)
 			ent->client->saberBonusTime += time_delta;
 		if (ent->client->pushOffWallTime)

@@ -2932,9 +2932,11 @@ void SiegeRespawn(gentity_t *ent)
 	else
 	{
 		ClientSpawn(ent, needUpdateInfo);
-		// add a teleportation effect
-		tent = G_TempEntity( ent->client->ps.origin, EV_PLAYER_TELEPORT_IN );
-		tent->s.clientNum = ent->s.clientNum;
+		if (level.pause.state == PAUSE_NONE) {
+			// add a teleportation effect
+			tent = G_TempEntity(ent->client->ps.origin, EV_PLAYER_TELEPORT_IN);
+			tent->s.clientNum = ent->s.clientNum;
+		}
 	}
 }
 
@@ -4568,6 +4570,11 @@ void SiegeItemTouch( gentity_t *self, gentity_t *other, trace_t *trace )
 
 	if (other->client->emoted)
 		return;
+
+	if (level.pause.state != PAUSE_NONE)
+		return;
+
+	// duo warning: if you change anything in here make sure it's reflected in the disconnected player data restoration stuff
 
 	if (self->noise_index)
 	{ //play the pickup noise.
