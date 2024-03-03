@@ -5080,6 +5080,8 @@ static qboolean DisconnectedPlayerMatches(genericNode_t *node, void *userData) {
 	return qfalse;
 }
 
+extern gentity_t *EWeb_Create(gentity_t *spawner);
+
 qboolean RestoreDisconnectedPlayerData(gentity_t *ent) {
 	if (!ent || !ent->client)
 		return qfalse;
@@ -5150,6 +5152,19 @@ qboolean RestoreDisconnectedPlayerData(gentity_t *ent) {
 	ent->client->saberKnockedTime = data->saberKnockedTime;
 	
 	BG_PlayerStateToEntityState(&ent->client->ps, &ent->s, qfalse);
+
+	// eweb fuckery
+	if (ent->client->ewebIndex) {
+		gentity_t *eweb = EWeb_Create(ent);
+		if (eweb) {
+			ent->client->ewebIndex = eweb->s.number;
+			ent->client->ps.emplacedIndex = eweb->s.number;
+		}
+		else {
+			ent->client->ewebIndex = 0;
+			ent->client->ps.emplacedIndex = 0;
+		}
+	}
 
 	// vehicle fuckery
 	if (ent->client->ps.m_iVehicleNum && ent->client->ps.m_iVehicleNum != ENTITYNUM_NONE) {
