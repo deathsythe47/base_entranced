@@ -5976,11 +5976,11 @@ int G_Damage(gentity_t *targ, gentity_t *inflictor, gentity_t *attacker,
 		// if the attacker was on the same team
 		if ( targ != attacker)
 		{
-			if (OnSameTeam (targ, attacker) ||
+			if (!(inflictor && targ && inflictor->projectileTeam && inflictor->projectileTeam == targ->projectileTeam) && (OnSameTeam (targ, attacker) ||
 				(inflictor && inflictor->projectileTeam && g_gametype.integer == GT_SIEGE && targ && targ->client && targ->client->sess.sessionTeam == inflictor->projectileTeam) ||
 				(inflictor && inflictor->projectileTeam && g_gametype.integer == GT_SIEGE && targ && targ->teamnodmg && targ->teamnodmg == inflictor->projectileTeam) ||
 				(targ && targ->projectileTeam && attacker && attacker->client && attacker->client->sess.sessionTeam == targ->projectileTeam) ||
-				(targ && targ->projectileTeam && attacker && attacker->teamnodmg && attacker->teamnodmg == targ->projectileTeam))
+				(targ && targ->projectileTeam && attacker && attacker->teamnodmg && attacker->teamnodmg == targ->projectileTeam)))
 			{
 				if ( !g_friendlyFire.integer && !(negativeDamageOk && damage < 0) )
 				{

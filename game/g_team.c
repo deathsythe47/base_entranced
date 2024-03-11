@@ -183,12 +183,7 @@ qboolean OnSameTeam( gentity_t *ent1, gentity_t *ent2 ) {
 	assert(ent1 && ent2);
 	if (ent1->projectileTeam || ent2->projectileTeam) {
 		if (ent1->projectileTeam && ent2->projectileTeam) {
-			if (ent1->projectileTeam == ent2->projectileTeam)
-				return qtrue;
-			if (ent2->teamnodmg == ent1->projectileTeam)
-				return qtrue;
-			if (ent1->teamnodmg == ent2->projectileTeam)
-				return qtrue;
+			return qfalse; // two projectiles; allow it
 		}
 		else if (ent1->projectileTeam) {
 			if (ent2->client && ent2->client->sess.sessionTeam == ent1->projectileTeam)
