@@ -231,6 +231,7 @@ vmCvar_t	g_classChangeLimit;
 vmCvar_t	g_classChangeLimitPeriodMilliseconds;
 vmCvar_t	g_corpseExplosivesBounce;
 vmCvar_t	g_ownMineDetpackCollision;
+vmCvar_t	g_greenshieldBlocksSelfDamage;
 
 vmCvar_t	g_preventJoiningLargerTeam;
 vmCvar_t	g_lastIntermissionStartTime;
@@ -1185,6 +1186,7 @@ static cvarTable_t		gameCvarTable[] = {
 	{ &g_classChangeLimitPeriodMilliseconds, "g_classChangeLimitPeriodMilliseconds", "2000", CVAR_ARCHIVE, 0, qtrue },
 	{ &g_corpseExplosivesBounce, "g_corpseExplosivesBounce", "-1", CVAR_ARCHIVE, 0, qtrue },
 	{ &g_ownMineDetpackCollision, "g_ownMineDetpackCollision", "0", CVAR_ARCHIVE, 0, qtrue },
+	{ &g_greenshieldBlocksSelfDamage, "g_greenshieldBlocksSelfDamage", "1", CVAR_ARCHIVE, 0, qtrue },
 
 	{ &g_preventJoiningLargerTeam, "g_preventJoiningLargerTeam", "0", CVAR_ARCHIVE, 0, qtrue },
 	{ &g_lastIntermissionStartTime, "g_lastIntermissionStartTime", "", CVAR_TEMP | CVAR_ROM, 0, qfalse },

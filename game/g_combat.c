@@ -6027,7 +6027,7 @@ int G_Damage(gentity_t *targ, gentity_t *inflictor, gentity_t *attacker,
 		}
 
 		if (targ && targ->client && (targ->client->ps.eFlags & EF_INVULNERABLE) &&
-			attacker && attacker->client && targ != attacker)
+			attacker && attacker->client && (targ != attacker || g_greenshieldBlocksSelfDamage.integer))
 		{
 			if (targ->client->invulnerableTimer <= level.time)
 			{
