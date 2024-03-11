@@ -2672,7 +2672,7 @@ void DEMP2_AltRadiusDamage( gentity_t *missile )
 				if ( gent->client->ps.powerups[PW_CLOAKED] )
 				{//disable cloak temporarily
 					if (!(!g_friendlyFreeze.integer && g_gametype.integer >= GT_TEAM && gent && gent->client &&
-						missile->projectileTeam == gent->client->sess.sessionTeam)) {
+						missile->projectileTeam && missile->projectileTeam == gent->client->sess.sessionTeam)) {
 						Jedi_Decloak(gent);
 						gent->client->cloakToggleTime = level.time + Q_irand(3000, 10000);
 					}
