@@ -2736,7 +2736,8 @@ void player_die( gentity_t *self, gentity_t *inflictor, gentity_t *attacker, int
 	//if he was charging or anything else, kill the sound
 	G_MuteSound(self->s.number, CHAN_WEAPON);
 
-	BlowDetpacks(self, qtrue); //blow detpacks if they're planted
+	if (level.pause.state == PAUSE_NONE)
+		BlowDetpacks(self, qtrue); //blow detpacks if they're planted
 
 	self->client->ps.fd.forceDeactivateAll = 1;
 
