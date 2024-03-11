@@ -7141,9 +7141,28 @@ void G_RunFrame( int levelTime ) {
 		}
 
 		if (level.time > level.pause.time) {
+			for (int i = 0; i < MAX_GENTITIES; i++) { // reset all entities' pause angles
+				gentity_t *ent = &g_entities[i];
+				ent->lockPauseAngles = qfalse;
+				ent->pauseAngles[0] = ent->pauseAngles[1] = ent->pauseAngles[2] = 0;
+				ent->pauseViewAngles[0] = ent->pauseViewAngles[1] = ent->pauseViewAngles[2] = 0;
+			}
 			level.pause.state = PAUSE_NONE;
 			level.pause.unpauseTime = level.time;
 			trap_SendServerCommand(-1, "cp \"^2Go!^7\n\"");
+		}
+	}
+
+	if (level.pause.state != PAUSE_NONE) { // lock angles of vehicles during pause
+		for (int i = 0; i < MAX_GENTITIES; i++) {
+			gentity_t *ent = &g_entities[i];
+			if (ent->lockPauseAngles && ent->inuse) {
+				VectorCopy(ent->pauseAngles, ent->s.angles);
+				if (ent->client) {
+					VectorCopy(ent->pauseViewAngles, ent->client->ps.viewangles);
+					SetClientViewAngle(ent, ent->client->ps.viewangles);
+				}
+			}
 		}
 	}
 

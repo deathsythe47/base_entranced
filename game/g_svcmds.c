@@ -4174,7 +4174,7 @@ qboolean	ConsoleCommand( void ) {
 
         level.pause.state = PAUSE_PAUSED;
 		level.pause.time = level.time + duration*1000;
-		NoteClientsOnLiftAtPause();
+		DoPauseStartChecks();
 
         return qtrue;
     } 

@@ -3176,7 +3176,7 @@ void G_Say( gentity_t *ent, gentity_t *target, int mode, const char *chatText ) 
 			// instapause
 			level.pause.state = PAUSE_PAUSED;
 			level.pause.time = level.time + 300000;
-			NoteClientsOnLiftAtPause();
+			DoPauseStartChecks();
 			PrintIngame(-1, "Pause requested by %s^7.\n", ent->client->pers.netname);
 			Com_Printf("Pausing upon chat request by %s^7.\n", ent->client->pers.netname);
 		}

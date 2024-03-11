@@ -446,6 +446,10 @@ struct gentity_s {
 	float		originalYaw;
 
 	int			projectileTeam;
+
+	qboolean	lockPauseAngles;
+	vec3_t		pauseAngles;
+	vec3_t		pauseViewAngles;
 };
 
 #define DAMAGEREDIRECT_HEAD		1
@@ -2480,7 +2484,7 @@ typedef enum {
 
 void SiegeGhostUpdate(int sendClientNum, qboolean forceUpdate);
 void ForceSiegeGhostUpdateForFollowers(int followedClientNum);
-void NoteClientsOnLiftAtPause(void);
+void DoPauseStartChecks(void);
 
 //
 // g_table.c

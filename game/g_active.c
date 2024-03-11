@@ -5414,7 +5414,28 @@ void SpectatorClientEndFrame( gentity_t *ent ) {
 	}
 }
 
-void NoteClientsOnLiftAtPause(void) {
+void DoPauseStartChecks(void) {
+	// note angles of vehicles so that people can't unfairly spin vehicles around during pause
+	for (int i = 0; i < MAX_GENTITIES; i++) {
+		gentity_t *ent = &g_entities[i];
+		if (i < MAX_CLIENTS) {
+			if (ent->inuse && ent->client && ent->client->ps.m_iVehicleNum) {
+				ent->lockPauseAngles = qtrue;
+				VectorCopy(ent->s.angles, ent->pauseAngles);
+				VectorCopy(ent->client->ps.viewangles, ent->pauseViewAngles);
+			}
+		}
+		else {
+			if (ent->inuse && ent->m_pVehicle && ent->m_pVehicle->m_pPilot && ((gentity_t *)ent->m_pVehicle->m_pPilot)->inuse && ((gentity_t *)ent->m_pVehicle->m_pPilot)->client) {
+				ent->lockPauseAngles = qtrue;
+				VectorCopy(ent->s.angles, ent->pauseAngles);
+				if (ent->client)
+					VectorCopy(ent->client->ps.viewangles, ent->pauseViewAngles);
+			}
+		}
+	}
+
+	// note clients who are on lifts
 	for (int i = 0; i < MAX_CLIENTS; i++)
 		level.clients[i].pers.onLiftDuringPause = NULL;
 
@@ -5484,7 +5505,7 @@ void ClientEndFrame( gentity_t *ent ) {
 					level.siegeRoundStartTime && level.time - level.siegeRoundStartTime >= LIVEPUG_AUTOPAUSE_TIME) {
 					level.pause.state = PAUSE_PAUSED;
 					level.pause.time = level.time + 300000;
-					NoteClientsOnLiftAtPause();
+					DoPauseStartChecks();
 					Q_strncpyz(level.pause.reason, va("%s^7 is 999\n", ent->client->pers.netname), sizeof(level.pause.reason));
 				}
 			}

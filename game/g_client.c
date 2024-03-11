@@ -5261,7 +5261,7 @@ void ClientDisconnect( int clientNum ) {
 		Q_strncpyz(level.pause.reason, va("%s^7 disconnected\n", ent->client->pers.netname), sizeof(level.pause.reason));
 
 		level.pause.state = PAUSE_PAUSED;
-		NoteClientsOnLiftAtPause();
+		DoPauseStartChecks();
 
 		if (g_autoPauseDisconnect.integer != 1 && ent->health > 0 && !ent->client->ps.fallingToDeath) {
 			disconnectedPlayerData_t findMe = { 0 };
