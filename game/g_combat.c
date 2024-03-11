@@ -5446,7 +5446,7 @@ int G_Damage(gentity_t *targ, gentity_t *inflictor, gentity_t *attacker,
 	// only enemy demp/disruptor can damage rockets
 	if (g_damageFixes.integer & DAMAGEFIXES_ROCKET_HP &&
 		g_gametype.integer == GT_SIEGE &&
-		targ && VALIDSTRING(targ->classname) && !Q_stricmp(targ->classname, "rocket_proj") &&
+		targ && VALIDSTRING(targ->classname) && (!Q_stricmp(targ->classname, "rocket_proj") || (!Q_stricmp(targ->classname, "vehicle_proj") && targ->s.weapon == WP_ROCKET_LAUNCHER)) &&
 		attacker && attacker - g_entities < MAX_CLIENTS && attacker->client) {
 		if (targ->parent && targ->parent - g_entities < MAX_CLIENTS &&
 			targ->parent->client && targ->parent->client->sess.sessionTeam == attacker->client->sess.sessionTeam) {

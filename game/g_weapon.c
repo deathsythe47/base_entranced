@@ -1329,8 +1329,15 @@ qboolean G_CanDisruptify(gentity_t *ent)
 void SetRocketContents(int contents) {
 	for (int i = MAX_CLIENTS; i < ENTITYNUM_MAX_NORMAL; i++) {
 		gentity_t *ent = &g_entities[i];
-		if (!ent->inuse || !VALIDSTRING(ent->classname) || Q_stricmp(ent->classname, "rocket_proj"))
+		if (!ent->inuse || !VALIDSTRING(ent->classname))
 			continue;
+		if (!Q_stricmp(ent->classname, "rocket_proj")) {
+		}
+		else if (!Q_stricmp(ent->classname, "vehicle_proj") && ent->s.weapon == WP_ROCKET_LAUNCHER) {
+		}
+		else {
+			continue;
+		}
 		ent->r.contents = contents;
 	}
 }
@@ -1620,7 +1627,7 @@ static void WP_DisruptorMainFire( gentity_t *ent )
 
 		// skip allied rockets
 		if (g_damageFixes.integer & DAMAGEFIXES_ROCKET_HP && g_gametype.integer == GT_SIEGE &&
-			VALIDSTRING(traceEnt->classname) && !Q_stricmp(traceEnt->classname, "rocket_proj") &&
+			VALIDSTRING(traceEnt->classname) && (!Q_stricmp(traceEnt->classname, "rocket_proj") || (!Q_stricmp(traceEnt->classname, "vehicle_proj") && traceEnt->s.weapon == WP_ROCKET_LAUNCHER)) &&
 			traceEnt->parent && traceEnt->parent - g_entities < MAX_CLIENTS && traceEnt->parent->client &&
 			ent->client && traceEnt->parent->client->sess.sessionTeam == ent->client->sess.sessionTeam) {
 			VectorCopy(tr.endpos, start);
@@ -1743,7 +1750,7 @@ static void WP_DisruptorMainFire( gentity_t *ent )
 			}
 
 			if (g_damageFixes.integer & DAMAGEFIXES_ROCKET_HP && g_gametype.integer == GT_SIEGE &&
-				VALIDSTRING(traceEnt->classname) && !Q_stricmp(traceEnt->classname, "rocket_proj"))
+				VALIDSTRING(traceEnt->classname) && (!Q_stricmp(traceEnt->classname, "rocket_proj") || (!Q_stricmp(traceEnt->classname, "vehicle_proj") && traceEnt->s.weapon == WP_ROCKET_LAUNCHER)))
 				G_Damage( traceEnt, ent, ent, forward, tr.endpos, 9999999, DAMAGE_NORMAL, MOD_DISRUPTOR );
 			else
 				G_Damage(traceEnt, ent, ent, forward, tr.endpos, damage, DAMAGE_NORMAL, MOD_DISRUPTOR);
@@ -1979,7 +1986,7 @@ void WP_DisruptorAltFire( gentity_t *ent )
 
 		// skip allied rockets
 		if (g_damageFixes.integer & DAMAGEFIXES_ROCKET_HP && g_gametype.integer == GT_SIEGE &&
-			VALIDSTRING(traceEnt->classname) && !Q_stricmp(traceEnt->classname, "rocket_proj") &&
+			VALIDSTRING(traceEnt->classname) && (!Q_stricmp(traceEnt->classname, "rocket_proj") || (!Q_stricmp(traceEnt->classname, "vehicle_proj") && traceEnt->s.weapon == WP_ROCKET_LAUNCHER)) &&
 			traceEnt->parent && traceEnt->parent - g_entities < MAX_CLIENTS && traceEnt->parent->client &&
 			ent->client && traceEnt->parent->client->sess.sessionTeam == ent->client->sess.sessionTeam) {
 			skip = tr.entityNum;
@@ -2090,7 +2097,7 @@ void WP_DisruptorAltFire( gentity_t *ent )
 					if ( traceEnt->takedamage )
 					{
 						if (g_damageFixes.integer & DAMAGEFIXES_ROCKET_HP && g_gametype.integer == GT_SIEGE &&
-							VALIDSTRING(traceEnt->classname) && !Q_stricmp(traceEnt->classname, "rocket_proj")) {
+							VALIDSTRING(traceEnt->classname) && (!Q_stricmp(traceEnt->classname, "rocket_proj") || (!Q_stricmp(traceEnt->classname, "vehicle_proj") && traceEnt->s.weapon == WP_ROCKET_LAUNCHER))) {
 							G_Damage(traceEnt, ent, ent, forward, tr.endpos, 9999999,
 								DAMAGE_NO_KNOCKBACK, MOD_DISRUPTOR_SNIPER);
 						}
@@ -2582,7 +2589,7 @@ void DEMP2_AltRadiusDamage( gentity_t *missile )
 		gent = entityList[ e ];
 
 		qboolean isBlackProofRocket = !!(g_damageFixes.integer & DAMAGEFIXES_ROCKET_HP &&
-			g_gametype.integer == GT_SIEGE && VALIDSTRING(gent->classname) && !Q_stricmp(gent->classname, "rocket_proj"));
+			g_gametype.integer == GT_SIEGE && VALIDSTRING(gent->classname) && (!Q_stricmp(gent->classname, "rocket_proj") || (!Q_stricmp(gent->classname, "vehicle_proj") && gent->s.weapon == WP_ROCKET_LAUNCHER)));
 
 		if ( !gent || !gent->takedamage || (!gent->r.contents && !isBlackProofRocket))
 		{
@@ -5389,9 +5396,14 @@ gentity_t *WP_FireVehicleWeapon( gentity_t *ent, vec3_t start, vec3_t dir, vehWe
 
 		if ( vehWeapon->iHealth )
 		{//the missile can take damage
-			missile->health = vehWeapon->iHealth;
 			missile->takedamage = qtrue;
-			missile->r.contents = MASK_SHOT;
+			if (g_damageFixes.integer & DAMAGEFIXES_ROCKET_HP && g_gametype.integer == GT_SIEGE) {
+				missile->health = 999999;
+			}
+			else {
+				missile->health = vehWeapon->iHealth;
+				missile->r.contents = MASK_SHOT;
+			}
 			missile->die = RocketDie;
 		}
 

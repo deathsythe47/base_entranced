@@ -5959,7 +5959,7 @@ static GAME_INLINE qboolean CheckThrownSaberDamaged(gentity_t *saberent, gentity
 	{ //hit a non-client
 
 	if (g_damageFixes.integer & DAMAGEFIXES_ROCKET_HP &&
-		g_gametype.integer == GT_SIEGE && ent->inuse && VALIDSTRING(ent->classname) && !Q_stricmp(ent->classname, "rocket_proj")) {
+		g_gametype.integer == GT_SIEGE && ent->inuse && VALIDSTRING(ent->classname) && (!Q_stricmp(ent->classname, "rocket_proj") || (!Q_stricmp(ent->classname, "vehicle_proj") && ent->s.weapon == WP_ROCKET_LAUNCHER))) {
 		return qfalse;
 	}
 
