@@ -444,6 +444,8 @@ struct gentity_s {
 	int			lowestHealth;
 
 	float		originalYaw;
+
+	int			projectileTeam;
 };
 
 #define DAMAGEREDIRECT_HEAD		1

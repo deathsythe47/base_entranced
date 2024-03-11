@@ -2294,7 +2294,7 @@ static qboolean CheckSiegeAward(reward_t reward, gentity_t *self, gentity_t *att
 		break;
 
 	case REWARD_ASSIST:
-		if (self->client->ps.electrifyTime >= level.time)
+		if (self->client->ps.electrifyTime > level.time)
 		{
 			//killed while frozen
 			for (i = 0; i < MAX_CLIENTS; i++)
@@ -2736,12 +2736,7 @@ void player_die( gentity_t *self, gentity_t *inflictor, gentity_t *attacker, int
 	//if he was charging or anything else, kill the sound
 	G_MuteSound(self->s.number, CHAN_WEAPON);
 
-	//Raz: Siege exploit where you could place detpack on your own objectives, change team, and instantly win.
-    if ( g_gametype.integer == GT_SIEGE && meansOfDeath == MOD_TEAM_CHANGE 
-        && (self->client->sess.siegeDesiredTeam != self->client->sess.sessionTeam) )
-		RemoveDetpacks( self );
-	else
-		BlowDetpacks(self, qtrue); //blow detpacks if they're planted
+	BlowDetpacks(self, qtrue); //blow detpacks if they're planted
 
 	self->client->ps.fd.forceDeactivateAll = 1;
 
@@ -5116,9 +5111,13 @@ int G_Damage(gentity_t *targ, gentity_t *inflictor, gentity_t *attacker,
 				}
 				if ((!g_friendlyFreeze.integer && g_gametype.integer >= GT_TEAM && attacker->client && targ->m_pVehicle && targ->m_pVehicle->m_pPilot && (gentity_t *)targ->m_pVehicle->m_pPilot - g_entities < MAX_CLIENTS && ((gentity_t *)(targ->m_pVehicle->m_pPilot))->client &&
 					((gentity_t *)(targ->m_pVehicle->m_pPilot))->client->sess.sessionTeam == attacker->client->sess.sessionTeam) ||
-					(!g_friendlyFreeze.integer && g_gametype.integer >= GT_TEAM && attacker->client && attacker - g_entities < MAX_CLIENTS && targ->teamnodmg == attacker->client->sess.sessionTeam)) {
+					(!g_friendlyFreeze.integer && g_gametype.integer >= GT_TEAM && inflictor && inflictor->projectileTeam && targ->m_pVehicle && targ->m_pVehicle->m_pPilot && (gentity_t *)targ->m_pVehicle->m_pPilot - g_entities < MAX_CLIENTS && ((gentity_t *)(targ->m_pVehicle->m_pPilot))->client &&
+						((gentity_t *)(targ->m_pVehicle->m_pPilot))->client->sess.sessionTeam == inflictor->projectileTeam) ||
+					(!g_friendlyFreeze.integer && g_gametype.integer >= GT_TEAM && attacker->client && attacker - g_entities < MAX_CLIENTS && targ->teamnodmg == attacker->client->sess.sessionTeam) ||
+					(!g_friendlyFreeze.integer && g_gametype.integer >= GT_TEAM && inflictor && inflictor->projectileTeam && targ->teamnodmg == inflictor->projectileTeam)) {
 					rng = 0;
 				}
+				if (rng > 0)
 					targ->client->ps.electrifyTime = level.time + rng;
 			}
 			else if ((targ->s.NPC_class != CLASS_VEHICLE
@@ -5157,8 +5156,14 @@ int G_Damage(gentity_t *targ, gentity_t *inflictor, gentity_t *attacker,
 					// fixme? this doesn't account for non-walker non-speeder non-fighter vehicles e.g. rancor_vehicle
 					rng = 0;
 				}
+				else if (!g_friendlyFreeze.integer && g_gametype.integer >= GT_TEAM && inflictor && inflictor->projectileTeam &&
+					targ && targ->client && inflictor->projectileTeam == targ->client->sess.sessionTeam) {
+					// fixme? this doesn't account for non-walker non-speeder non-fighter vehicles e.g. rancor_vehicle
+					rng = 0;
+				}
 				overrideFreezeTimeActual = rng;
-				targ->client->ps.electrifyTime = level.time + rng;
+				if (rng > 0)
+					targ->client->ps.electrifyTime = level.time + rng;
 
 				// siege freezing stats
 				if (g_gametype.integer == GT_SIEGE && attacker && attacker->client && attacker - g_entities >= 0 &&
@@ -5970,7 +5975,11 @@ int G_Damage(gentity_t *targ, gentity_t *inflictor, gentity_t *attacker,
 		// if the attacker was on the same team
 		if ( targ != attacker)
 		{
-			if (OnSameTeam (targ, attacker))
+			if (OnSameTeam (targ, attacker) ||
+				(inflictor && inflictor->projectileTeam && g_gametype.integer == GT_SIEGE && targ && targ->client && targ->client->sess.sessionTeam == inflictor->projectileTeam) ||
+				(inflictor && inflictor->projectileTeam && g_gametype.integer == GT_SIEGE && targ && targ->teamnodmg && targ->teamnodmg == inflictor->projectileTeam) ||
+				(targ && targ->projectileTeam && attacker && attacker->client && attacker->client->sess.sessionTeam == targ->projectileTeam) ||
+				(targ && targ->projectileTeam && attacker && attacker->teamnodmg && attacker->teamnodmg == targ->projectileTeam))
 			{
 				if ( !g_friendlyFire.integer && !(negativeDamageOk && damage < 0) )
 				{
@@ -6041,7 +6050,7 @@ int G_Damage(gentity_t *targ, gentity_t *inflictor, gentity_t *attacker,
 			{//targ shouldn't take damage from a certain team
 				if ( attacker->client )
 				{//a client hit a non-client object
-					if ( targ->teamnodmg == attacker->client->sess.sessionTeam )
+					if ( targ->teamnodmg == attacker->client->sess.sessionTeam || (inflictor && inflictor->projectileTeam == targ->teamnodmg) )
 					{
 						return 0;
 					}
@@ -6051,7 +6060,10 @@ int G_Damage(gentity_t *targ, gentity_t *inflictor, gentity_t *attacker,
 					//FIXME: maybe check alliedTeam instead?
 					if ( targ->teamnodmg == attacker->teamnodmg )
 					{
-						if (attacker->activator &&
+						if (targ->projectileTeam == attacker->teamnodmg) {
+							return 0;
+						}
+						else if (attacker->activator &&
 							attacker->activator->inuse &&
 							attacker->activator->s.number < MAX_CLIENTS &&
 							attacker->activator->client &&
@@ -7018,22 +7030,22 @@ qboolean G_RadiusDamage ( vec3_t origin, gentity_t *attacker, float damage, floa
 				attacker->m_pVehicle && attacker->m_pVehicle->m_pPilot)
 			{ //say my pilot did it.
 				if (g_locationBasedDamage_splash.integer)
-					G_Damage (ent, NULL, (gentity_t *)attacker->m_pVehicle->m_pPilot, dir, origin, (int)points, DAMAGE_RADIUS, mod);
+					G_Damage (ent, missile, (gentity_t *)attacker->m_pVehicle->m_pPilot, dir, origin, (int)points, DAMAGE_RADIUS, mod);
 				else
-					G_Damage (ent, NULL, (gentity_t *)attacker->m_pVehicle->m_pPilot, dir, origin, (int)points, DAMAGE_RADIUS | DAMAGE_NO_HIT_LOC, mod);
+					G_Damage (ent, missile, (gentity_t *)attacker->m_pVehicle->m_pPilot, dir, origin, (int)points, DAMAGE_RADIUS | DAMAGE_NO_HIT_LOC, mod);
 			}
 			else if (attacker && attacker->inuse && attacker->client &&
 				attacker->s.eType == ET_NPC && attacker->s.NPC_class == CLASS_VEHICLE &&
 				attacker->m_pVehicle && attacker->lastPilot && attacker->lastPilot - g_entities < MAX_CLIENTS)
 			{ //say my last pilot did it.
-				G_Damage(ent, NULL, attacker->lastPilot, dir, origin, (int)points, DAMAGE_RADIUS, mod);
+				G_Damage(ent, missile, attacker->lastPilot, dir, origin, (int)points, DAMAGE_RADIUS, mod);
 			}
 			else
 			{
 				if (g_locationBasedDamage_splash.integer)
-					G_Damage (ent, NULL, attacker, dir, origin, (int)points, DAMAGE_RADIUS, mod);
+					G_Damage (ent, missile, attacker, dir, origin, (int)points, DAMAGE_RADIUS, mod);
 				else
-					G_Damage (ent, NULL, attacker, dir, origin, (int)points, DAMAGE_RADIUS | DAMAGE_NO_HIT_LOC, mod);
+					G_Damage (ent, missile, attacker, dir, origin, (int)points, DAMAGE_RADIUS | DAMAGE_NO_HIT_LOC, mod);
 			}
 
 			if (ent && ent->client && roastPeople && missile &&
@@ -7136,16 +7148,23 @@ qboolean G_RadiusDamageKnockbackOnly(vec3_t origin, gentity_t *attacker, float d
 				attacker->m_pVehicle && attacker->m_pVehicle->m_pPilot)
 			{ //say my pilot did it.
 				if (g_locationBasedDamage_splash.integer)
-					G_Damage(ent, NULL, (gentity_t *)attacker->m_pVehicle->m_pPilot, dir, origin, (int)points, DAMAGE_RADIUS | DAMAGE_KNOCKBACK_ONLY, mod);
+					G_Damage(ent, missile, (gentity_t *)attacker->m_pVehicle->m_pPilot, dir, origin, (int)points, DAMAGE_RADIUS | DAMAGE_KNOCKBACK_ONLY, mod);
 				else
-					G_Damage(ent, NULL, (gentity_t *)attacker->m_pVehicle->m_pPilot, dir, origin, (int)points, DAMAGE_RADIUS | DAMAGE_NO_HIT_LOC | DAMAGE_KNOCKBACK_ONLY, mod);
+					G_Damage(ent, missile, (gentity_t *)attacker->m_pVehicle->m_pPilot, dir, origin, (int)points, DAMAGE_RADIUS | DAMAGE_NO_HIT_LOC | DAMAGE_KNOCKBACK_ONLY, mod);
 			}
+			// should this maybe be added here?
+			/*else if (attacker && attacker->inuse && attacker->client &&
+				attacker->s.eType == ET_NPC && attacker->s.NPC_class == CLASS_VEHICLE &&
+				attacker->m_pVehicle && attacker->lastPilot && attacker->lastPilot - g_entities < MAX_CLIENTS)
+			{ //say my last pilot did it.
+				G_Damage(ent, missile, attacker->lastPilot, dir, origin, (int)points, DAMAGE_RADIUS | DAMAGE_KNOCKBACK_ONLY, mod);
+			}*/
 			else
 			{
 				if (g_locationBasedDamage_splash.integer)
-					G_Damage(ent, NULL, attacker, dir, origin, (int)points, DAMAGE_RADIUS | DAMAGE_KNOCKBACK_ONLY, mod);
+					G_Damage(ent, missile, attacker, dir, origin, (int)points, DAMAGE_RADIUS | DAMAGE_KNOCKBACK_ONLY, mod);
 				else
-					G_Damage(ent, NULL, attacker, dir, origin, (int)points, DAMAGE_RADIUS | DAMAGE_NO_HIT_LOC | DAMAGE_KNOCKBACK_ONLY, mod);
+					G_Damage(ent, missile, attacker, dir, origin, (int)points, DAMAGE_RADIUS | DAMAGE_NO_HIT_LOC | DAMAGE_KNOCKBACK_ONLY, mod);
 			}
 
 			if (ent && ent->client && roastPeople && missile &&
