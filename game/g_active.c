@@ -5572,6 +5572,26 @@ void ClientEndFrame( gentity_t *ent ) {
 		ent->client->pers.teamState.flagsince.startTime += time_delta; // base_enhanced
 		ent->client->pers.protsince += time_delta; // force stats
         ent->client->respawnTime += time_delta;
+		if (ent->client->cloakToggleTime)
+			ent->client->cloakToggleTime += time_delta;
+		if (ent->client->cloakDebReduce)
+			ent->client->cloakDebReduce += time_delta;
+		if (ent->client->cloakDebRecharge)
+			ent->client->cloakDebRecharge += time_delta;
+		if (ent->client->jetPackToggleTime)
+			ent->client->jetPackToggleTime += time_delta;
+		if (ent->client->ps.otherKillerTime)
+			ent->client->ps.otherKillerTime += time_delta;
+		if (ent->client->ps.otherKillerDebounceTime)
+			ent->client->ps.otherKillerDebounceTime += time_delta;
+		if (ent->client->ps.emplacedTime)
+			ent->client->ps.emplacedTime += time_delta;
+		if (ent->client->ps.hyperSpaceTime)
+			ent->client->ps.hyperSpaceTime += time_delta;
+		if (ent->client->ps.droneExistTime)
+			ent->client->ps.droneExistTime += time_delta;
+		if (ent->client->ps.droneFireTime)
+			ent->client->ps.droneFireTime += time_delta;
 		if (ent->client->ps.saberDidThrowTime)
 			ent->client->ps.saberDidThrowTime += time_delta;
 		if (ent->client->ps.saberThrowDelay)

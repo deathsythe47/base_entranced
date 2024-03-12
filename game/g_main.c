@@ -5605,6 +5605,7 @@ extern void ShieldGoSolid(gentity_t *ent);
 extern void turretG2_base_think(gentity_t *self);
 extern void turret_base_think(gentity_t *self);
 extern void DownedSaberThink(gentity_t *saberent);
+extern void emplaced_gun_update(gentity_t *self);
 
 void G_RunThink(gentity_t *ent) {
 	int	thinktime;
@@ -5624,10 +5625,6 @@ void G_RunThink(gentity_t *ent) {
 		if (ent->think == SiegeItemThink && ent->genericValue9 > level.time)
 			ent->genericValue9 += dt;
 
-		// more special cases, sentry
-		if (ent->think == pas_think)
-			ent->genericValue8 += dt;
-
 		// another special case, thermal primaries
 		if (ent->think == thermalThinkStandard || ent->think == thermalThinkPrimaryAntiSpam)
 			ent->genericValue5 += dt;
@@ -5644,16 +5641,117 @@ void G_RunThink(gentity_t *ent) {
 		if (VALIDSTRING(ent->classname) && !strcmp(ent->classname, "lightsaber") && ent->s.pos.trTime && ent->think != DownedSaberThink)
 			ent->s.pos.trTime += dt;
 
-		// turrets
+		// sentries and turrets (some overlap with variables)
+		if (ent->think == pas_think)
+			ent->genericValue8 += dt;
+		if (!Q_stricmp(ent->classname, "sentryGun") || ent->think == turretG2_base_think || ent->think == turret_base_think) {
+			if (ent->bounceCount)
+				ent->bounceCount += dt;
+			if (ent->attackDebounceTime)
+				ent->attackDebounceTime += dt;
+			if (ent->aimDebounceTime)
+				ent->aimDebounceTime += dt;
+		}
 		if (ent->think == turretG2_base_think || ent->think == turret_base_think) {
-			ent->bounceCount += dt;
 			ent->last_move_time += dt;
-			ent->attackDebounceTime += dt;
 			ent->painDebounceTime += dt;
 			ent->setTime += dt;
 			ent->fly_sound_debounce_time += dt;
-			ent->aimDebounceTime += dt;
 			ent->s.apos.trType = TR_STATIONARY;
+		}
+
+		// emplaced guns
+		if (ent->think == emplaced_gun_update) {
+			if (ent->genericValue5 > 0)
+				ent->genericValue5 += dt;
+			if (ent->s.time > 0)
+				ent->s.time += dt;
+			if (ent->genericValue3 > 0)
+				ent->genericValue3 += dt;
+			if (ent->genericValue2 > 0)
+				ent->genericValue2 += dt;
+		}
+
+		// npcs/vehicles
+		if (ent->s.eType == ET_NPC) {
+			if (ent->NPC) {
+				gNPC_t *npc = ent->NPC;
+				if (npc->timeOfDeath)
+					npc->timeOfDeath += dt;
+				if (npc->enemyLastHeardTime)
+					npc->enemyLastHeardTime += dt;
+				if (npc->enemyLastSeenTime)
+					npc->enemyLastSeenTime += dt;
+				if (npc->shotTime)
+					npc->shotTime += dt;
+				if (npc->investigateDebounceTime)
+					npc->investigateDebounceTime += dt;
+				if (npc->investigateSoundDebounceTime)
+					npc->investigateSoundDebounceTime += dt;
+				if (npc->goalTime)
+					npc->goalTime += dt;
+				if (npc->pauseTime)
+					npc->pauseTime += dt;
+				if (npc->navTime)
+					npc->navTime += dt;
+				if (npc->surrenderTime)
+					npc->surrenderTime += dt;
+				if (npc->standTime)
+					npc->standTime += dt;
+				if (npc->sideStepHoldTime)
+					npc->sideStepHoldTime += dt;
+				if (npc->greetingDebounceTime)
+					npc->greetingDebounceTime += dt;
+				if (npc->enemyCheckDebounceTime)
+					npc->enemyCheckDebounceTime += dt;
+				if (npc->duckDebounceTime)
+					npc->duckDebounceTime += dt;
+				if (npc->confusionTime)
+					npc->confusionTime += dt;
+				if (npc->aimErrorDebounceTime)
+					npc->aimErrorDebounceTime += dt;
+				if (npc->attackHoldTime)
+					npc->attackHoldTime += dt;
+				if (npc->charmedTime)
+					npc->charmedTime += dt;
+				if (npc->blockedSpeechDebounceTime)
+					npc->blockedSpeechDebounceTime += dt;
+			}
+			if (ent->m_pVehicle) {
+				Vehicle_t *pVeh = ent->m_pVehicle;
+				if (pVeh->m_iHitDebounce)
+					pVeh->m_iHitDebounce += dt;
+				if (pVeh->m_iPilotTime)
+					pVeh->m_iPilotTime += dt;
+				if (pVeh->m_iSoundDebounceTimer)
+					pVeh->m_iSoundDebounceTimer += dt;
+				if (pVeh->m_iDmgEffectTime)
+					pVeh->m_iDmgEffectTime += dt;
+				if (pVeh->m_iLastFXTime)
+					pVeh->m_iLastFXTime += dt;
+				if (pVeh->m_iDieTime)
+					pVeh->m_iDieTime += dt;
+				if (pVeh->m_iTurboTime)
+					pVeh->m_iTurboTime += dt;
+				if (pVeh->m_iDropTime)
+					pVeh->m_iDropTime += dt;
+				for (int i = 0; i < MAX_VEHICLE_WEAPONS; i++) {
+					if (pVeh->m_pVehicleInfo->weapon[i].ID > VEH_WEAPON_BASE && pVeh->weaponStatus[i].lastAmmoInc)
+						pVeh->weaponStatus[i].lastAmmoInc += dt;
+				}
+				for (int i = 0; i < MAX_VEHICLE_TURRETS; i++) {
+					if (pVeh->m_pVehicleInfo->turret[i].iWeapon > VEH_WEAPON_BASE && pVeh->turretStatus[i].lastAmmoInc)
+						pVeh->turretStatus[i].lastAmmoInc += dt;
+				}
+				for (int i = 0; i < MAX_VEHICLE_MUZZLES; i++) {
+					if (pVeh->m_iMuzzleTime[i])
+						pVeh->m_iMuzzleTime[i] += dt;
+					if (pVeh->m_iMuzzleWait[i])
+						pVeh->m_iMuzzleWait[i] += dt;
+				}
+				if (pVeh->m_pVehicleInfo && pVeh->m_pVehicleInfo->shieldRechargeMS && pVeh->lastShieldInc)
+					pVeh->lastShieldInc += dt;
+			}
 		}
 	}
 
