@@ -5419,7 +5419,7 @@ void DoPauseStartChecks(void) {
 	for (int i = 0; i < MAX_GENTITIES; i++) {
 		gentity_t *ent = &g_entities[i];
 		if (i < MAX_CLIENTS) {
-			if (ent->inuse && ent->client && ent->client->ps.m_iVehicleNum) {
+			if (ent->inuse && ent->client && (ent->client->ps.m_iVehicleNum || ent->client->isHacking)) {
 				ent->lockPauseAngles = qtrue;
 				VectorCopy(ent->s.angles, ent->pauseAngles);
 				VectorCopy(ent->client->ps.viewangles, ent->pauseViewAngles);
