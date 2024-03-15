@@ -3015,7 +3015,7 @@ extern vmCvar_t    g_nextmapWarning;
 extern vmCvar_t    g_floatingItems;
 extern vmCvar_t    g_rocketSurfing;
 extern vmCvar_t    g_improvedTeamchat;
-extern vmCvar_t    g_enableCloak;
+extern vmCvar_t    g_enableTrollItems;
 extern vmCvar_t    g_fixHothBunkerLift;
 extern vmCvar_t    g_fixDesertStationsModels;
 extern vmCvar_t    g_infiniteCharge;

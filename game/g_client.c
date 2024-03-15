@@ -4639,6 +4639,16 @@ void ClientSpawn(gentity_t *ent, qboolean forceUpdateInfo) {
 		int m = 0;
 
 		client->ps.stats[STAT_WEAPONS] = bgSiegeClasses[client->siegeClass].weapons;
+		if (!g_enableTrollItems.integer) {
+			client->ps.stats[STAT_WEAPONS] &= ~(1 << WP_NONE);
+			client->ps.stats[STAT_WEAPONS] &= ~(1 << WP_TURRET);
+			client->ps.stats[STAT_WEAPONS] &= ~(1 << WP_EMPLACED_GUN);
+			if (client->sess.sessionTeam == TEAM_BLUE && client->ps.stats[STAT_WEAPONS] & (1 << WP_BOWCASTER) &&
+				Q_stricmp(mapname.string, "siege_sillyroom")) {
+				client->ps.stats[STAT_WEAPONS] |= (1 << WP_BLASTER);
+				client->ps.stats[STAT_WEAPONS] &= ~(1 << WP_BOWCASTER);
+			}
+		}
 
 		if (Q_stricmp(mapname.string, "mp/siege_korriban") && g_blueTeam.string[0] && Q_stricmp(g_blueTeam.string, "none") && g_forceDTechItems.integer && client->sess.sessionTeam == TEAM_BLUE && bgSiegeClasses[client->siegeClass].playerClass == 2 &&
 			((g_forceDTechItems.integer && (g_forceDTechItems.integer == 4 || g_forceDTechItems.integer == 6) ||
@@ -4816,6 +4826,10 @@ void ClientSpawn(gentity_t *ent, qboolean forceUpdateInfo) {
 		client->sess.sessionTeam != TEAM_SPECTATOR)
 	{ //use class-specified inventory
 		client->ps.stats[STAT_HOLDABLE_ITEMS] = bgSiegeClasses[client->siegeClass].invenItems;
+		if (!g_enableTrollItems.integer) {
+			client->ps.stats[STAT_HOLDABLE_ITEMS] &= ~(1 << HI_CLOAK);
+			client->ps.stats[STAT_HOLDABLE_ITEMS] &= ~(1 << HI_BINOCULARS);
+		}
 		client->ps.stats[STAT_HOLDABLE_ITEM] = 0;
 		if (Q_stricmp(mapname.string, "mp/siege_korriban") && g_blueTeam.string[0] && Q_stricmp(g_blueTeam.string, "none") && g_forceDTechItems.integer && client->sess.sessionTeam == TEAM_BLUE && bgSiegeClasses[client->siegeClass].playerClass == 2 &&
 			((g_forceDTechItems.integer == 5 || g_forceDTechItems.integer == 6 || g_forceDTechItems.integer == 7)
@@ -4847,11 +4861,6 @@ void ClientSpawn(gentity_t *ent, qboolean forceUpdateInfo) {
 			}
 			i++;
 		}
-	}
-
-	if (!g_enableCloak.integer && (ent->client->ps.stats[STAT_HOLDABLE_ITEMS] & (1 << HI_CLOAK)))
-	{
-		ent->client->ps.stats[STAT_HOLDABLE_ITEMS] &= ~(1 << HI_CLOAK);
 	}
 
 	if ( client->sess.sessionTeam == TEAM_SPECTATOR )
