@@ -1439,6 +1439,147 @@ void SP_trigger_once( gentity_t *ent )
 	trap_LinkEntity (ent);
 }
 
+void SP_info_trigger(gentity_t *trigger) {
+	// duo: new "setteamallow" key -- this trigger will set the teamallow (known as alliedTeam in the gentity_t struct)
+	// which means we can target a door to enable a certain team to use it but not actually unlock it
+	G_SpawnInt("setteamallow", "0", &trigger->genericValue17);
+	if (trigger->genericValue17 < TEAM_FREE || trigger->genericValue17 > TEAM_BLUE)
+		trigger->genericValue17 = TEAM_FREE;
+
+	// duo: new "justopen" key -- when targeting a LOCKED door, this trigger will simply open it once instead of unlocking it
+	G_SpawnInt("justopen", "0", &trigger->genericValue16);
+
+	char *s;
+	if (G_SpawnString("noise", "", &s))
+	{
+		if (s && s[0])
+		{
+			trigger->noise_index = G_SoundIndex(s);
+		}
+		else
+		{
+			trigger->noise_index = 0;
+		}
+	}
+
+	if (G_SpawnString("idealclasstype", "", &s))
+	{
+		if (s && s[0])
+		{
+			if (!Q_stricmp(s, "a"))
+			{
+				trigger->idealClassType = CLASSTYPE_ASSAULT;
+			}
+			else if (!Q_stricmp(s, "h"))
+			{
+				trigger->idealClassType = CLASSTYPE_HW;
+			}
+			else if (!Q_stricmp(s, "d"))
+			{
+				trigger->idealClassType = CLASSTYPE_DEMO;
+			}
+			else if (!Q_stricmp(s, "s"))
+			{
+				trigger->idealClassType = CLASSTYPE_SCOUT;
+			}
+			else if (!Q_stricmp(s, "t"))
+			{
+				trigger->idealClassType = CLASSTYPE_TECH;
+			}
+			else if (!Q_stricmp(s, "j"))
+			{
+				trigger->idealClassType = CLASSTYPE_JEDI;
+			}
+		}
+	}
+
+	if (G_SpawnString("idealclasstypeteam2", "", &s))
+	{
+		if (s && s[0])
+		{
+			if (!Q_stricmp(s, "a"))
+			{
+				trigger->idealClassTypeTeam2 = CLASSTYPE_ASSAULT;
+			}
+			else if (!Q_stricmp(s, "h"))
+			{
+				trigger->idealClassTypeTeam2 = CLASSTYPE_HW;
+			}
+			else if (!Q_stricmp(s, "d"))
+			{
+				trigger->idealClassTypeTeam2 = CLASSTYPE_DEMO;
+			}
+			else if (!Q_stricmp(s, "s"))
+			{
+				trigger->idealClassTypeTeam2 = CLASSTYPE_SCOUT;
+			}
+			else if (!Q_stricmp(s, "t"))
+			{
+				trigger->idealClassTypeTeam2 = CLASSTYPE_TECH;
+			}
+			else if (!Q_stricmp(s, "j"))
+			{
+				trigger->idealClassTypeTeam2 = CLASSTYPE_JEDI;
+			}
+		}
+	}
+
+	G_SpawnInt("usetime", "0", &trigger->genericValue7);
+	if (level.siegeMap == SIEGEMAP_CARGO && trigger->genericValue7 > 5000 && !Q_stricmp(trigger->target, "holdeledoors"))
+		trigger->genericValue7 = 5000;
+
+	//For siege gametype
+	G_SpawnInt("siegetrig", "0", &trigger->genericValue1);
+
+	G_SpawnInt("delay", "0", &trigger->delay);
+
+	int once;
+	G_SpawnInt("once", "1", &once);
+	if (once) {
+		trigger->wait = -1;
+	}
+	else {
+		if ((trigger->wait > 0) && (trigger->random >= trigger->wait)) {
+			trigger->random = trigger->wait - FRAMETIME;
+			Com_Printf(S_COLOR_YELLOW"info_trigger (multiple) has random >= wait\n");
+		}
+	}
+
+	trigger->touch = Touch_Multi;
+	trigger->use = Use_Multi;
+
+	if (trigger->team && trigger->team[0])
+	{
+		trigger->alliedTeam = atoi(trigger->team);
+		trigger->team = NULL;
+	}
+
+	trigger->delay *= 1000;//1 = 1 msec, 1000 = 1 sec
+
+	trigger->r.contents = CONTENTS_TRIGGER;
+	trigger->r.svFlags = SVF_NOCLIENT;
+	if (trigger->spawnflags & 128)
+		trigger->flags |= FL_INACTIVE;
+
+	vec3_t	tmin, tmax;
+	G_SpawnVector("mins", "-50 -50 -50", tmin);
+	G_SpawnVector("maxs", "50 50 50", tmax);
+
+	if (tmax[0] <= tmin[0]) {
+		tmin[0] = (trigger->r.mins[0] + trigger->r.maxs[0]) * 0.5;
+		tmax[0] = tmin[0] + 1;
+	}
+	if (tmax[1] <= tmin[1]) {
+		tmin[1] = (trigger->r.mins[1] + trigger->r.maxs[1]) * 0.5;
+		tmax[1] = tmin[1] + 1;
+	}
+
+	VectorCopy(tmin, trigger->r.mins);
+	VectorCopy(tmax, trigger->r.maxs);
+
+	trap_LinkEntity(trigger);
+}
+
 /*
 ======================================================================
 trigger_lightningstrike -rww

@@ -174,6 +174,7 @@ void SP_info_firstplace(gentity_t *ent);
 void SP_info_secondplace(gentity_t *ent);
 void SP_info_thirdplace(gentity_t *ent);
 void SP_info_podium(gentity_t *ent);
+void SP_info_trigger(gentity_t *ent);
 
 void SP_info_siege_objective (gentity_t *ent);
 void SP_info_siege_radaricon (gentity_t *ent);
@@ -459,6 +460,7 @@ spawn_t	spawns[] = {
 	{"info_notnull", SP_info_notnull},		// use target_position instead
 	{"info_camp", SP_info_camp},
 	{"info_b_e_location", SP_info_b_e_location},
+	{"info_trigger", SP_info_trigger },
 
 	{"info_siege_objective", SP_info_siege_objective},
 	{"info_siege_radaricon", SP_info_siege_radaricon},
