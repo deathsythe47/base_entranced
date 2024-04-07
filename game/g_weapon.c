@@ -359,6 +359,8 @@ qboolean CheckIfIAmAFilthySpammer(gentity_t *ent, qboolean checkDoorspam, qboole
 			{
 				return qfalse;
 			}
+			if (level.siegeMap == SIEGEMAP_HOTH && level.totalObjectivesCompleted == 5 && ent->client->ps.origin[2] < 455)
+				return qfalse;
 			if (level.siegeMap == SIEGEMAP_KORRIBAN)
 			{
 				return qfalse;
