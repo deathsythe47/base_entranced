@@ -145,6 +145,7 @@ vmCvar_t	g_dedicated;
 vmCvar_t	g_developer;
 vmCvar_t	g_speed;
 vmCvar_t	g_gravity;
+vmCvar_t	g_gravitySpace;
 vmCvar_t	g_cheats;
 vmCvar_t	g_knockback;
 vmCvar_t	g_forcerespawn;
@@ -161,6 +162,7 @@ vmCvar_t	cl_allowDownload;
 vmCvar_t	g_logrcon;   
 vmCvar_t	g_flags_overboarding;
 vmCvar_t    g_sexyDisruptor;
+vmCvar_t    g_spaceSuffocation;
 vmCvar_t    g_fixSiegeScoring;
 vmCvar_t    g_fixFallingSounds;
 vmCvar_t    g_nextmapWarning;
@@ -901,6 +903,7 @@ static cvarTable_t		gameCvarTable[] = {
 
 	{ &g_speed, "g_speed", "250", CVAR_SERVERINFO, 0, qtrue },
 	{ &g_gravity, "g_gravity", "760", CVAR_SERVERINFO, 0, qtrue },
+	{ &g_gravitySpace, "g_gravitySpace", "125", CVAR_ARCHIVE, 0, qtrue },
 	{ &g_knockback, "g_knockback", "1000", 0, 0, qtrue },
 	{ &g_weaponRespawn, "g_weaponrespawn", "5", 0, 0, qtrue },
 	{ &g_weaponTeamRespawn, "g_weaponTeamRespawn", "5", 0, 0, qtrue },
@@ -1134,6 +1137,7 @@ static cvarTable_t		gameCvarTable[] = {
 
 	{ &g_flags_overboarding, "g_flags_overboarding", "1", CVAR_ARCHIVE, 0, qtrue },
 	{ &g_sexyDisruptor, "g_sexyDisruptor", "0", CVAR_ARCHIVE, 0, qtrue },
+	{ &g_spaceSuffocation, "g_spaceSuffocation", "0", CVAR_ARCHIVE, 0, qtrue },
 	{ &g_fixSiegeScoring, "g_fixSiegeScoring", "1", CVAR_ARCHIVE, 0, qtrue },
 	{ &g_fixFallingSounds, "g_fixFallingSounds", "1", CVAR_ARCHIVE, 0, qtrue },
 	{ &g_nextmapWarning, "g_nextmapWarning", "1", CVAR_ARCHIVE, 0, qtrue },
@@ -7416,16 +7420,18 @@ void G_RunFrame( int levelTime ) {
 					{ //suffocate!
 						if (ent->health > 0 && ent->takedamage)
 						{ //if they're still alive..
-							G_Damage(ent, spacetrigger, spacetrigger, NULL, ent->client->ps.origin, Q_irand(50, 70), DAMAGE_NO_ARMOR, MOD_SUICIDE);
+							if (g_spaceSuffocation.integer) {
+								G_Damage(ent, spacetrigger, spacetrigger, NULL, ent->client->ps.origin, Q_irand(50, 70), DAMAGE_NO_ARMOR, MOD_SUICIDE);
 
-							if (ent->health > 0)
-							{ //did that last one kill them?
-								//play the choking sound
-								G_EntitySound(ent, CHAN_VOICE, G_SoundIndex(va( "*choke%d.wav", Q_irand( 1, 3 ) )));
+								if (ent->health > 0)
+								{ //did that last one kill them?
+									//play the choking sound
+									G_EntitySound(ent, CHAN_VOICE, G_SoundIndex(va("*choke%d.wav", Q_irand(1, 3))));
 
-								//make them grasp their throat
-								ent->client->ps.forceHandExtend = HANDEXTEND_CHOKE;
-								ent->client->ps.forceHandExtendTime = level.time + 2000;
+									//make them grasp their throat
+									ent->client->ps.forceHandExtend = HANDEXTEND_CHOKE;
+									ent->client->ps.forceHandExtendTime = level.time + 2000;
+								}
 							}
 						}
 

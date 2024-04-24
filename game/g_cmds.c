@@ -9988,6 +9988,7 @@ void Cmd_ServerStatus2_f(gentity_t *ent)
 	PrintCvar(g_sexyDisruptor);
 	PrintCvar(g_siegeHelp);
 	PrintCvar(g_siegeReflectionFix);
+	PrintCvar(g_spaceSuffocation);
 	PrintCvar(g_specInfo);
 	PrintCvar(g_swoopKillPoints);
 	PrintCvar(g_techAmmoForAllWeapons);

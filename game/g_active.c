@@ -3632,10 +3632,15 @@ void ClientThink_real( gentity_t *ent ) {
 		{
 			if (ent->client->inSpaceIndex && ent->client->inSpaceIndex != ENTITYNUM_NONE)
 			{ //in space, so no gravity...
-				client->ps.gravity = 1.0f;
-				if (ent->s.number < MAX_CLIENTS)
-				{
-					VectorScale(client->ps.velocity, 0.8f, client->ps.velocity);
+				if (g_spaceSuffocation.integer) {
+					client->ps.gravity = 1.0f;
+					if (ent->s.number < MAX_CLIENTS)
+					{
+						VectorScale(client->ps.velocity, 0.8f, client->ps.velocity);
+					}
+				}
+				else {
+					client->ps.gravity = g_gravitySpace.value;
 				}
 			}
 			else
