@@ -9948,6 +9948,7 @@ void Cmd_ServerStatus2_f(gentity_t *ent)
 	PrintCvar(g_fixRoll);
 	PrintCvar(g_fixShield);
 	PrintCvar(g_fixSiegeScoring);
+	PrintCvar(g_fixVehicleTurbo);
 	PrintCvar(g_fixVoiceChat);
 	PrintCvar(g_flechetteSpread);
 	PrintCvar(g_floatingItems);

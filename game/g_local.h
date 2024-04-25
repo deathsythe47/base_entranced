@@ -3010,6 +3010,7 @@ extern vmCvar_t    g_maxstatusrequests;
 extern vmCvar_t	   g_logrcon;
 extern vmCvar_t	   g_flags_overboarding;
 extern vmCvar_t    g_sexyDisruptor;
+extern vmCvar_t    g_fixVehicleTurbo;
 extern vmCvar_t    g_spaceSuffocation;
 extern vmCvar_t    g_fixSiegeScoring;
 extern vmCvar_t    g_fixFallingSounds;

@@ -162,6 +162,7 @@ vmCvar_t	cl_allowDownload;
 vmCvar_t	g_logrcon;   
 vmCvar_t	g_flags_overboarding;
 vmCvar_t    g_sexyDisruptor;
+vmCvar_t    g_fixVehicleTurbo;
 vmCvar_t    g_spaceSuffocation;
 vmCvar_t    g_fixSiegeScoring;
 vmCvar_t    g_fixFallingSounds;
@@ -1137,6 +1138,7 @@ static cvarTable_t		gameCvarTable[] = {
 
 	{ &g_flags_overboarding, "g_flags_overboarding", "1", CVAR_ARCHIVE, 0, qtrue },
 	{ &g_sexyDisruptor, "g_sexyDisruptor", "0", CVAR_ARCHIVE, 0, qtrue },
+	{ &g_fixVehicleTurbo, "g_fixVehicleTurbo", "1", CVAR_ARCHIVE, 0, qtrue },
 	{ &g_spaceSuffocation, "g_spaceSuffocation", "0", CVAR_ARCHIVE, 0, qtrue },
 	{ &g_fixSiegeScoring, "g_fixSiegeScoring", "1", CVAR_ARCHIVE, 0, qtrue },
 	{ &g_fixFallingSounds, "g_fixFallingSounds", "1", CVAR_ARCHIVE, 0, qtrue },
@@ -7645,6 +7647,25 @@ void G_RunFrame( int levelTime ) {
 	}
 
 	SiegeCheckTimers();
+
+	if (g_fixVehicleTurbo.integer) {
+		for (int i = MAX_CLIENTS; i < ENTITYNUM_WORLD; i++) {
+			gentity_t *ent = &g_entities[i];
+			if (!ent->inuse || !ent->NPC || ent->s.NPC_class != CLASS_VEHICLE || !ent->m_pVehicle || !ent->m_pVehicle->m_pVehicleInfo || !ent->m_pVehicle->m_pVehicleInfo->turboRecharge)
+				continue;
+			float num = ((float)level.time - (float)ent->m_pVehicle->m_iTurboTime) / (float)ent->m_pVehicle->m_pVehicleInfo->turboRecharge;
+			num = Com_Clamp(0.0f, 1.0f, num);
+			num *= 100;
+			const int percent = (int)num;
+			*(uint32_t *)&ent->s.userInt1 = (percent & 1) ? 0xFFFFFFFF : 0;
+			*(uint32_t *)&ent->s.userInt2 = (percent & 2) ? 0xFFFFFFFF : 0;
+			*(uint32_t *)&ent->s.userInt3 = (percent & 4) ? 0xFFFFFFFF : 0;
+			*(uint32_t *)&ent->s.userFloat1 = (percent & 8) ? 0xFFFFFFFF : 0;
+			*(uint32_t *)&ent->s.userFloat2 = (percent & 16) ? 0xFFFFFFFF : 0;
+			*(uint32_t *)&ent->s.userFloat3 = (percent & 32) ? 0xFFFFFFFF : 0;
+			*(uint32_t *)&ent->s.userVec1[0] = (percent & 64) ? 0xFFFFFFFF : 0;
+		}
+	}
 
 #ifdef _G_FRAME_PERFANAL
 	trap_PrecisionTimer_Start(&timer_ROFF);

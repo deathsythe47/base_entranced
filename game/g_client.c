@@ -3313,6 +3313,8 @@ void G_BroadcastServerFeatureList( int clientNum ) {
 	if (g_fixForceJumpAnimationLock.integer)
 		Q_strcat(featureListConfigString, sizeof(featureListConfigString), "fjal ");
 
+	if (g_fixVehicleTurbo.integer)
+		Q_strcat(featureListConfigString, sizeof(featureListConfigString), "fvt ");
 
 	if (g_fixSniperSwitch.integer)
 		Q_strcat(featureListConfigString, sizeof(featureListConfigString), "fss ");
