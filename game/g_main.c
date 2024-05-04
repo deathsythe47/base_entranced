@@ -640,6 +640,8 @@ vmCvar_t	g_fixSniperSwitch;
 vmCvar_t	g_fixGolanDamage;
 vmCvar_t	g_locationBasedDamage_splash;
 
+vmCvar_t	g_fixWeaponChargeTime;
+
 vmCvar_t	g_fixRoll;
 
 vmCvar_t	g_balanceSaber;
@@ -1035,6 +1037,8 @@ static cvarTable_t		gameCvarTable[] = {
 	{ &g_fixSniperSwitch,	"g_fixSniperSwitch"		, "0"	, CVAR_ARCHIVE | CVAR_LATCH, 0, qtrue },
 	{ &g_fixGolanDamage,	"g_fixGolanDamage"		, "1"	, CVAR_ARCHIVE, 0, qtrue },
 	{ &g_locationBasedDamage_splash,	"g_locationBasedDamage_splash"		, "1"	, CVAR_ARCHIVE, 0, qtrue },
+
+	{ &g_fixWeaponChargeTime,	"g_fixWeaponChargeTime"	, "0"	, CVAR_ARCHIVE, 0, qtrue },
 
 	{ &g_fixRoll,	"g_fixRoll"		, "1"	, CVAR_ARCHIVE, 0, qtrue },
 

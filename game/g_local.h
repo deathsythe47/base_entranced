@@ -2929,6 +2929,8 @@ extern vmCvar_t		g_fixSniperSwitch;
 extern vmCvar_t		g_fixGolanDamage;
 extern vmCvar_t		g_locationBasedDamage_splash;
 
+extern vmCvar_t		g_fixWeaponChargeTime;
+
 extern vmCvar_t		g_fixRoll;
 
 // flags for g_balanceSaber

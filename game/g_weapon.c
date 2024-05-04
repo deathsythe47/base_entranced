@@ -1064,7 +1064,14 @@ static void WP_FireBryarPistol( gentity_t *ent, qboolean altFire )
 	{
 		float boxSize = 0;
 
-		count = ( level.time - ent->client->ps.weaponChargeTime ) / BRYAR_CHARGE_UNIT;
+		int chargeTime;
+		if (g_fixWeaponChargeTime.integer)
+			chargeTime = (ent->client->pers.cmd.serverTime - ent->client->ps.weaponChargeTime);
+		else
+			chargeTime = (level.time - ent->client->ps.weaponChargeTime);
+		if (chargeTime < 1)
+			chargeTime = 1;
+		count = ( chargeTime ) / BRYAR_CHARGE_UNIT;
 
 		if ( count < 1 )
 		{
@@ -1831,7 +1838,14 @@ void WP_DisruptorAltFire( gentity_t *ent )
 		VectorCopy( ent->client->ps.origin, start );
 		start[2] += ent->client->ps.viewheight;//By eyes
 
-		count = ( level.time - ent->client->ps.weaponChargeTime ) / DISRUPTOR_CHARGE_UNIT;
+		int chargeTime;
+		if (g_fixWeaponChargeTime.integer)
+			chargeTime = (ent->client->pers.cmd.serverTime - ent->client->ps.weaponChargeTime);
+		else
+			chargeTime = (level.time - ent->client->ps.weaponChargeTime);
+		if (chargeTime < 1)
+			chargeTime = 1;
+		count = ( chargeTime ) / DISRUPTOR_CHARGE_UNIT;
 		if ( g_gametype.integer == GT_SIEGE )
 		{//maybe a full alt-charge should be a *bit* more dangerous in Siege mode?
 			maxCount = 200;//the previous line ALWAYS evaluated to 135 - was that on purpose?
@@ -2310,7 +2324,14 @@ static void WP_BowcasterMainFire( gentity_t *ent )
 	}
 	else
 	{
-		count = ( level.time - ent->client->ps.weaponChargeTime ) / BOWCASTER_CHARGE_UNIT;
+		int chargeTime;
+		if (g_fixWeaponChargeTime.integer)
+			chargeTime = (ent->client->pers.cmd.serverTime - ent->client->ps.weaponChargeTime);
+		else
+			chargeTime = (level.time - ent->client->ps.weaponChargeTime);
+		if (chargeTime < 1)
+			chargeTime = 1;
+		count = (chargeTime) / BOWCASTER_CHARGE_UNIT;
 	}
 
 	if ( count < 1 )
@@ -2746,7 +2767,14 @@ static void WP_DEMP2_AltFire( gentity_t *ent )
 
 	VectorMA( start, DEMP2_ALT_RANGE, forward, end );
 
-	count = ( level.time - ent->client->ps.weaponChargeTime ) / DEMP2_CHARGE_UNIT;
+	int chargeTime;
+	if (g_fixWeaponChargeTime.integer)
+		chargeTime = (ent->client->pers.cmd.serverTime - ent->client->ps.weaponChargeTime);
+	else
+		chargeTime = (level.time - ent->client->ps.weaponChargeTime);
+	if (chargeTime < 1)
+		chargeTime = 1;
+	count = (chargeTime) / DEMP2_CHARGE_UNIT;
 
 	origcount = count;
 
@@ -3549,7 +3577,14 @@ gentity_t *WP_FireThermalDetonator(gentity_t *ent, qboolean altFire)
 
 	if (ent->client)
 	{
-		chargeAmount = level.time - ent->client->ps.weaponChargeTime;
+		int chargeTime;
+		if (g_fixWeaponChargeTime.integer)
+			chargeTime = (ent->client->pers.cmd.serverTime - ent->client->ps.weaponChargeTime);
+		else
+			chargeTime = (level.time - ent->client->ps.weaponChargeTime);
+		if (chargeTime < 1)
+			chargeTime = 1;
+		chargeAmount = chargeTime;
 	}
 
 	// get charge amount
