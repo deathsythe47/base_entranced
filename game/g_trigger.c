@@ -542,10 +542,6 @@ void Touch_Multi(gentity_t *self, gentity_t *other, trace_t *trace)
 				{//not the right guy to fire me off
 					return;
 				}
-				if (level.siegeMap == SIEGEMAP_URBAN && other->m_pVehicle && (!other->m_pVehicle->m_pPilot || ((gentity_t *)other->m_pVehicle->m_pPilot)->health <= 0))
-				{
-					return; // must have pilot
-				}
 			}
 			else
 			{
@@ -690,7 +686,7 @@ void Touch_Multi(gentity_t *self, gentity_t *other, trace_t *trace)
 		}
 
 		if (self->genericValue7)
-		{ 
+		{
 			if (level.siegeMap == SIEGEMAP_HOTH && !Q_stricmp(self->target, "t712")) {
 				self->genericValue7 = g_hothHangarHack.integer & HOTHHANGARHACK_5SECONDS ? 5000 : self->genericValue7;
 				if (!Q_stricmpn(level.mapname, "siege_hoth3", 11))
