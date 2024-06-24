@@ -2899,7 +2899,7 @@ static qboolean ChatLimitExceeded(gentity_t *ent, int mode) {
 	return exceeded;
 }
 
-static void G_SayTo( gentity_t *ent, gentity_t *other, int mode, int color, const char *name, const char *message, char *locMsg )
+void G_SayTo( gentity_t *ent, gentity_t *other, int mode, int color, const char *name, const char *message, char *locMsg )
 {
 	if (!other) {
 		return;
@@ -3107,6 +3107,363 @@ static void TokenizeTeamChat( gentity_t *ent, char *dest, const char *src, size_
 	dest[i] = '\0';
 }
 
+// since we may want to respond to the entered chat command with a chat message, we put the server's responses into a queue
+// the queue gets everything in it printed after we have printed whatever chat command the player entered 
+void QueueServerMessageInChat(int clientNum, const char *msg) {
+	if (!VALIDSTRING(msg))
+		return;
+
+	queuedServerMessage_t *add = ListAdd(&level.queuedServerMessagesList, sizeof(queuedServerMessage_t));
+	add->clientNum = clientNum;
+	add->text = strdup(msg);
+	add->inConsole = qfalse;
+	add->serverFrameNum = level.framenum;
+}
+
+void QueueChatMessage(int fromClientNum, int toClientNum, const char *msg, int when) {
+	if (!VALIDSTRING(msg) || fromClientNum < 0 || fromClientNum >= MAX_CLIENTS || toClientNum < 0 || toClientNum >= MAX_CLIENTS)
+		return;
+
+	queuedChatMessage_t *add = ListAdd(&level.queuedChatMessagesList, sizeof(queuedServerMessage_t));
+	add->fromClientNum = fromClientNum;
+	add->toClientNum = toClientNum;
+	add->text = strdup(msg);
+	add->when = when;
+}
+
+void QueueServerMessageInConsole(int clientNum, const char *msg) {
+	if (!VALIDSTRING(msg))
+		return;
+
+	queuedServerMessage_t *add = ListAdd(&level.queuedServerMessagesList, sizeof(queuedServerMessage_t));
+	add->clientNum = clientNum;
+	add->text = strdup(msg);
+	add->inConsole = qtrue;
+	add->serverFrameNum = level.framenum;
+}
+
+#define MAX_FUCK_LENGTH		(65)
+typedef struct {
+	node_t	node;
+	char	fucked[MAX_FUCK_LENGTH];
+	int		votedYesClients;
+	qboolean	done;
+} fuckVote_t;
+
+qboolean FuckVoteMatchesString(genericNode_t *node, void *userData) {
+	const fuckVote_t *existing = (const fuckVote_t *)node;
+	const char *newStr = (const char *)userData;
+	if (existing && !Q_stricmp(existing->fucked, newStr))
+		return qtrue;
+	return qfalse;
+}
+
+qboolean MemeFuckVote(gentity_t *ent, const char *voteStr, char **newMessage) {
+	assert(ent && ent->client);
+
+	if (g_fuck.integer <= 0) {
+		QueueServerMessageInChat(ent - g_entities, "Fuck vote is disabled.");
+		return qtrue;
+	}
+
+	if (!VALIDSTRING(voteStr) || strlen(voteStr) < 6) {
+		QueueServerMessageInChat(ent - g_entities, va("Usage: %cfuck [subject of the fucking]", CHAT_COMMAND_CHARACTER));
+		return qtrue;
+	}
+
+	const char *fucked = voteStr + 5;
+
+	char filtered[MAX_FUCK_LENGTH] = { 0 };
+	assert(sizeof(filtered) == MAX_FUCK_LENGTH);
+	assert(MAX_FUCK_LENGTH < MAX_SAY_TEXT);
+	if (strlen(fucked) > MAX_FUCK_LENGTH - 1) {
+		QueueServerMessageInChat(ent - g_entities, va("Your message is too long. The limit is %d characters.", MAX_FUCK_LENGTH - 1));
+		return qtrue;
+	}
+
+	Q_strncpyz(filtered, fucked, sizeof(filtered));
+	Q_StripColor(filtered);
+
+	if (!filtered[0]) {
+		QueueServerMessageInChat(ent - g_entities, va("Usage: %cfuck [subject of the fucking]", CHAT_COMMAND_CHARACTER));
+		return qtrue;
+	}
+
+	// condense consecutive spaces
+	int r = 0, w = 0;
+	qboolean previousSpace = qfalse;
+	while (filtered[r] != '\0') {
+		if (filtered[r] != ' ') {
+			filtered[w++] = filtered[r];
+			previousSpace = qfalse;
+		}
+		else if (!previousSpace) {
+			filtered[w++] = filtered[r];
+			previousSpace = qtrue;
+		}
+		r++;
+	}
+	filtered[w] = '\0';
+
+	// trim trailing space
+	int len = strlen(filtered);
+	if (len && filtered[len - 1] == ' ')
+		filtered[len - 1] = '\0';
+
+	// trim leading space
+	if (filtered[0] == ' ')
+		memmove(filtered, filtered + 1, strlen(filtered));
+
+	qboolean gotAlphaNumeric = qfalse;
+	for (char *p = filtered; *p; p++) {
+		const char c = *p;
+		if ((c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z') || (c >= '0' && c <= '9')) {
+			gotAlphaNumeric = qtrue;
+			break;
+		}
+	}
+
+	if (!filtered[0] || !gotAlphaNumeric) {
+		QueueServerMessageInChat(ent - g_entities, va("Usage: %cfuck [subject of the fucking]", CHAT_COMMAND_CHARACTER));
+		return qtrue;
+	}
+
+	// check whether this fuck vote already exists
+	qboolean doVote = qtrue, voteIsNew;
+	fuckVote_t *fuckVote = ListFind(&level.fuckVoteList, FuckVoteMatchesString, filtered, NULL);
+	if (fuckVote) {
+		voteIsNew = qfalse;
+		if (fuckVote->done) {
+			QueueServerMessageInChat(ent - g_entities, va("%s has already been fucked.", fuckVote->fucked));
+			return qtrue;
+		}
+
+		// this vote already exists; see if we already voted on it
+		if (fuckVote->votedYesClients & (1 << ent - g_entities)) {
+			QueueServerMessageInChat(ent - g_entities, va("You have already voted to fuck %s.", fuckVote->fucked));
+			doVote = qfalse;
+		}
+	}
+	else {
+		voteIsNew = qtrue;
+
+		// doesn't exist yet; create it
+		if (level.fuckVoteList.size >= g_fuck.integer) {
+			QueueServerMessageInChat(ent - g_entities, "The limit of fuck votes has been reached.");
+			return qtrue;
+		}
+
+		fuckVote = ListAdd(&level.fuckVoteList, sizeof(fuckVote_t));
+		Q_strncpyz(fuckVote->fucked, filtered, sizeof(fuckVote->fucked));
+	}
+
+	if (doVote)
+		fuckVote->votedYesClients |= (1 << (ent - g_entities));
+
+	// check how many votes we are now up to
+	int numFuckVotesFromEligiblePlayers = 0;
+	if (voteIsNew) {
+		numFuckVotesFromEligiblePlayers = 1; // sanity check
+	}
+	else {
+		qboolean gotEm[MAX_CLIENTS] = { qfalse };
+		for (int i = 0; i < MAX_CLIENTS; i++) {
+			gentity_t *thisEnt = &g_entities[i];
+			if (!thisEnt->inuse || !thisEnt->client || thisEnt->client->pers.connected != CON_CONNECTED || gotEm[i])
+				continue;
+
+			qboolean votedToFuck = qfalse;
+			if (fuckVote->votedYesClients & (1 << i))
+				votedToFuck = qtrue;
+			else if (thisEnt == ent)
+				votedToFuck = qtrue;
+
+			if (votedToFuck) {
+				++numFuckVotesFromEligiblePlayers;
+				gotEm[i] = qtrue;
+			}
+		}
+	}
+
+	// print the message
+	const int numRequired = 3;
+	if (newMessage) {
+		static char buf[MAX_STRING_CHARS] = { 0 };
+		Com_sprintf(buf, sizeof(buf), "%cfuck %s   ^%c(%d/%d)",
+			CHAT_COMMAND_CHARACTER, fuckVote->fucked, doVote ? '7' : '9', numFuckVotesFromEligiblePlayers, numRequired);
+		*newMessage = buf;
+	}
+
+	// if we have enough votes, do the fucking
+	if (numFuckVotesFromEligiblePlayers >= numRequired) {
+		fuckVote->done = qtrue;
+		QueueServerMessageInChat(-1, va("^7Fuck %s.", fuckVote->fucked));
+	}
+
+	return qfalse;
+}
+
+qboolean MemeGoVote(gentity_t *ent, const char *voteStr, char **newMessage) {
+	assert(ent && ent->client);
+
+	if (g_fuck.integer <= 0) {
+		QueueServerMessageInChat(ent - g_entities, "Go vote is disabled.");
+		return qtrue;
+	}
+
+	if (!VALIDSTRING(voteStr) || strlen(voteStr) < 4) {
+		QueueServerMessageInChat(ent - g_entities, va("Usage: %cgo [subject of the going]", CHAT_COMMAND_CHARACTER));
+		return qtrue;
+	}
+
+	const char *fucked = voteStr + 3;
+
+	char filtered[MAX_FUCK_LENGTH] = { 0 };
+	assert(sizeof(filtered) == MAX_FUCK_LENGTH);
+	assert(MAX_FUCK_LENGTH < MAX_SAY_TEXT);
+	if (strlen(fucked) > MAX_FUCK_LENGTH - 1) {
+		QueueServerMessageInChat(ent - g_entities, va("Your message is too long. The limit is %d characters.", MAX_FUCK_LENGTH - 1));
+		return qtrue;
+	}
+
+	Q_strncpyz(filtered, fucked, sizeof(filtered));
+	Q_StripColor(filtered);
+
+	if (!filtered[0]) {
+		QueueServerMessageInChat(ent - g_entities, va("Usage: %cgo [subject of the going]", CHAT_COMMAND_CHARACTER));
+		return qtrue;
+	}
+
+	// condense consecutive spaces
+	int r = 0, w = 0;
+	qboolean previousSpace = qfalse;
+	while (filtered[r] != '\0') {
+		if (filtered[r] != ' ') {
+			filtered[w++] = filtered[r];
+			previousSpace = qfalse;
+		}
+		else if (!previousSpace) {
+			filtered[w++] = filtered[r];
+			previousSpace = qtrue;
+		}
+		r++;
+	}
+	filtered[w] = '\0';
+
+	// trim trailing space
+	int len = strlen(filtered);
+	if (len && filtered[len - 1] == ' ')
+		filtered[len - 1] = '\0';
+
+	// trim leading space
+	if (filtered[0] == ' ')
+		memmove(filtered, filtered + 1, strlen(filtered));
+
+	qboolean gotAlphaNumeric = qfalse;
+	for (char *p = filtered; *p; p++) {
+		const char c = *p;
+		if ((c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z') || (c >= '0' && c <= '9')) {
+			gotAlphaNumeric = qtrue;
+			break;
+		}
+	}
+
+	if (!filtered[0] || !gotAlphaNumeric) {
+		QueueServerMessageInChat(ent - g_entities, va("Usage: %cfuck [subject of the going]", CHAT_COMMAND_CHARACTER));
+		return qtrue;
+	}
+
+	// check whether this fuck vote already exists
+	qboolean doVote = qtrue, voteIsNew;
+	fuckVote_t *fuckVote = ListFind(&level.goVoteList, FuckVoteMatchesString, filtered, NULL);
+	if (fuckVote) {
+		voteIsNew = qfalse;
+		if (fuckVote->done) {
+			QueueServerMessageInChat(ent - g_entities, va("%s has already been gone.", fuckVote->fucked));
+			return qtrue;
+		}
+
+		// this vote already exists; see if we already voted on it
+		if (fuckVote->votedYesClients & (1 << ent - g_entities)) {
+			QueueServerMessageInChat(ent - g_entities, va("You have already voted to go %s.", fuckVote->fucked));
+			doVote = qfalse;
+		}
+	}
+	else {
+		voteIsNew = qtrue;
+
+		// doesn't exist yet; create it
+		if (level.goVoteList.size >= g_fuck.integer) {
+			QueueServerMessageInChat(ent - g_entities, "The limit of go votes has been reached.");
+			return qtrue;
+		}
+
+		fuckVote = ListAdd(&level.goVoteList, sizeof(fuckVote_t));
+		Q_strncpyz(fuckVote->fucked, filtered, sizeof(fuckVote->fucked));
+	}
+
+	if (doVote)
+		fuckVote->votedYesClients |= (1 << (ent - g_entities));
+
+	// check how many votes we are now up to
+	int numFuckVotesFromEligiblePlayers = 0;
+	if (voteIsNew) {
+		numFuckVotesFromEligiblePlayers = 1; // sanity check
+	}
+	else {
+		qboolean gotEm[MAX_CLIENTS] = { qfalse };
+		for (int i = 0; i < MAX_CLIENTS; i++) {
+			gentity_t *thisEnt = &g_entities[i];
+			if (!thisEnt->inuse || !thisEnt->client || thisEnt->client->pers.connected != CON_CONNECTED || gotEm[i])
+				continue;
+
+			qboolean votedToFuck = qfalse;
+			if (fuckVote->votedYesClients & (1 << i))
+				votedToFuck = qtrue;
+			else if (thisEnt == ent)
+				votedToFuck = qtrue;
+
+			if (votedToFuck) {
+				++numFuckVotesFromEligiblePlayers;
+				gotEm[i] = qtrue;
+			}
+		}
+	}
+
+	// print the message
+	const int numRequired = 3;
+	if (newMessage) {
+		static char buf[MAX_STRING_CHARS] = { 0 };
+		Com_sprintf(buf, sizeof(buf), "%cgo %s   ^%c(%d/%d)",
+			CHAT_COMMAND_CHARACTER, fuckVote->fucked, doVote ? '7' : '9', numFuckVotesFromEligiblePlayers, numRequired);
+		*newMessage = buf;
+	}
+
+	// if we have enough votes, do the fucking
+	if (numFuckVotesFromEligiblePlayers >= numRequired) {
+		fuckVote->done = qtrue;
+		QueueServerMessageInChat(-1, va("^7Go %s!", fuckVote->fucked));
+	}
+
+	return qfalse;
+}
+
+// returns qtrue if the message should be filtered out
+static qboolean CheckForChatCommand(gentity_t *ent, const char *s, char **newMessage) {
+	if (!ent || !ent->client || ent->client->pers.connected != CON_CONNECTED || !VALIDSTRING(s)) {
+		assert(qfalse);
+		return qfalse;
+	}
+
+	if (!Q_stricmpn(s, "fuck", 4) && (strlen(s) <= 4 || isspace(*(s + 4))))
+		return MemeFuckVote(ent, s, newMessage);
+
+	if (!Q_stricmpn(s, "go", 2) && (strlen(s) <= 2 || isspace(*(s + 2))))
+		return MemeGoVote(ent, s, newMessage);
+
+	return qfalse;
+}
+
 static qboolean ChatMessageShouldPause(const char *s) {
 	if (!VALIDSTRING(s)) {
 		assert(qfalse);
@@ -3187,6 +3544,15 @@ void G_Say( gentity_t *ent, gentity_t *target, int mode, const char *chatText ) 
 	}
 	else if (level.isLivePug != ISLIVEPUG_NO && ent->client->sess.sessionTeam != TEAM_SPECTATOR && mode != SAY_TELL && !Q_stricmpn(chatText, "unpause", 7) && strlen(chatText) <= 8 && g_quickPauseChat.integer) { // allow a small typo at the end
 		Cmd_CallVote_f(ent, PAUSE_UNPAUSING);
+	}
+
+	char *newMessage = NULL;
+	if (mode == SAY_ALL && *chatText == CHAT_COMMAND_CHARACTER && *(chatText + 1)) {
+		if (CheckForChatCommand(ent, chatText + 1, &newMessage)) {
+			return;
+		}
+		if (VALIDSTRING(newMessage))
+			chatText = newMessage;
 	}
 
 	switch ( mode ) {

@@ -235,6 +235,7 @@ vmCvar_t	g_classChangeLimitPeriodMilliseconds;
 vmCvar_t	g_corpseExplosivesBounce;
 vmCvar_t	g_ownMineDetpackCollision;
 vmCvar_t	g_greenshieldBlocksSelfDamage;
+vmCvar_t	g_fuck;
 
 vmCvar_t	g_preventJoiningLargerTeam;
 vmCvar_t	g_lastIntermissionStartTime;
@@ -1199,6 +1200,7 @@ static cvarTable_t		gameCvarTable[] = {
 	{ &g_corpseExplosivesBounce, "g_corpseExplosivesBounce", "-1", CVAR_ARCHIVE, 0, qtrue },
 	{ &g_ownMineDetpackCollision, "g_ownMineDetpackCollision", "0", CVAR_ARCHIVE, 0, qtrue },
 	{ &g_greenshieldBlocksSelfDamage, "g_greenshieldBlocksSelfDamage", "1", CVAR_ARCHIVE, 0, qtrue },
+	{ &g_fuck, "g_fuck", "100", CVAR_ARCHIVE, 0, qfalse },
 
 	{ &g_preventJoiningLargerTeam, "g_preventJoiningLargerTeam", "0", CVAR_ARCHIVE, 0, qtrue },
 	{ &g_lastIntermissionStartTime, "g_lastIntermissionStartTime", "", CVAR_TEMP | CVAR_ROM, 0, qfalse },
@@ -2784,6 +2786,25 @@ void G_ShutdownGame( int restart ) {
 	ListClear(&level.mapCaptureRecords.captureRecordsList);
 	ListClear(&level.siegeHelpList);
 	ListClear(&level.disconnectedPlayerList);
+	ListClear(&level.fuckVoteList);
+	ListClear(&level.goVoteList);
+
+	iterator_t iter;
+	ListIterate(&level.queuedServerMessagesList, &iter, qfalse);
+	while (IteratorHasNext(&iter)) {
+		queuedServerMessage_t *msg = IteratorNext(&iter);
+		if (msg->text)
+			free(msg->text);
+	}
+	ListClear(&level.queuedServerMessagesList);
+
+	ListIterate(&level.queuedChatMessagesList, &iter, qfalse);
+	while (IteratorHasNext(&iter)) {
+		queuedChatMessage_t *msg = IteratorNext(&iter);
+		if (msg->text)
+			free(msg->text);
+	}
+	ListClear(&level.queuedChatMessagesList);
 
     //G_LogDbLogLevelEnd(level.db.levelId);
 
@@ -6774,6 +6795,8 @@ static void RunAutoRestart(void) {
 	}
 }
 
+extern void G_SayTo(gentity_t *ent, gentity_t *other, int mode, int color, const char *name, const char *message, char *locMsg/*, qboolean outOfBandOk*/);
+
 void G_RunFrame( int levelTime ) {
 	int			i;
 	gentity_t	*ent;
@@ -6859,6 +6882,66 @@ void G_RunFrame( int levelTime ) {
 			trap_Cvar_Set("siegeStatus", "");
 		}
 	}
+
+	// print any queued messages
+	if (level.queuedServerMessagesList.size > 0) {
+		iterator_t iter;
+		ListIterate(&level.queuedServerMessagesList, &iter, qfalse);
+		while (IteratorHasNext(&iter)) {
+			queuedServerMessage_t *msg = IteratorNext(&iter);
+			int timeSince = g_svfps.integer * (level.framenum - msg->serverFrameNum);
+			const int threshold = 50; // this seems to work
+			if (timeSince < threshold)
+				continue;
+
+			if (VALIDSTRING(msg->text)) {
+				if (msg->inConsole) {
+					PrintIngame(msg->clientNum, msg->text);
+				}
+				else {
+					if (msg->clientNum >= 0 && msg->clientNum < MAX_CLIENTS)
+						SV_Tell(msg->clientNum, msg->text);
+					else
+						SV_Say(msg->text);
+				}
+			}
+
+			if (msg->text)
+				free(msg->text);
+
+			ListRemove(&level.queuedServerMessagesList, msg);
+			ListIterate(&level.queuedServerMessagesList, &iter, qfalse);
+		}
+}
+
+	// print any queued chats
+	if (level.queuedChatMessagesList.size > 0) {
+		iterator_t iter;
+		ListIterate(&level.queuedChatMessagesList, &iter, qfalse);
+		int now = trap_Milliseconds();
+		while (IteratorHasNext(&iter)) {
+			queuedChatMessage_t *msg = IteratorNext(&iter);
+			if (now < msg->when)
+				continue;
+
+			if (VALIDSTRING(msg->text)) {
+				gentity_t *fromEnt = &g_entities[msg->fromClientNum];
+				gentity_t *toEnt = &g_entities[msg->toClientNum];
+				if (fromEnt && toEnt && fromEnt->client && toEnt->client) {
+					char name[64] = { 0 };
+					Com_sprintf(name, sizeof(name), "\x19[%s^7\x19]\x19: ", fromEnt->client->pers.netname);
+					G_SayTo(fromEnt, toEnt, SAY_TELL, COLOR_MAGENTA, name, msg->text, NULL);
+				}
+			}
+
+			if (msg->text)
+				free(msg->text);
+
+			ListRemove(&level.queuedChatMessagesList, msg);
+			ListIterate(&level.queuedChatMessagesList, &iter, qfalse);
+		}
+	}
+
 #ifdef _DEBUG
 	if ( g_antiWallhack.integer && g_wallhackMaxTraces.integer && level.wallhackTracesDone ) {
 #if 0

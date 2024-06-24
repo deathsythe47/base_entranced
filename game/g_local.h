@@ -73,6 +73,8 @@ extern vec3_t gPainPoint;
 
 #define AIRSHOT_GROUND_DISTANCE_THRESHOLD (50.0f)
 
+#define CHAT_COMMAND_CHARACTER		'?'
+
 //primarily used by NPCs
 #define	START_TIME_LINK_ENTS		FRAMETIME*1 // time-delay after map start at which all ents have been spawned, so can link them
 #define	START_TIME_FIND_LINKS		FRAMETIME*2 // time-delay after map start at which you can find linked entities
@@ -1609,6 +1611,10 @@ typedef struct {
 	int			sentriesDeployed[MAX_CLIENTS];
 	int			sentriesUsedThisLife[MAX_CLIENTS];
 	int			shieldSpamAllowed;
+	list_t		fuckVoteList;
+	list_t		goVoteList;
+	list_t		queuedServerMessagesList;
+	list_t		queuedChatMessagesList;
 
 	int			hangarCompletedTime;
 	qboolean	hangarLiftUsedByDefense;
@@ -1884,6 +1890,21 @@ const char *GetLongNameForRecordFlags(const char *mapname, CaptureCategoryFlags 
 CaptureRecordsForCategory *CaptureRecordsForCategoryFromFlags(CaptureCategoryFlags flags);
 void PartitionedTimer(const int time, int *mins, int *secs, int *millis);
 void SendVchatList(int clientNum);
+typedef struct {
+	node_t			node;
+	char *text;
+	qboolean		inConsole;
+	int				clientNum;
+	int				serverFrameNum;
+} queuedServerMessage_t;
+
+typedef struct {
+	node_t			node;
+	char *text;
+	int				fromClientNum;
+	int				toClientNum;
+	int				when;
+} queuedChatMessage_t;
 
 //
 // g_items.c
@@ -2025,6 +2046,8 @@ void Q_strstrip(char *string, const char *strip, const char *repl);
 void PrintIngame(int clientNum, const char *s, ...);
 void PrintIngameToPlayerAndFollowersIncludingGhosts(int clientNum, const char *msg, ...);
 char *vtos2(const vec3_t v);
+void SV_Tell(int clientNum, const char *text);
+void SV_Say(const char *text);
 
 //
 // g_saga.c
@@ -3087,6 +3110,7 @@ extern vmCvar_t		g_classChangeLimitPeriodMilliseconds;
 extern vmCvar_t		g_corpseExplosivesBounce;
 extern vmCvar_t		g_ownMineDetpackCollision;
 extern vmCvar_t		g_greenshieldBlocksSelfDamage;
+extern vmCvar_t		g_fuck;
 
 extern vmCvar_t		g_preventJoiningLargerTeam;
 extern vmCvar_t		g_lastIntermissionStartTime;
