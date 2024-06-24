@@ -4653,9 +4653,9 @@ void G_LocationBasedDamageModifier(gentity_t *inflictor, gentity_t *ent, vec3_t 
 		return;
 	}
 
-	float minMultiplier = 0.0f;
+	double minMultiplier = 0.0;
 	if (mod == MOD_DISRUPTOR && ent->client && (ent->client->ps.stats[STAT_WEAPONS] & (1 << WP_DISRUPTOR)) && inflictor && inflictor->client && inflictor->client->ps.weapon == WP_DISRUPTOR && g_fixDisruptDuel.integer) {
-		minMultiplier = 1.0f;
+		minMultiplier = 1.0;
 	}
 
 	if ((d_saberGhoul2Collision.integer && ent->client && ent->client->g2LastSurfaceTime == level.time && mod == MOD_SABER) || //using ghoul2 collision? Then if the mod is a saber we should have surface data from the last hit (unless thrown).
@@ -4676,7 +4676,7 @@ void G_LocationBasedDamageModifier(gentity_t *inflictor, gentity_t *ent, vec3_t 
 		hitLoc = G_GetHitLocation( ent, point );
 	}
 
-	float multiplier = 1.0f;
+	double multiplier = 1.0;
 
 	if (g_locationBasedDamage.integer == 3) {
 		switch (hitLoc) {
@@ -4684,7 +4684,7 @@ void G_LocationBasedDamageModifier(gentity_t *inflictor, gentity_t *ent, vec3_t 
 		case HL_FOOT_LT:
 		case HL_LEG_RT:
 		case HL_LEG_LT:
-			multiplier = 0.7f;
+			multiplier = 0.7;
 			break;
 		case HL_WAIST:
 		case HL_BACK_RT:
@@ -4699,7 +4699,7 @@ void G_LocationBasedDamageModifier(gentity_t *inflictor, gentity_t *ent, vec3_t 
 		case HL_HAND_LT:
 			break; //normal damage
 		case HL_HEAD:
-			multiplier = 1.3f;
+			multiplier = 1.3;
 			break;
 		default:
 			break; //do nothing then
@@ -4709,11 +4709,11 @@ void G_LocationBasedDamageModifier(gentity_t *inflictor, gentity_t *ent, vec3_t 
 		switch (hitLoc) {
 		case HL_FOOT_RT:
 		case HL_FOOT_LT:
-			multiplier = 0.5f;
+			multiplier = 0.5;
 			break;
 		case HL_LEG_RT:
 		case HL_LEG_LT:
-			multiplier = 0.7f;
+			multiplier = 0.7;
 			break;
 		case HL_WAIST:
 		case HL_BACK_RT:
@@ -4725,14 +4725,14 @@ void G_LocationBasedDamageModifier(gentity_t *inflictor, gentity_t *ent, vec3_t 
 			break; //normal damage
 		case HL_ARM_RT:
 		case HL_ARM_LT:
-			multiplier = 0.85f;
+			multiplier = 0.85;
 			break;
 		case HL_HAND_RT:
 		case HL_HAND_LT:
-			multiplier = 0.6f;
+			multiplier = 0.6;
 			break;
 		case HL_HEAD:
-			multiplier = 1.3f;
+			multiplier = 1.3;
 			break;
 		default:
 			break; //do nothing then
@@ -4742,7 +4742,7 @@ void G_LocationBasedDamageModifier(gentity_t *inflictor, gentity_t *ent, vec3_t 
 	if (minMultiplier && multiplier < minMultiplier)
 		multiplier = minMultiplier;
 
-	if (multiplier != 1.0f)
+	if (multiplier != 1.0)
 		*damage *= multiplier;
 }
 /*
