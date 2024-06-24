@@ -4654,7 +4654,12 @@ void G_LocationBasedDamageModifier(gentity_t *inflictor, gentity_t *ent, vec3_t 
 	}
 
 	double minMultiplier = 0.0;
-	if (mod == MOD_DISRUPTOR && ent->client && (ent->client->ps.stats[STAT_WEAPONS] & (1 << WP_DISRUPTOR)) && inflictor && inflictor->client && inflictor->client->ps.weapon == WP_DISRUPTOR && g_fixDisruptDuel.integer) {
+	if (mod == MOD_DISRUPTOR && g_gametype.integer == GT_SIEGE &&
+		ent->client && (ent->client->ps.stats[STAT_WEAPONS] & (1 << WP_DISRUPTOR)) && ent->client->siegeClass != -1 &&
+		bgSiegeClasses[ent->client->siegeClass].starthealth + bgSiegeClasses[ent->client->siegeClass].startarmor <= DISRUPTOR_MAIN_DAMAGE_SIEGE &&
+		inflictor && inflictor->client && inflictor->client->ps.weapon == WP_DISRUPTOR &&
+		g_fixDisruptDuel.integer &&
+		ent->client->sess.sessionTeam == OtherTeam(inflictor->client->sess.sessionTeam)) {
 		minMultiplier = 1.0;
 	}
 

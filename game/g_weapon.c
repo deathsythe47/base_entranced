@@ -33,7 +33,7 @@ static	vec3_t	muzzle;
 // Tenloss Disruptor
 //----------
 #define DISRUPTOR_MAIN_DAMAGE			30 //40
-#define DISRUPTOR_MAIN_DAMAGE_SIEGE		50
+//#define DISRUPTOR_MAIN_DAMAGE_SIEGE		50 // moved to g_local.h
 #define DISRUPTOR_NPC_MAIN_DAMAGE_CUT	0.25f
 
 #define DISRUPTOR_ALT_DAMAGE			100 //125
