@@ -7346,7 +7346,7 @@ void G_RunFrame( int levelTime ) {
 		}
 	}
 
-	if (level.pause.state != PAUSE_NONE) { // lock angles of vehicles during pause
+	if (level.pause.state != PAUSE_NONE) { // lock angles during pause
 		for (int i = 0; i < MAX_GENTITIES; i++) {
 			gentity_t *ent = &g_entities[i];
 			if (ent->lockPauseAngles && ent->inuse) {
