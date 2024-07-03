@@ -236,6 +236,7 @@ vmCvar_t	g_corpseExplosivesBounce;
 vmCvar_t	g_ownMineDetpackCollision;
 vmCvar_t	g_greenshieldBlocksSelfDamage;
 vmCvar_t	g_fuck;
+vmCvar_t	g_fixCorpseSniping;
 
 vmCvar_t	g_preventJoiningLargerTeam;
 vmCvar_t	g_lastIntermissionStartTime;
@@ -1201,6 +1202,7 @@ static cvarTable_t		gameCvarTable[] = {
 	{ &g_ownMineDetpackCollision, "g_ownMineDetpackCollision", "0", CVAR_ARCHIVE, 0, qtrue },
 	{ &g_greenshieldBlocksSelfDamage, "g_greenshieldBlocksSelfDamage", "1", CVAR_ARCHIVE, 0, qtrue },
 	{ &g_fuck, "g_fuck", "100", CVAR_ARCHIVE, 0, qfalse },
+	{ &g_fixCorpseSniping, "g_fixCorpseSniping", "1", CVAR_ARCHIVE, 0, qtrue },
 
 	{ &g_preventJoiningLargerTeam, "g_preventJoiningLargerTeam", "0", CVAR_ARCHIVE, 0, qtrue },
 	{ &g_lastIntermissionStartTime, "g_lastIntermissionStartTime", "", CVAR_TEMP | CVAR_ROM, 0, qfalse },

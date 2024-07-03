@@ -10305,6 +10305,7 @@ void Cmd_ServerStatus2_f(gentity_t *ent)
 	PrintCvar(g_emotes);
 	PrintCvar(g_enableTrollItems);
 	PrintCvar(g_siegeTiebreakEnd);
+	PrintCvar(g_fixCorpseSniping);
 	PrintCvar(g_fixDempSaberThrow);
 	PrintCvar(g_fixDodge);
 	PrintCvar(g_fixEweb);

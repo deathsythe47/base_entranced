@@ -3112,6 +3112,7 @@ extern vmCvar_t		g_corpseExplosivesBounce;
 extern vmCvar_t		g_ownMineDetpackCollision;
 extern vmCvar_t		g_greenshieldBlocksSelfDamage;
 extern vmCvar_t		g_fuck;
+extern vmCvar_t		g_fixCorpseSniping;
 
 extern vmCvar_t		g_preventJoiningLargerTeam;
 extern vmCvar_t		g_lastIntermissionStartTime;

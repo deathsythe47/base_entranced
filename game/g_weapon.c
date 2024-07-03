@@ -2132,7 +2132,17 @@ void WP_DisruptorAltFire( gentity_t *ent )
 					tent = G_TempEntity( tr.endpos, EV_DISRUPTOR_SNIPER_MISS );
 					tent->s.eventParm = DirToByte( tr.plane.normal );
 				 }
-				break; // and don't try any more traces
+
+				 if (VALIDSTRING(traceEnt->classname) && !Q_stricmp(traceEnt->classname, "bodyque") && g_fixCorpseSniping.integer) {
+					 // Get ready for an attempt to trace through another person
+					 VectorCopy(tr.endpos, muzzle);
+					 VectorCopy(tr.endpos, start);
+					 skip = tr.entityNum;
+					 continue;
+				 }
+				 else {
+					 break; // and don't try any more traces
+				 }
 			}
 
 			if ( (traceEnt->flags&FL_SHIELDED) )
