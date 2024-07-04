@@ -7313,12 +7313,16 @@ void G_RunFrame( int levelTime ) {
 	{
 		if (lastMsgTime < level.time - 1000) {
 			int pauseSecondsRemaining = (int)ceilf((level.pause.time - level.time) / 1000.0f);
-			if (level.pause.reason[0])
+			if (level.pause.reason[0]) {
 				trap_SendServerCommand(-1, va("cp \"The match has been auto-paused. (%s%d^7)\n%s\n\"",
 					pauseSecondsRemaining <= 10 ? S_COLOR_RED : S_COLOR_WHITE, pauseSecondsRemaining, level.pause.reason));
-			else
+				trap_SendServerCommand(-1, "lchat \"pause\"");
+			}
+			else {
 				trap_SendServerCommand(-1, va("cp \"The match has been paused. (%s%d^7)\n\"",
 					pauseSecondsRemaining <= 10 ? S_COLOR_RED : S_COLOR_WHITE, pauseSecondsRemaining));
+				trap_SendServerCommand(-1, "lchat \"pause\"");
+			}
 			lastMsgTime = level.time;
 		}
 
@@ -7332,6 +7336,7 @@ void G_RunFrame( int levelTime ) {
 		if (lastMsgTime < level.time - 500) {
 			int pauseSecondsRemaining = (int)ceilf((level.pause.time - level.time) / 1000.0f);
 			trap_SendServerCommand(-1, va("cp \"^1MATCH IS UNPAUSING^7\nin %d^7...\n\"", pauseSecondsRemaining));
+			trap_SendServerCommand(-1, "lchat \"pause\"");
 			lastMsgTime = level.time;
 		}
 
@@ -7345,6 +7350,7 @@ void G_RunFrame( int levelTime ) {
 			level.pause.state = PAUSE_NONE;
 			level.pause.unpauseTime = level.time;
 			trap_SendServerCommand(-1, "cp \"^2Go!^7\n\"");
+			trap_SendServerCommand(-1, "lchat \"unpause\"");
 		}
 	}
 

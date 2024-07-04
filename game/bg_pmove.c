@@ -10807,6 +10807,18 @@ void Pmove (pmove_t *pmove) {
 
 		PmoveSingle( pmove );
 
+		if (level.pause.state != PAUSE_NONE) { // lock angles during pause
+			gentity_t *ent = &g_entities[pm->ps->clientNum];
+			if (ent->lockPauseAngles) {
+				PM_SetPMViewAngle(pm->ps, ent->pauseAngles, &pm->cmd);
+				VectorCopy(ent->pauseAngles, ent->s.angles);
+				if (ent->client) {
+					VectorCopy(ent->pauseViewAngles, ent->client->ps.viewangles);
+					SetClientViewAngle(ent, ent->client->ps.viewangles);
+				}
+			}
+		}
+
 		if ( pmove->ps->pm_flags & PMF_JUMP_HELD ) {
 			pmove->cmd.upmove = 20;
 		}
