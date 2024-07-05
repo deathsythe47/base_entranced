@@ -56,7 +56,7 @@ extern vec3_t gPainPoint;
 #define MAX_USERNAME_SIZE 32 //username size	16
 #define MAX_PASSWORD	16
 
-#define BODY_QUEUE_SIZE		8
+#define BODY_QUEUE_SIZE		32
 
 #ifndef Q3INFINITE
 #define Q3INFINITE			1000000
