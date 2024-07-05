@@ -1039,6 +1039,20 @@ static qboolean CopyToBodyQue( gentity_t *ent ) {
 	}
 	trap_SendServerCommand(-1, va("ircg %i %i %i %i", ent->s.number, body->s.number, body->s.weapon, islight));
 
+	if (ent->s.number < MAX_CLIENTS && g_fixReconnectCorpses.integer) {
+		// cram some extra information in the corpse's entitystate so that clients can fix the reconnect bug
+		*(uint32_t *)&body->s.userInt1 = 0xFFFFFFFF;
+		*(uint32_t *)&body->s.userInt2 = ((ent - g_entities) & 1) ? 0xFFFFFFFF : 0;
+		*(uint32_t *)&body->s.userInt3 = ((ent - g_entities) & 2) ? 0xFFFFFFFF : 0;
+		*(uint32_t *)&body->s.userFloat1 = ((ent - g_entities) & 4) ? 0xFFFFFFFF : 0;
+		*(uint32_t *)&body->s.userFloat2 = ((ent - g_entities) & 8) ? 0xFFFFFFFF : 0;
+		*(uint32_t *)&body->s.userFloat3 = ((ent - g_entities) & 16) ? 0xFFFFFFFF : 0;
+		*(uint32_t *)&body->s.userVec1[0] = islight ? 0xFFFFFFFF : 0;
+	}
+	else {
+		body->s.userInt1 = body->s.userInt2 = body->s.userInt3 = body->s.userFloat1 = body->s.userFloat2 = body->s.userFloat3 = body->s.userVec1[0] = 0;
+	}
+
 	body->r.svFlags = ent->r.svFlags | SVF_BROADCAST;
 	VectorCopy (ent->r.mins, body->r.mins);
 	VectorCopy (ent->r.maxs, body->r.maxs);
@@ -3318,6 +3332,9 @@ void G_BroadcastServerFeatureList( int clientNum ) {
 
 	if (g_fixSniperSwitch.integer)
 		Q_strcat(featureListConfigString, sizeof(featureListConfigString), "fss ");
+
+	if (g_fixReconnectCorpses.integer)
+		Q_strcat(featureListConfigString, sizeof(featureListConfigString), "frc ");
 
 	trap_SetConfigstring(CS_SERVERFEATURELIST, featureListConfigString);
 

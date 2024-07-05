@@ -2953,6 +2953,7 @@ extern vmCvar_t		g_fixSniperSwitch;
 extern vmCvar_t		g_fixGolanDamage;
 extern vmCvar_t		g_locationBasedDamage_splash;
 extern vmCvar_t		g_fixDisruptDuel;
+extern vmCvar_t		g_fixReconnectCorpses;
 
 extern vmCvar_t		g_fixWeaponChargeTime;
 

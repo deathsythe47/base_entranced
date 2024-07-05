@@ -642,6 +642,7 @@ vmCvar_t	g_fixSniperSwitch;
 vmCvar_t	g_fixGolanDamage;
 vmCvar_t	g_locationBasedDamage_splash;
 vmCvar_t	g_fixDisruptDuel;
+vmCvar_t	g_fixReconnectCorpses;
 
 vmCvar_t	g_fixWeaponChargeTime;
 
@@ -1041,6 +1042,7 @@ static cvarTable_t		gameCvarTable[] = {
 	{ &g_fixGolanDamage,	"g_fixGolanDamage"		, "1"	, CVAR_ARCHIVE, 0, qtrue },
 	{ &g_locationBasedDamage_splash,	"g_locationBasedDamage_splash"		, "1"	, CVAR_ARCHIVE, 0, qtrue },
 	{ &g_fixDisruptDuel,	"g_fixDisruptDuel"		, "1"	, CVAR_ARCHIVE, 0, qtrue },
+	{ &g_fixReconnectCorpses,	"g_fixReconnectCorpses"		, "1"	, CVAR_ARCHIVE | CVAR_LATCH, 0, qtrue },
 
 	{ &g_fixWeaponChargeTime,	"g_fixWeaponChargeTime"	, "0"	, CVAR_ARCHIVE, 0, qtrue },
 
