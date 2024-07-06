@@ -933,7 +933,7 @@ void InitBodyQue (void) {
 	gentity_t	*ent;
 
 	level.bodyQueIndex = 0;
-	for (i=0; i<BODY_QUEUE_SIZE ; i++) {
+	for (i=0; i < Com_Clampi(8, 64, g_corpseLimit.integer); i++) {
 		ent = G_Spawn();
 		ent->classname = "bodyque";
 		ent->neverFree = qtrue;
@@ -989,7 +989,7 @@ static qboolean CopyToBodyQue( gentity_t *ent ) {
 
 	// grab a body que and cycle to the next one
 	body = level.bodyQue[ level.bodyQueIndex ];
-	level.bodyQueIndex = (level.bodyQueIndex + 1) % BODY_QUEUE_SIZE;
+	level.bodyQueIndex = (level.bodyQueIndex + 1) % Com_Clampi(8, 64, g_corpseLimit.integer);
 
 	trap_UnlinkEntity (body);
 	body->s = ent->s;

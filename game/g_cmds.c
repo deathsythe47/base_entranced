@@ -10299,6 +10299,7 @@ void Cmd_ServerStatus2_f(gentity_t *ent)
 	PrintCvar(g_classChangeLimitPeriodMilliseconds);
 	PrintCvar(g_coneReflectAngle);
 	PrintCvar(g_corpseExplosivesBounce);
+	PrintCvar(g_corpseLimit);
 	PrintCvar(g_creditAirKills);
 	PrintCvar(g_dismember);
 	PrintCvar(g_dispenserLifetime);

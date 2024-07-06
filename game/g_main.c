@@ -233,6 +233,7 @@ vmCvar_t	g_joinMenuHack;
 vmCvar_t	g_classChangeLimit;
 vmCvar_t	g_classChangeLimitPeriodMilliseconds;
 vmCvar_t	g_corpseExplosivesBounce;
+vmCvar_t	g_corpseLimit;
 vmCvar_t	g_ownMineDetpackCollision;
 vmCvar_t	g_greenshieldBlocksSelfDamage;
 vmCvar_t	g_fuck;
@@ -1201,6 +1202,7 @@ static cvarTable_t		gameCvarTable[] = {
 	{ &g_classChangeLimit, "g_classChangeLimit", "5", CVAR_ARCHIVE, 0, qtrue },
 	{ &g_classChangeLimitPeriodMilliseconds, "g_classChangeLimitPeriodMilliseconds", "2000", CVAR_ARCHIVE, 0, qtrue },
 	{ &g_corpseExplosivesBounce, "g_corpseExplosivesBounce", "-1", CVAR_ARCHIVE, 0, qtrue },
+	{ &g_corpseLimit, "g_corpseLimit", "8", CVAR_ARCHIVE | CVAR_LATCH, 0, qtrue },
 	{ &g_ownMineDetpackCollision, "g_ownMineDetpackCollision", "0", CVAR_ARCHIVE, 0, qtrue },
 	{ &g_greenshieldBlocksSelfDamage, "g_greenshieldBlocksSelfDamage", "1", CVAR_ARCHIVE, 0, qtrue },
 	{ &g_fuck, "g_fuck", "100", CVAR_ARCHIVE, 0, qfalse },
