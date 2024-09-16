@@ -2738,9 +2738,8 @@ static void CheckForClassesExceedingLimits(team_t team) {
 		while (G_WouldExceedClassLimit(team, i, qfalse, -1, NULL)) {
 			// this class's limit is exceeded; switch one player at a time to another class until the limit is no longer exceeded.
 
-			if (tries > MAX_CLIENTS) // avoid infinite loop
+			if (tries++ > 1024) // avoid infinite loop
 				Com_Error(ERR_DROP, va("CheckForClassesExceedingLimits: recursive error for team %s, class %s)!", team == TEAM_RED ? "red" : "blue", classNames[i]));
-			tries++;
 			
 			// method #1: the (dead) player who changed to it most recently gets switched off. should cover most real-world cases.
 			int j, mostRecentChange = -1, mostRecentSwitcher = -1;
