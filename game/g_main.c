@@ -6983,6 +6983,7 @@ void G_RunFrame( int levelTime ) {
 		trap_Cvar_Set("g_nmFlags", va("%i", sendFlags));
 		flagsSet = qtrue;
 	}
+	lastWasRestartedNow = wasRestartedNow;
 #endif
 
 	// saber off damage boost
