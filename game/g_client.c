@@ -953,7 +953,7 @@ void BodySink( gentity_t *ent ) {
 	G_AddEvent(ent, EV_BODYFADE, 69);
 	ent->think = BodyRid;
 	ent->nextthink = level.time + 4000;
-	ent->takedamage = qfalse;
+	ent->takedamage = qtrue; // duo: changed from qfalse
 }
 
 /*
@@ -1075,12 +1075,7 @@ static qboolean CopyToBodyQue( gentity_t *ent ) {
 
 	body->die = body_die;
 
-	// don't take more damage if already gibbed
-	if ( ent->health <= GIB_HEALTH ) {
-		body->takedamage = qfalse;
-	} else {
-		body->takedamage = qtrue;
-	}
+	body->takedamage = qtrue; // duo: removed gib setting this to qfalse bullshit
 
 	VectorCopy ( body->s.pos.trBase, body->r.currentOrigin );
 	trap_LinkEntity (body);
