@@ -3515,3 +3515,57 @@ void SV_Say(const char *text) {
 	Com_Printf("broadcast: chat \"" SVSAY_PREFIX "%s\\n\"\n", text);
 	trap_SendServerCommand(-1, va("chat \"" SVSAY_PREFIX "%s\"\n", text));
 }
+
+// counts connected non-bot players (not adapted properly for siege)
+void CountPlayers(int *total, int *red, int *blue, int *free, int *spec, int *redOrBlue, int *freeOrSpec) {
+	if (total)
+		*total = 0;
+	if (red)
+		*red = 0;
+	if (blue)
+		*blue = 0;
+	if (free)
+		*free = 0;
+	if (spec)
+		*spec = 0;
+	if (redOrBlue)
+		*redOrBlue = 0;
+	if (freeOrSpec)
+		*freeOrSpec = 0;
+
+	for (int i = 0; i < MAX_CLIENTS; i++) {
+		gentity_t *ent = &g_entities[i];
+		if (!ent->inuse || !ent->client || ent->client->pers.connected != CON_CONNECTED || (ent->r.svFlags & SVF_BOT))
+			continue;
+
+		if (total)
+			++(*total);
+
+		switch (ent->client->sess.sessionTeam) {
+		case TEAM_FREE:
+			if (free)
+				++(*free);
+			if (freeOrSpec)
+				++(*freeOrSpec);
+			break;
+		case TEAM_RED:
+			if (red)
+				++(*red);
+			if (redOrBlue)
+				++(*redOrBlue);
+			break;
+		case TEAM_BLUE:
+			if (blue)
+				++(*blue);
+			if (redOrBlue)
+				++(*redOrBlue);
+			break;
+		case TEAM_SPECTATOR:
+			if (spec)
+				++(*spec);
+			if (freeOrSpec)
+				++(*freeOrSpec);
+			break;
+		}
+	}
+}

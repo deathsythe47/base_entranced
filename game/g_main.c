@@ -6962,7 +6962,11 @@ void G_RunFrame( int levelTime ) {
 #ifdef NEWMOD_SUPPORT
 	static qboolean flagsSet = qfalse; // make sure it gets set at least once
 	static int saberFlags, netUnlock;
-	if (!flagsSet || saberFlags != g_balanceSaber.integer || netUnlock != g_netUnlock.integer) {
+	int numRed = 0, numBlue = 0;
+	CountPlayers(NULL, &numRed, &numBlue, NULL, NULL, NULL, NULL);
+	const qboolean wasRestartedNow = (level.wasRestarted && level.isLivePug != ISLIVEPUG_NO && numRed >= 2 && numBlue >= 2);
+	static qboolean lastWasRestartedNow = qfalse;
+	if (!flagsSet || saberFlags != g_balanceSaber.integer || netUnlock != g_netUnlock.integer || wasRestartedNow != lastWasRestartedNow) {
 		saberFlags = g_balanceSaber.integer;
 		netUnlock = g_netUnlock.integer;
 
@@ -6973,6 +6977,8 @@ void G_RunFrame( int levelTime ) {
 			sendFlags |= NMF_BACKFLIP;
 		if (netUnlock)
 			sendFlags |= NMF_NETUNLOCK;
+		if (wasRestartedNow)
+			sendFlags |= NMF_WASRESTARTED;
 
 		trap_Cvar_Set("g_nmFlags", va("%i", sendFlags));
 		flagsSet = qtrue;

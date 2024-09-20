@@ -2046,6 +2046,7 @@ void PrintIngameToPlayerAndFollowersIncludingGhosts(int clientNum, const char *m
 char *vtos2(const vec3_t v);
 void SV_Tell(int clientNum, const char *text);
 void SV_Say(const char *text);
+void CountPlayers(int *total, int *red, int *blue, int *free, int *spec, int *redOrBlue, int *freeOrSpec);
 
 //
 // g_saga.c
@@ -2923,6 +2924,7 @@ extern vmCvar_t		g_netUnlock;
 #define NMF_KICK			(1 << 0)
 #define NMF_BACKFLIP		(1 << 1)
 #define NMF_NETUNLOCK		(1 << 2)
+#define NMF_WASRESTARTED	(1 << 3)
 extern vmCvar_t		g_nmFlags;
 extern vmCvar_t		g_enableNmAuth;
 extern vmCvar_t		g_specInfo;

@@ -469,6 +469,13 @@ qboolean CheckIfIAmAFilthySpammer(gentity_t *ent, qboolean checkDoorspam, qboole
 					//trap_SendServerCommand(-1, va("print \"^%iNear top of lift, ^%iincreased height detection.\n\"", Q_irand(1, 7), Q_irand(1, 7)));
 					heightLowerBound = (ent->client->ps.origin[2] - 9999); //we're standing near the top of the infirmary lift, so increase lower height detection(to detect throwing mines down on people)
 				}
+				else if (level.totalObjectivesCompleted == 5 && ent->client->ps.origin[2] >= 470 && ent->client->ps.origin[1] >= -615) {
+					// fix for spamming the short lift at short
+					vec3_t comparisonPoint = { -2224, -321, 484 };
+					float dist = DistanceHorizontal(ent->client->ps.origin, comparisonPoint);
+					if (dist <= 768)
+						heightLowerBound = 180;
+				}
 			}
 			else if (level.siegeMap == SIEGEMAP_NAR) //nar station 1 obj room exception. mine placement is okay if you are in the obj room and there are no enemies in the station
 			{
