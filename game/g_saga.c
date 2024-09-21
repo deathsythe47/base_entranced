@@ -2816,7 +2816,7 @@ void SiegeRespawn(gentity_t *ent)
 {
 	gentity_t *tent;
 
-	if (g_classLimits.integer)
+	if (g_classLimits.integer && level.isLivePug != ISLIVEPUG_NO)
 		CheckForClassesExceedingLimits(ent->client->sess.siegeDesiredTeam);
 
 	level.lastLegitClass[ent - g_entities] = bgSiegeClasses[ent->client->siegeClass].playerClass;
@@ -2988,7 +2988,7 @@ void SiegeBeginRound(int entNum)
 			SpeedRunModeRuined("SiegeBeginRound: >2 red");
 
 		// switch people off classes that are exceeding their limits
-		if (g_classLimits.integer) {
+		if (g_classLimits.integer && level.isLivePug != ISLIVEPUG_NO) {
 			CheckForClassesExceedingLimits(TEAM_RED);
 			CheckForClassesExceedingLimits(TEAM_BLUE);
 		}
