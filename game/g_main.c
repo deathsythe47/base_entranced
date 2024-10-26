@@ -1188,7 +1188,7 @@ static cvarTable_t		gameCvarTable[] = {
 	{ &g_antiLaming, "g_antiLaming", "0", CVAR_ARCHIVE, 0, qtrue },
 	{ &g_probation, "g_probation", "2", CVAR_ARCHIVE, 0, qtrue },
 	{ &g_fixHoth2ndObj, "g_fixHoth2ndObj", "1", CVAR_ARCHIVE, 0, qtrue },
-	{ &g_hothInfirmaryRebalance, "g_hothInfirmaryRebalance", "1", CVAR_ARCHIVE | CVAR_LATCH, 0, qtrue },
+	{ &g_hothInfirmaryRebalance, "g_hothInfirmaryRebalance", "2", CVAR_ARCHIVE | CVAR_LATCH, 0, qtrue },
 	{ &g_hothCodesAntirush, "g_hothCodesAntirush", "1", CVAR_ARCHIVE | CVAR_LATCH, 0, qtrue },
 	{ &g_siegeTimeVisualAid , "g_siegeTimeVisualAid", "1", CVAR_ARCHIVE, 0, qtrue },
 	{ &g_botAimbot, "g_botAimbot", "1", CVAR_ARCHIVE, 0, qtrue },
