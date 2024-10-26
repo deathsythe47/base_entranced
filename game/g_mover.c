@@ -1549,6 +1549,16 @@ void SP_func_door(gentity_t *ent)
 		VectorCopy(temp, ent->pos1);
 	}
 
+	if (level.siegeMap == SIEGEMAP_HOTH && g_hothCodesAntirush.integer) {
+		char *teamStr = NULL;
+		G_SpawnString("team", "", &teamStr);
+		if (!Q_stricmp(teamStr, "doorgroup1")) {
+			ent->spawnflags |= MOVER_LOCKED;
+			ent->alliedTeam = TEAM_BLUE;
+			ent->isHothChokepointDoor = qtrue;
+		}
+	}
+
 	if (ent->spawnflags & MOVER_LOCKED)
 	{//a locked door, set up as locked until used directly
 		ent->s.eFlags |= EF_SHADER_ANIM;//use frame-controlled shader anim

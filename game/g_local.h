@@ -450,6 +450,8 @@ struct gentity_s {
 	qboolean	lockPauseAngles;
 	vec3_t		pauseAngles;
 	vec3_t		pauseViewAngles;
+
+	qboolean	isHothChokepointDoor;
 };
 
 #define DAMAGEREDIRECT_HEAD		1
@@ -1614,6 +1616,7 @@ typedef struct {
 	list_t		queuedServerMessagesList;
 	list_t		queuedChatMessagesList;
 
+	int			genCompletedTime;
 	int			hangarCompletedTime;
 	qboolean	hangarLiftUsedByDefense;
 	qboolean	ccCompleted;
@@ -3095,6 +3098,7 @@ extern vmCvar_t    g_emotes;
 extern vmCvar_t    g_siegeHelp;
 extern vmCvar_t		g_fixHoth2ndObj;
 extern vmCvar_t		g_hothInfirmaryRebalance;
+extern vmCvar_t		g_hothCodesAntirush;
 extern vmCvar_t		g_siegeTimeVisualAid;
 extern vmCvar_t		g_botAimbot;
 extern vmCvar_t		g_botDefaultSiegeClass;

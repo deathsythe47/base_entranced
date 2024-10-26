@@ -218,6 +218,7 @@ vmCvar_t	g_emotes;
 vmCvar_t	g_siegeHelp;
 vmCvar_t	g_fixHoth2ndObj;
 vmCvar_t	g_hothInfirmaryRebalance;
+vmCvar_t	g_hothCodesAntirush;
 vmCvar_t	g_siegeTimeVisualAid;
 vmCvar_t	g_botAimbot;
 vmCvar_t	g_botDefaultSiegeClass;
@@ -1188,6 +1189,7 @@ static cvarTable_t		gameCvarTable[] = {
 	{ &g_probation, "g_probation", "2", CVAR_ARCHIVE, 0, qtrue },
 	{ &g_fixHoth2ndObj, "g_fixHoth2ndObj", "1", CVAR_ARCHIVE, 0, qtrue },
 	{ &g_hothInfirmaryRebalance, "g_hothInfirmaryRebalance", "1", CVAR_ARCHIVE | CVAR_LATCH, 0, qtrue },
+	{ &g_hothCodesAntirush, "g_hothCodesAntirush", "1", CVAR_ARCHIVE | CVAR_LATCH, 0, qtrue },
 	{ &g_siegeTimeVisualAid , "g_siegeTimeVisualAid", "1", CVAR_ARCHIVE, 0, qtrue },
 	{ &g_botAimbot, "g_botAimbot", "1", CVAR_ARCHIVE, 0, qtrue },
 	{ &g_botDefaultSiegeClass, "g_botDefaultSiegeClass",	"scout", CVAR_ARCHIVE, 0, qtrue },
@@ -6986,8 +6988,19 @@ void G_RunFrame( int levelTime ) {
 	lastWasRestartedNow = wasRestartedNow;
 #endif
 
-	// saber off damage boost
 	if (g_gametype.integer == GT_SIEGE) {
+		if (level.siegeMap == SIEGEMAP_HOTH && level.genCompletedTime && level.time - level.genCompletedTime >= 20000 && g_hothCodesAntirush.integer) {
+			for (int i = MAX_CLIENTS; i < ENTITYNUM_MAX_NORMAL; i++) {
+				gentity_t *door = &g_entities[i];
+				if (!door->inuse || !door->isHothChokepointDoor || Q_stricmp(door->classname, "func_door"))
+					continue;
+				if (door->blocked && door->blocked == Blocked_Door && door->spawnflags && door->spawnflags & 16)
+					UnLockDoors(door);
+			}
+			level.genCompletedTime = 0;
+		}
+
+		// saber off damage boost
 		static int lastTime = 0;
 		static qboolean saberOn[MAX_CLIENTS] = { qfalse }, notified[MAX_CLIENTS] = { qfalse };
 		if (lastTime) {
@@ -8058,6 +8071,17 @@ void G_RunFrame( int levelTime ) {
 
 		// remove infirmary lock to short
 		if (g_hothInfirmaryRebalance.integer) {
+			if (g_hothInfirmaryRebalance.integer >= 2) {
+				for (int i = MAX_CLIENTS; i < MAX_GENTITIES; i++) {
+					gentity_t *door = &g_entities[i];
+					if (!door->inuse)
+						continue;
+					if (VALIDSTRING(door->targetname) && !strcmp(door->targetname, "medlabplatb_lockdoor") && !Q_stricmp(door->classname, "func_door")) {
+						G_FreeEntity(door);
+						break;
+					}
+				}
+			}
 			for (int i = MAX_CLIENTS; i < MAX_GENTITIES; i++) {
 				gentity_t *lock = &g_entities[i];
 				if (!lock->inuse)

@@ -3409,6 +3409,10 @@ void SiegeObjectiveCompleted(int team, int objective, int final, int client) {
 		level.hangarCompletedTime = level.time;
 	}
 
+	if (objective == 3 && level.siegeMap == SIEGEMAP_HOTH && g_hothCodesAntirush.integer) {
+		level.genCompletedTime = level.time;
+	}
+
 	if (objective == 5 && level.siegeMap == SIEGEMAP_CARGO) {
 		level.ccCompleted = qtrue;
 		for (int i = 0; i < MAX_GENTITIES; i++) { // re-lock 2nd obj inner doors
