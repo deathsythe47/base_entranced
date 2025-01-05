@@ -2905,7 +2905,7 @@ void funcBBrushTouch(gentity_t *ent, gentity_t *other, trace_t *trace)
 		return;
 	if (!other || !other->client || !ent || !(ent->spawnflags & 8))
 		return;
-	if (ent - g_entities == CARGO_FANGRATING_NUM)
+	if (ent - g_entities == CARGO_FANGRATING_NUM1 || ent - g_entities == CARGO_FANGRATING_NUM2)
 		return;
 	if (other->client->emoted)
 		return;

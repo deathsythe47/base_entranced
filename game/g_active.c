@@ -756,7 +756,7 @@ void DoImpact( gentity_t *self, gentity_t *other, qboolean damageSelf )
 	}
 
 	qboolean definitelyBreak;
-	if (easyBreakBrush && g_gametype.integer == GT_SIEGE && level.siegeMap == SIEGEMAP_CARGO && self - g_entities != CARGO_FANGRATING_NUM) {
+	if (easyBreakBrush && g_gametype.integer == GT_SIEGE && level.siegeMap == SIEGEMAP_CARGO && self - g_entities != CARGO_FANGRATING_NUM1 && self - g_entities != CARGO_FANGRATING_NUM2) {
 		definitelyBreak = qtrue;
 	}
 	else {
