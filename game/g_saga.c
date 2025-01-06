@@ -3824,6 +3824,7 @@ void siegeTriggerUse(gentity_t *ent, gentity_t *other, gentity_t *activator)
 	level.totalObjectivesCompleted++;
 	level.previousObjectiveCompleted = level.objectiveJustCompleted;
 	level.objectiveJustCompleted = ent->objective;
+	level.objectiveJustCompletedTime = level.time;
 	char *roundCvar = va("siege_r%i_objscompleted", CurrentSiegeRound());
 	trap_Cvar_Set(roundCvar, va("%i", trap_Cvar_VariableIntegerValue(roundCvar) + 1));
 

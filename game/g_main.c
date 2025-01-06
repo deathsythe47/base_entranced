@@ -7222,6 +7222,8 @@ void G_RunFrame( int levelTime ) {
 			level.warmupTime += dt;
 		level.startTime += dt;
 
+		level.objectiveJustCompletedTime += dt;
+
 #if 0
 		// disabled these two lines of sil code because of fucking with siege respawn checks
 		// could probably try to account for it, but more trouble than it's worth

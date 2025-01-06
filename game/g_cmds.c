@@ -3973,7 +3973,8 @@ void Cmd_Where_f( gentity_t *ent ) {
 	if (!ent->client)
 		return;
 
-	trap_SendServerCommand( ent - g_entities, va( "print \"Origin: %s ; Yaw: %.2f degrees\n\"", vtos( ent->client->ps.origin ), ent->client->ps.viewangles[YAW] ) );
+	trap_SendServerCommand( ent - g_entities, va( "print \"Origin: %g %g %g; Yaw: %g degrees\n\"",
+		ent->client->ps.origin[0], ent->client->ps.origin[1], ent->client->ps.origin[2], ent->client->ps.viewangles[YAW]));
 }
 
 void Cmd_TestVis_f(gentity_t *ent)

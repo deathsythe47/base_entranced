@@ -2525,8 +2525,93 @@ tryJetPack:
 			teleportToOrigin[2] = -231.0f;
 			VectorCopy(teleportToOrigin, temp.s.origin);
 		} while (SpotWouldTelefrag(&temp));
+		vec3_t angles = { 0, 0, 0 };
+		TeleportPlayer(ent, teleportToOrigin, angles);
+		return;
+	}
 
-		TeleportPlayer(ent, teleportToOrigin, vec3_origin);
+	// cargo 2nd obj retreat teleport
+	if (g_gametype.integer == GT_SIEGE && level.siegeMap == SIEGEMAP_CARGO && level.objectiveJustCompleted == 2 &&
+		ent->health > 0 && ent->client->sess.sessionTeam == TEAM_BLUE && level.time - level.objectiveJustCompletedTime < 20000 &&
+		VectorInsideBox(ent->client->ps.origin, 3255, 2806, 400, 3206, 2671, 422, 0.0f)) {
+		vec3_t teleportToOrigin;
+		gentity_t temp = { 0 };
+		do { // pick a random spot in their new spawn area
+			teleportToOrigin[0] = (float)Q_irand(7545, 7656);
+			teleportToOrigin[1] = (float)Q_irand(-357, -206);
+			teleportToOrigin[2] = -28.875f;
+			VectorCopy(teleportToOrigin, temp.s.origin);
+		} while (SpotWouldTelefrag(&temp));
+		vec3_t angles = { 0, 180, 0 };
+		TeleportPlayer(ent, teleportToOrigin, angles);
+		return;
+	}
+
+	// cargo cc retreat teleport
+	if (g_gametype.integer == GT_SIEGE && level.siegeMap == SIEGEMAP_CARGO && level.objectiveJustCompleted == 5 &&
+		ent->health > 0 && ent->client->sess.sessionTeam == TEAM_BLUE && level.time - level.objectiveJustCompletedTime < 20000 &&
+		VectorInsideBox(ent->client->ps.origin, 6515, -147, -30, 6614, -190, 0, 0.0f)) {
+		vec3_t teleportToOrigin;
+		gentity_t temp = { 0 };
+		do { // pick a random spot in their new spawn area
+			teleportToOrigin[0] = (float)Q_irand(4270, 4361);
+			teleportToOrigin[1] = (float)Q_irand(-517, -411);
+			teleportToOrigin[2] = 26.125f;
+			VectorCopy(teleportToOrigin, temp.s.origin);
+		} while (SpotWouldTelefrag(&temp));
+		vec3_t angles = { 0, 0, 0 };
+		TeleportPlayer(ent, teleportToOrigin, angles);
+		return;
+	}
+
+	// cargo codes retreat teleport
+	if (g_gametype.integer == GT_SIEGE && level.siegeMap == SIEGEMAP_CARGO && level.objectiveJustCompleted == 6 &&
+		ent->health > 0 && ent->client->sess.sessionTeam == TEAM_BLUE && level.time - level.objectiveJustCompletedTime < 12000 &&
+		VectorInsideBox(ent->client->ps.origin, 3907, -960, 114, 4015, -1010, 70, 0.0f)) {
+		vec3_t teleportToOrigin;
+		gentity_t temp = { 0 };
+		do { // pick a random spot in their new spawn area
+			teleportToOrigin[0] = (float)Q_irand(3667, 3758);
+			teleportToOrigin[1] = (float)Q_irand(1305, 1499);
+			teleportToOrigin[2] = 26.125f;
+			VectorCopy(teleportToOrigin, temp.s.origin);
+		} while (SpotWouldTelefrag(&temp));
+		vec3_t angles = { 0, 180, 0 };
+		TeleportPlayer(ent, teleportToOrigin, angles);
+		return;
+	}
+
+	// urban jan retreat teleport
+	if (g_gametype.integer == GT_SIEGE && level.siegeMap == SIEGEMAP_URBAN && level.objectiveJustCompleted == 3 &&
+		ent->health > 0 && ent->client->sess.sessionTeam == TEAM_BLUE && level.time - level.objectiveJustCompletedTime < 30000 &&
+		VectorInsideBox(ent->client->ps.origin, 1929, 2992, 20, 1898, 2927, 155, 0.0f)) {
+		vec3_t teleportToOrigin;
+		gentity_t temp = { 0 };
+		do { // pick a random spot in their new spawn area
+			teleportToOrigin[0] = (float)Q_irand(3704, 3887);
+			teleportToOrigin[1] = (float)Q_irand(4482, 4701);
+			teleportToOrigin[2] = 24.125f;
+			VectorCopy(teleportToOrigin, temp.s.origin);
+		} while (SpotWouldTelefrag(&temp));
+		vec3_t angles = { 0, 0, 0 };
+		TeleportPlayer(ent, teleportToOrigin, angles);
+		return;
+	}
+
+	// urban swoop retreat teleport
+	if (g_gametype.integer == GT_SIEGE && level.siegeMap == SIEGEMAP_URBAN && level.objectiveJustCompleted == 4 &&
+		ent->health > 0 && ent->client->sess.sessionTeam == TEAM_BLUE && level.time - level.objectiveJustCompletedTime < 30000 &&
+		VectorInsideBox(ent->client->ps.origin, 5079, 4586, 20, 5150, 4696, 139, 0.0f)) {
+		vec3_t teleportToOrigin;
+		gentity_t temp = { 0 };
+		do { // pick a random spot in their new spawn area
+			teleportToOrigin[0] = (float)Q_irand(969, 1055);
+			teleportToOrigin[1] = (float)Q_irand(9937, 10229);
+			teleportToOrigin[2] = 32.125f;
+			VectorCopy(teleportToOrigin, temp.s.origin);
+		} while (SpotWouldTelefrag(&temp));
+		vec3_t angles = { 0, -45, 0 };
+		TeleportPlayer(ent, teleportToOrigin, angles);
 		return;
 	}
 

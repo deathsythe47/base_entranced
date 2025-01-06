@@ -1623,6 +1623,7 @@ typedef struct {
 	qboolean	ccCompleted;
 	int			previousObjectiveCompleted;
 	int			objectiveJustCompleted;
+	int			objectiveJustCompletedTime;
 	int			totalObjectivesCompleted;
 	qboolean	wallCompleted;
 	qboolean	zombies;

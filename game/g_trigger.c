@@ -517,6 +517,21 @@ void Touch_Multi(gentity_t *self, gentity_t *other, trace_t *trace)
 		}
 	}
 
+	// these are now disabled in favor of the code-based tps
+	if (g_gametype.integer == GT_SIEGE) {
+		if (level.siegeMap == SIEGEMAP_CARGO &&
+			VALIDSTRING(self->targetname) && !Q_stricmp(self->targetname, "obj2teleporthack") ||
+			!Q_stricmp(self->targetname, "ccteleporthack") ||
+			!Q_stricmp(self->targetname, "finalobjteleporthack")) {
+			return;
+		}
+		if (level.siegeMap == SIEGEMAP_URBAN &&
+			VALIDSTRING(self->targetname) && !Q_stricmp(self->targetname, "obj3to4telehack") ||
+			!Q_stricmp(self->targetname, "obj4to56telehack")) {
+			return;
+		}
+	}
+
 	if (self->spawnflags & 1)
 	{
 		if (other->s.eType == ET_NPC)
