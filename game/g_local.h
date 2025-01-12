@@ -1267,6 +1267,9 @@ struct gclient_s {
 
 	int lastAiredOtherClientTime[MAX_CLIENTS];
 	int lastAiredOtherClientMeansOfDeath[MAX_CLIENTS];
+
+	int triesToChangeClassDuringPause;
+	int triesToSelfkillDuringPause;
 };
 
 //Interest points

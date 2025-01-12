@@ -826,10 +826,6 @@ void Cmd_Kill_f( gentity_t *ent ) {
         return;
     }
 
-    //OSP: pause
-    if ( level.pause.state != PAUSE_NONE )
-            return;
-
 	// idiot tried to selfkill at the very beginning of the round
 	if (level.wasRestarted && g_gametype.integer == GT_SIEGE && g_siegeRespawn.integer > 1 &&
 		(ent->client->sess.sessionTeam == TEAM_RED || ent->client->sess.sessionTeam == TEAM_BLUE) &&
@@ -846,6 +842,14 @@ void Cmd_Kill_f( gentity_t *ent ) {
 			trap_SendServerCommand( ent-g_entities, va("print \"%s\n\"", G_GetStringEdString("MP_SVGAME", "ATTEMPTDUELKILL")) );
 			return;
 		}
+	}
+
+	//OSP: pause
+	if (level.pause.state != PAUSE_NONE && ++ent->client->triesToSelfkillDuringPause < 3) {
+		PrintIngame(ent - g_entities, "^3(Accidental SK protection)^7 Press your SK bind ^5%d^7 more time%s to confirm selfkilling.\n",
+			3 - ent->client->triesToSelfkillDuringPause,
+			3 - ent->client->triesToSelfkillDuringPause == 1 ? "" : "s");
+		return;
 	}
 
 	if (g_gametype.integer == GT_SIEGE && g_antiSelfMax.integer && g_siegeRespawn.integer >= 10 && (level.siegeStage == SIEGESTAGE_ROUND1 || level.siegeStage == SIEGESTAGE_ROUND2)) {
@@ -2352,49 +2356,60 @@ void Cmd_Join_f(gentity_t *ent)
 		}
 	}
 
-	if (level.pause.state != PAUSE_NONE && ent->client->sess.sessionTeam != TEAM_SPECTATOR)
-		return;
+	char *classStr;
+	char *colorStr = (desiredTeamNumber == 1) ? "^1" : "^4";
 
 	if ((className[0] >= '0') && (className[0] <= '9'))
 	{
 		classNumber = atoi(className);
-		trap_SendServerCommand(ent - g_entities, va("print \"Changing to %sclass %i^7\n\"", desiredTeamNumber == 1 ? "^1" : "^4", classNumber));
+		classStr = va("%sclass %i^7", colorStr, classNumber);
 	}
 	else
 	{
-		// funny way for pro siegers
 		switch (tolower(className[0]))
 		{
 		case 'a':
-			classNumber = 1;
-			trap_SendServerCommand(ent - g_entities, va("print \"Changing to %sAssault^7\n\"", desiredTeamNumber == 1 ? "^1" : "^4"));
+			classNumber = SSCN_ASSAULT;
+			classStr = va("%sAssault^7", colorStr);
 			break;
 		case 'h':
-			classNumber = 2;
-			trap_SendServerCommand(ent - g_entities, va("print \"Changing to %sHeavy Weapons^7\n\"", desiredTeamNumber == 1 ? "^1" : "^4"));
+			classNumber = SSCN_HW;
+			classStr = va("%sHeavy Weapons^7", colorStr);
 			break;
 		case 'd':
-			classNumber = 3;
-			trap_SendServerCommand(ent - g_entities, va("print \"Changing to %sDemolitions^7\n\"", desiredTeamNumber == 1 ? "^1" : "^4"));
+			classNumber = SSCN_DEMO;
+			classStr = va("%sDemolitions^7", colorStr);
 			break;
 		case 's':
-			classNumber = 4;
-			trap_SendServerCommand(ent - g_entities, va("print \"Changing to %sScout^7\n\"", desiredTeamNumber == 1 ? "^1" : "^4"));
+			classNumber = SSCN_SCOUT;
+			classStr = va("%sScout^7", colorStr);
 			break;
 		case 't':
-			classNumber = 5;
-			trap_SendServerCommand(ent - g_entities, va("print \"Changing to %sTech^7\n\"", desiredTeamNumber == 1 ? "^1" : "^4"));
+			classNumber = SSCN_TECH;
+			classStr = va("%sTech^7", colorStr);
 			break;
 		case 'j':
-			classNumber = 6;
-			trap_SendServerCommand(ent - g_entities, va("print \"Changing to %sJedi^7\n\"", desiredTeamNumber == 1 ? "^1" : "^4"));
+			classNumber = SSCN_JEDI;
+			classStr = va("%sJedi^7", colorStr);
 			break;
 		default:
-			trap_SendServerCommand(ent - g_entities, "print \"Usage: join <team letter><first letter of class name> (no spaces)  example: '^5join rj^7' for red jedi)\n\"");
+			trap_SendServerCommand(ent - g_entities,
+				"print \"Usage: join <team letter><first letter of class name> (no spaces)  "
+				"example: '^5join rj^7' for red jedi)\n\"");
 			return;
 		}
-
 	}
+
+	if (level.pause.state != PAUSE_NONE && ent->client->sess.sessionTeam != TEAM_SPECTATOR &&
+		ent->client->tempSpectate < level.time && ent->health > 0 && ++ent->client->triesToChangeClassDuringPause < 3) {
+		PrintIngame(ent - g_entities, "^3(Accidental SK protection)^7 Press your class bind ^5%d^7 more time%s to confirm changing to %s.\n",
+			3 - ent->client->triesToChangeClassDuringPause,
+			3 - ent->client->triesToChangeClassDuringPause == 1 ? "" : "s",
+			classStr);
+		return;
+	}
+
+	PrintIngame(ent - g_entities, "Changing to %s\n", classStr);
 
 	siegeClass = BG_SiegeGetClass(desiredTeamNumber, classNumber);
 
@@ -2472,13 +2487,11 @@ void Cmd_Class_f(gentity_t *ent)
 		}
 	}
 
-	if (level.pause.state != PAUSE_NONE && ent->client->sess.sessionTeam != TEAM_SPECTATOR)
-		return;
-
+	char *classStr;
 	if ((className[0] >= '0') && (className[0] <= '9'))
 	{
 		classNumber = atoi(className);
-		trap_SendServerCommand(ent - g_entities, va("print \"Changing to class %i\n\"", classNumber));
+		classStr = va("class %d", classNumber);
 	}
 	else
 	{
@@ -2487,34 +2500,44 @@ void Cmd_Class_f(gentity_t *ent)
 		{
 		case 'a':
 			classNumber = SSCN_ASSAULT;
-			trap_SendServerCommand(ent - g_entities, va("print \"Changing to Assault\n\""));
+			classStr = "Assault";
 			break;
 		case 'h':
 			classNumber = SSCN_HW;
-			trap_SendServerCommand(ent - g_entities, va("print \"Changing to Heavy Weapons\n\""));
+			classStr = "Heavy Weapons";
 			break;
 		case 'd':
 			classNumber = SSCN_DEMO;
-			trap_SendServerCommand(ent - g_entities, va("print \"Changing to Demolitions\n\""));
+			classStr = "Demolitions";
 			break;
 		case 's':
 			classNumber = SSCN_SCOUT;
-			trap_SendServerCommand(ent - g_entities, va("print \"Changing to Scout\n\""));
+			classStr = "Scout";
 			break;
 		case 't':
 			classNumber = SSCN_TECH;
-			trap_SendServerCommand(ent - g_entities, va("print \"Changing to Tech\n\""));
+			classStr = "Tech";
 			break;
 		case 'j':
 			classNumber = SSCN_JEDI;
-			trap_SendServerCommand(ent - g_entities, va("print \"Changing to Jedi\n\""));
+			classStr = "Jedi";
 			break;
 		default:
 			trap_SendServerCommand(ent - g_entities, "print \"Usage: class <number> or class <first letter of class name> (e.g. '^5class a^7' for assault)\n\"");
 			return;
 		}
-
 	}
+
+	if (level.pause.state != PAUSE_NONE && ent->client->sess.sessionTeam != TEAM_SPECTATOR &&
+		ent->client->tempSpectate < level.time && ent->health > 0 && ++ent->client->triesToChangeClassDuringPause < 3) {
+		PrintIngame(ent - g_entities, "^3(Accidental SK protection)^7 Press your class bind ^5%d^7 more time%s to confirm changing to %s.\n",
+			3 - ent->client->triesToChangeClassDuringPause,
+			3 - ent->client->triesToChangeClassDuringPause == 1 ? "" : "s",
+			classStr);
+		return;
+	}
+
+	PrintIngame(ent - g_entities, "Changing to %s\n", classStr);
 
 	if (level.inSiegeCountdown && ent->client->sess.sessionTeam == TEAM_SPECTATOR && ent->client->sess.siegeDesiredTeam && (ent->client->sess.siegeDesiredTeam == SIEGETEAM_TEAM1 || ent->client->sess.siegeDesiredTeam == SIEGETEAM_TEAM2))
 	{
