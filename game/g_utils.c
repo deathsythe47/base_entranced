@@ -3462,48 +3462,255 @@ void Q_strstrip(char *string, const char *strip, const char *repl)
 	*out = '\0';
 }
 
-// prints a message ingame for someone (use -1 for everyone)
-// automatically chunks if the text is too long to send in one message
-// NOTE: does NOT automatically append ^7 or \n
-// TODO: support chunked messages prepended with asterisk
-void PrintIngame(int clientNum, const char *msg, ...) {
-	va_list		argptr;
-	char		text[8192] = { 0 };
+static char FindLastColorCode(const char *text) {
+	char lastColor = '7';
+	const char *p = text;
 
-	va_start(argptr, msg);
-	vsnprintf(text, sizeof(text), msg, argptr);
+	while (*p) {
+		if (Q_IsColorString(p)) {
+			// p[0] == '^' and p[1] is '0'..'9'
+			lastColor = p[1];
+			p += 2;  // skip '^' and the digit
+			continue;
+		}
+		p++;
+	}
+	return lastColor;
+}
+
+static int AdjustChunkBoundary(const char *chunkStart, int chunkLen, int remaining) {
+	// if there's fewer than chunkLen characters left, we only need that remainder
+	if (remaining < chunkLen) {
+		return remaining;
+	}
+
+	// if the last character in this chunk is '^' and the next one is a digit,
+	// we back up by 1, so '^digit' is not split across the boundary
+	if (chunkLen > 0 && Q_IsColorString(&chunkStart[chunkLen - 1])) {
+		return chunkLen - 1;
+	}
+	return chunkLen;
+}
+
+// prints a message ingame for someone (use -1 for everyone)
+// automatically chunks if the text is too long to send in one message,
+// also supports asterisk-prepended messages to avoid showing ingame.
+// color codes and/or asterisks are automatically reiterated across chunks,
+// such that a long message should appear seamlessly as one message to the user
+// NOTE: does NOT automatically append ^7 or \n to the end
+#define CHUNK_SIZE 1000
+void PrintIngame(int clientNum, const char *fmt, ...) {
+	va_list argptr;
+	static char text[16384] = { 0 };
+	memset(text, 0, sizeof(text));
+
+	va_start(argptr, fmt);
+	vsnprintf(text, sizeof(text), fmt, argptr);
 	va_end(argptr);
 
-	int len = strlen(text);
-#define CHUNK_SIZE	(1000)
-	if (len < CHUNK_SIZE) {
-		char buf[MAX_STRING_CHARS] = "print \"";
+	int len = (int)strlen(text);
+	if (!len) {
+		assert(qfalse);
+		return;
+	}
+
+	// check for asterisk at the very start
+	int prependAsterisk = 0;
+	if (text[0] == '*') {
+		prependAsterisk = 1;
+		memmove(text, text + 1, strlen(text));
+		len--;
+	}
+
+	char activeColor = '7';
+
+	// if it's short enough, just send once
+	if (len <= CHUNK_SIZE) {
+		char buf[MAX_STRING_CHARS];
+		memset(buf, 0, sizeof(buf));
+
+		Q_strcat(buf, sizeof(buf), "print \"");
+
+		if (prependAsterisk) {
+			Q_strcat(buf, sizeof(buf), "*");
+		}
+
+		// always prepend the active color
+		{
+			char colorStr[3];
+			colorStr[0] = '^';
+			colorStr[1] = activeColor;
+			colorStr[2] = '\0';
+			Q_strcat(buf, sizeof(buf), colorStr);
+		}
+
 		Q_strcat(buf, sizeof(buf), text);
+
 		Q_strcat(buf, sizeof(buf), "\"");
+
 		trap_SendServerCommand(clientNum, buf);
 		return;
 	}
 
+	// if we got here, we need chunking
 	int remaining = len;
-	char *chunkStart = text;
+	char *p = text;
+	int chunkIndex = 0; // track which chunk we're on
 
 	while (remaining > 0) {
 		char buf[MAX_STRING_CHARS];
-		memset(&buf, 0, sizeof(buf));
+		memset(buf, 0, sizeof(buf));
+
 		Q_strcat(buf, sizeof(buf), "print \"");
-		qboolean endsInColor = qfalse;
-		if (strlen(chunkStart) > CHUNK_SIZE) {
-			char *lastDigit = chunkStart + CHUNK_SIZE - 1;
-			if (Q_IsColorString(lastDigit))
-				endsInColor = qtrue;
+
+		// if the entire message was asterisk-prepended, do it every chunk
+		if (prependAsterisk) {
+			Q_strcat(buf, sizeof(buf), "*");
 		}
 
-		strncpy(buf + 7, chunkStart, CHUNK_SIZE + (endsInColor ? -1 : 0));
+		// always prepend the active color
+		{
+			char colorStr[3];
+			colorStr[0] = '^';
+			colorStr[1] = activeColor;
+			colorStr[2] = '\0';
+			Q_strcat(buf, sizeof(buf), colorStr);
+		}
+
+		// pick chunk size
+		int chunkLen = CHUNK_SIZE;
+		chunkLen = AdjustChunkBoundary(p, chunkLen, remaining);
+
+		// fix zero-len chunk
+		if (chunkLen <= 0) {
+			chunkLen = 1;
+		}
+
+		// copy chunkLen bytes
+		char temp[CHUNK_SIZE + 1];
+		memset(temp, 0, sizeof(temp));
+		Q_strncpyz(temp, p, chunkLen + 1);
+
+		// update color
+		activeColor = FindLastColorCode(temp);
+
+		// add temp to buf
+		Q_strcat(buf, sizeof(buf), temp);
+
+		// close the quote
 		Q_strcat(buf, sizeof(buf), "\"");
+
+		// send this chunk
 		trap_SendServerCommand(clientNum, buf);
-		remaining -= CHUNK_SIZE + (endsInColor ? -1 : 0);
-		if (remaining > 0)
-			chunkStart += CHUNK_SIZE + (endsInColor ? -1 : 0);
+
+		// advance
+		p += chunkLen;
+		remaining -= chunkLen;
+		chunkIndex++;
+	}
+}
+
+// prepends the necessary "print\n" and chunks long messages (similar to PrintIngame)
+void OutOfBandPrint(int clientNum, const char *fmt, ...) {
+	va_list argptr;
+	static char text[16384] = { 0 };
+	memset(text, 0, sizeof(text));
+
+	va_start(argptr, fmt);
+	vsnprintf(text, sizeof(text), fmt, argptr);
+	va_end(argptr);
+
+	int len = (int)strlen(text);
+	if (!len) {
+		assert(qfalse);
+		return;
+	}
+
+	// check for asterisk at the very start
+	int prependAsterisk = 0;
+	if (text[0] == '*') {
+		prependAsterisk = 1;
+		memmove(text, text + 1, strlen(text));
+		len--;
+	}
+
+	char activeColor = '7';
+
+	// if it's short enough, just send once
+	if (len <= CHUNK_SIZE) {
+		char buf[MAX_STRING_CHARS];
+		memset(buf, 0, sizeof(buf));
+
+		Q_strcat(buf, sizeof(buf), "print\n");
+
+		if (prependAsterisk) {
+			Q_strcat(buf, sizeof(buf), "*");
+		}
+
+		// always prepend the active color
+		{
+			char colorStr[3];
+			colorStr[0] = '^';
+			colorStr[1] = activeColor;
+			colorStr[2] = '\0';
+			Q_strcat(buf, sizeof(buf), colorStr);
+		}
+
+		Q_strcat(buf, sizeof(buf), text);
+
+		trap_OutOfBandPrint(clientNum, buf);
+		return;
+	}
+
+	// if we got here, we need chunking
+	int remaining = len;
+	char *p = text;
+	int chunkIndex = 0; // track which chunk we're on
+
+	while (remaining > 0) {
+		char buf[MAX_STRING_CHARS];
+		memset(buf, 0, sizeof(buf));
+
+		Q_strcat(buf, sizeof(buf), "print\n");
+
+		// if the entire message was asterisk-prepended, do it every chunk
+		if (prependAsterisk) {
+			Q_strcat(buf, sizeof(buf), "*");
+		}
+
+		// always prepend the active color
+		{
+			char colorStr[3];
+			colorStr[0] = '^';
+			colorStr[1] = activeColor;
+			colorStr[2] = '\0';
+			Q_strcat(buf, sizeof(buf), colorStr);
+		}
+
+		// pick chunk size
+		int chunkLen = CHUNK_SIZE;
+		chunkLen = AdjustChunkBoundary(p, chunkLen, remaining);
+
+		// fix zero-len chunk
+		if (chunkLen <= 0) {
+			chunkLen = 1;
+		}
+
+		// copy chunkLen bytes
+		char temp[CHUNK_SIZE + 1];
+		memset(temp, 0, sizeof(temp));
+		Q_strncpyz(temp, p, chunkLen + 1);
+
+		// update color
+		activeColor = FindLastColorCode(temp);
+
+		Q_strcat(buf, sizeof(buf), temp);
+
+		trap_OutOfBandPrint(clientNum, buf);
+
+		p += chunkLen;
+		remaining -= chunkLen;
+		chunkIndex++;
 	}
 }
 
