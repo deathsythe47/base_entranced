@@ -395,7 +395,7 @@ struct gentity_s {
 	int			genericValue15;
 	int			genericValue16;
 	int			genericValue17;
-	qboolean		isSmallShield;
+	qboolean	shieldType;
 	int			recallSiegeItem;
 	char		*recallTarget;
 	char		*recallOrigin;

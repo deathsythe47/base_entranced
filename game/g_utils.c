@@ -3293,7 +3293,7 @@ qboolean G_ShieldSpamAllowed(int clientNum) {
 		return qtrue;
 
 	gclient_t *cl = &level.clients[clientNum];
-	if (cl && cl->siegeClass != -1 && bgSiegeClasses[cl->siegeClass].classflags & (1 << CFL_SMALLSHIELD))
+	if (cl && cl->siegeClass != -1 && (bgSiegeClasses[cl->siegeClass].classflags & (1 << CFL_SMALLSHIELD) || bgSiegeClasses[cl->siegeClass].classflags & (1 << CFL_BIGSMALLSHIELD)))
 		return qtrue;
 
 	if (cl && cl->sess.sessionTeam == TEAM_RED && level.shieldSpamAllowed & TEAM_RED)

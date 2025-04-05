@@ -153,7 +153,7 @@ void ShieldThink(gentity_t *self)
 	}
 	self->s.trickedentindex = 0;
 
-	if (!self->isSmallShield) {
+	if (!self->shieldType) {
 		if (g_gametype.integer == GT_SIEGE)
 		{
 			self->health -= SHIELD_SIEGE_HEALTH_DEC;
@@ -254,7 +254,7 @@ void ShieldGoSolid(gentity_t *self)
 	trace_t		tr;
 
 	// see if we're valid
-	if (!self->isSmallShield)
+	if (!self->shieldType)
 		self->health--;
 	if (self->health <= 0)
 	{
@@ -395,7 +395,7 @@ void CreateShield(gentity_t *ent)
 	qboolean	xaxis;
 	int			paramData = 0;
 
-	if (ent->isSmallShield) {
+	if (ent->shieldType) {
 		// remove old shields
 		for (int i = level.maxclients; i < MAX_GENTITIES; i++) {
 			gentity_t *oldShield = &g_entities[i];
@@ -406,8 +406,8 @@ void CreateShield(gentity_t *ent)
 		}
 	}
 
-	float maxHeight = ent->isSmallShield ? 80 : MAX_SHIELD_HEIGHT;
-	float maxHalfWidth = ent->isSmallShield ? 60 : MAX_SHIELD_HALFWIDTH;
+	float maxHeight = ent->shieldType == CFL_SMALLSHIELD ? 80 : MAX_SHIELD_HEIGHT;
+	float maxHalfWidth = ent->shieldType == CFL_SMALLSHIELD ? 60 : MAX_SHIELD_HALFWIDTH;
 
 	// trace upward to find height of shield
 	VectorCopy(ent->r.currentOrigin, end);
@@ -509,7 +509,7 @@ void CreateShield(gentity_t *ent)
 
 	if (g_gametype.integer == GT_SIEGE)
 	{
-		if (ent->isSmallShield)
+		if (ent->shieldType)
 			ent->health = ceil((float)(300 * 1));
 		else
 			ent->health = ceil((float)(SHIELD_SIEGE_HEALTH * 1));
@@ -615,7 +615,12 @@ qboolean PlaceShield(gentity_t *playerent) {
 			shield->think = CreateShield;
 			shield->nextthink = level.time + 500;	// power up after .5 seconds
 			shield->parent = playerent;
-			shield->isSmallShield = !!(shield->parent && shield->parent->client && shield->parent->client->siegeClass != -1 && bgSiegeClasses[shield->parent->client->siegeClass].classflags & (1 << CFL_SMALLSHIELD));
+			if (shield->parent && shield->parent->client && shield->parent->client->siegeClass != -1 && bgSiegeClasses[shield->parent->client->siegeClass].classflags & (1 << CFL_SMALLSHIELD))
+				shield->shieldType = CFL_SMALLSHIELD;
+			else if (shield->parent && shield->parent->client && shield->parent->client->siegeClass != -1 && bgSiegeClasses[shield->parent->client->siegeClass].classflags & (1 << CFL_BIGSMALLSHIELD))
+				shield->shieldType = CFL_BIGSMALLSHIELD;
+			else
+				shield->shieldType = 0;
 
 			// Set team number.
 			shield->s.otherEntityNum2 = playerent->client->sess.sessionTeam;
@@ -991,7 +996,7 @@ void pas_think( gentity_t *ent )
 		return;
 	}
 
-	if ((ent->genericValue8+TURRET_LIFETIME) < level.time)
+	if (level.siegeMap != SIEGEMAP_NAR && (ent->genericValue8+TURRET_LIFETIME) < level.time)
 	{
 		G_Sound( ent, CHAN_BODY, G_SoundIndex( "sound/chars/turret/shutdown.wav" ));
 		ent->s.bolt2 = ENTITYNUM_NONE;
@@ -1168,18 +1173,25 @@ void turret_die(gentity_t *self, gentity_t *inflictor, gentity_t *attacker, int 
 	// hack the effect angle so that explode death can orient the effect properly
 	VectorSet( self->s.angles, 0, 0, 1 );
 
-	G_PlayEffect(EFFECT_EXPLOSION_PAS, self->r.currentOrigin, self->s.angles);
-	G_RadiusDamage(self->r.currentOrigin, &g_entities[self->genericValue3], 30, 256, self, self, MOD_SPECIAL_SENTRYBOMB);
+	if (self->genericValue3 >= 0 && self->genericValue3 < MAX_CLIENTS && g_gametype.integer == GT_SIEGE && g_entities[self->genericValue3].client->siegeClass != -1 && (bgSiegeClasses[g_entities[self->genericValue3].client->siegeClass].classflags & (1 << CFL_EXPLOSIVESENTRY))) {
+		G_PlayEffect(EFFECT_EXPLOSION_DETPACK, self->r.currentOrigin, self->s.angles);
+		G_RadiusDamage(self->r.currentOrigin, &g_entities[self->genericValue3], 200, 200, self, self, MOD_SPECIAL_SENTRYBOMB);
+	}
+	else {
+		G_PlayEffect(EFFECT_EXPLOSION_PAS, self->r.currentOrigin, self->s.angles);
+		G_RadiusDamage(self->r.currentOrigin, &g_entities[self->genericValue3], 30, 256, self, self, MOD_SPECIAL_SENTRYBOMB);
+	}
 
 	if (self->genericValue3 >= 0 && self->genericValue3 < MAX_CLIENTS) {
 		level.sentriesDeployed[self->genericValue3]--;
 		if (level.sentriesDeployed[self->genericValue3] < 0)
 			level.sentriesDeployed[self->genericValue3] = 0;
 	}
+
+	if (self->genericValue3 >= 0 && self->genericValue3 < MAX_CLIENTS)
+		g_entities[self->genericValue3].client->ps.fd.sentryDeployed = qfalse;
 	if (self->genericValue3 >= 0 && self->genericValue3 < MAX_CLIENTS && g_gametype.integer == GT_SIEGE && g_entities[self->genericValue3].client->siegeClass != -1 && bgSiegeClasses[g_entities[self->genericValue3].client->siegeClass].maxSentries > 0 && level.sentriesDeployed[self->genericValue3] >= bgSiegeClasses[g_entities[self->genericValue3].client->siegeClass].maxSentries)
 		g_entities[self->genericValue3].client->ps.fd.sentryDeployed = qtrue;
-	else
-		g_entities[self->genericValue3].client->ps.fd.sentryDeployed = qfalse;
 
 	G_FreeEntity( self );
 }
@@ -1195,6 +1207,9 @@ void SP_PAS( gentity_t *base )
 		// give ammo
 		base->count = TURRET_AMMO_COUNT;
 	}
+
+	if (level.siegeMap == SIEGEMAP_NAR)
+		base->count = 9999999;
 
 	base->s.bolt1 = 1; //This is a sort of hack to indicate that this model needs special turret things done to it
 	base->s.bolt2 = ENTITYNUM_NONE; //store our current enemy index
@@ -1293,7 +1308,9 @@ void ItemUse_Sentry( gentity_t *ent )
 		level.sentriesUsedThisLife[ent - g_entities]++;
 		level.sentriesDeployed[ent - g_entities]++;
 	}
-	if (ent - g_entities >= 0 && ent - g_entities < MAX_CLIENTS && g_gametype.integer == GT_SIEGE && ent->client->siegeClass != -1 && bgSiegeClasses[ent->client->siegeClass].maxSentries > 0 && level.sentriesDeployed[ent - g_entities] < bgSiegeClasses[ent->client->siegeClass].maxSentries)
+	if (level.siegeMap == SIEGEMAP_NAR || level.siegeMap == SIEGEMAP_HOTH || level.siegeMap == SIEGEMAP_CARGO)
+		ent->client->ps.fd.sentryDeployed = qfalse;
+	else if (ent - g_entities >= 0 && ent - g_entities < MAX_CLIENTS && g_gametype.integer == GT_SIEGE && ent->client->siegeClass != -1 && bgSiegeClasses[ent->client->siegeClass].maxSentries > 0 && level.sentriesDeployed[ent - g_entities] < bgSiegeClasses[ent->client->siegeClass].maxSentries)
 		ent->client->ps.fd.sentryDeployed = qfalse;
 	else
 		ent->client->ps.fd.sentryDeployed = qtrue;

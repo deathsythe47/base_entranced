@@ -6035,6 +6035,8 @@ rest:
 #define BOWCASTER_CHARGE_UNIT	200.0f	// bowcaster charging gives us one more unit every 200ms--if you change this, you'll have to do the same in g_weapon
 #define BRYAR_CHARGE_UNIT		200.0f	// bryar charging gives us one more unit every 200ms--if you change this, you'll have to do the same in g_weapon
 
+extern void turret_die(gentity_t *self, gentity_t *inflictor, gentity_t *attacker, int damage, int mod);
+
 int PM_ItemUsable(playerState_t *ps, int forcedUse)
 {
 	vec3_t fwd, fwdorg, dest, pos;
@@ -6092,6 +6094,18 @@ int PM_ItemUsable(playerState_t *ps, int forcedUse)
 
 		return 1;
 	case HI_SENTRY_GUN:
+		if (level.siegeMap == SIEGEMAP_NAR || level.siegeMap == SIEGEMAP_HOTH || level.siegeMap == SIEGEMAP_CARGO) {
+			// remove old sentries
+			for (int i = level.maxclients; i < MAX_GENTITIES; i++) {
+				gentity_t *oldSentry = &g_entities[i];
+				if (oldSentry->die == turret_die && oldSentry->genericValue3 >= 0 && oldSentry->genericValue3 < MAX_CLIENTS && oldSentry->genericValue3 == ps->clientNum) {
+					//turret_die(oldSentry, oldSentry, oldSentry, 1000, MOD_UNKNOWN);
+					G_FreeEntity(oldSentry);
+				}
+			}
+			ps->fd.sentryDeployed = qfalse;
+		}
+
 		if (ps->fd.sentryDeployed)
 		{
 			PM_AddEventWithParm(EV_ITEMUSEFAIL, SENTRY_ALREADYPLACED);

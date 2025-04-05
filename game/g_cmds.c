@@ -7937,6 +7937,8 @@ static char *GenerateSiegeClassDescription(siegeClass_t *scl) {
 			case CFL_KICK:					AddDesc(", ^3Melee Kick^7");							break;
 			case CFL_WONDERWOMAN:			AddDesc(", ^3Wonder Woman^7");						break;
 			case CFL_SMALLSHIELD:			AddDesc(", ^3Small Shield^7");						break;
+			case CFL_BIGSMALLSHIELD:		AddDesc(", ^3Big Small Shield^7");						break;
+			case CFL_EXPLOSIVESENTRY:		AddDesc(", ^3Explosive Sentry^7");						break;
 			}
 		}
 	}
@@ -8754,6 +8756,8 @@ void Cmd_Stats_f( gentity_t *ent ) {
 
 	}
 
+extern void turret_die(gentity_t *self, gentity_t *inflictor, gentity_t *attacker, int damage, int mod);
+
 int G_ItemUsable(playerState_t *ps, int forcedUse)
 {
 	vec3_t fwd, fwdorg, dest, pos;
@@ -8816,6 +8820,18 @@ int G_ItemUsable(playerState_t *ps, int forcedUse)
 
 		return 1;
 	case HI_SENTRY_GUN:
+		if (level.siegeMap == SIEGEMAP_NAR || level.siegeMap == SIEGEMAP_HOTH || level.siegeMap == SIEGEMAP_CARGO) {
+			// remove old sentries
+			for (int i = level.maxclients; i < MAX_GENTITIES; i++) {
+				gentity_t *oldSentry = &g_entities[i];
+				if (oldSentry->die == turret_die && oldSentry->genericValue3 >= 0 && oldSentry->genericValue3 < MAX_CLIENTS && oldSentry->genericValue3 == ps->clientNum) {
+					//turret_die(oldSentry, oldSentry, oldSentry, 1000, MOD_UNKNOWN);
+					G_FreeEntity(oldSentry);
+				}
+			}
+			ps->fd.sentryDeployed = qfalse;
+		}
+
 		if (ps->fd.sentryDeployed)
 		{
 			G_AddEvent(&g_entities[ps->clientNum], EV_ITEMUSEFAIL, SENTRY_ALREADYPLACED);

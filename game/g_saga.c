@@ -3449,24 +3449,24 @@ void SiegeObjectiveCompleted(int team, int objective, int final, int client) {
 			}
 		}
 		if (objective < 5) {
-			int i;
+			/*int i;
 			for (i = MAX_CLIENTS; i < MAX_GENTITIES; i++) {
 				gentity_t *sentry = &g_entities[i];
 				if (VALIDSTRING(sentry->classname) && !Q_stricmp(sentry->classname, "sentryGun") && level.time - sentry->genericValue8 < (TURRET_LIFETIME - 3000))
 						sentry->genericValue8 = level.time - (TURRET_LIFETIME - 3000); // explode in 3 seconds
-			}
+			}*/
 		}
 	}
 
 	if (level.siegeMap == SIEGEMAP_CARGO)
 	{
 		if (level.totalObjectivesCompleted != 3) {
-			int i;
+			/*int i;
 			for (i = MAX_CLIENTS; i < MAX_GENTITIES; i++) {
 				gentity_t *sentry = &g_entities[i];
 				if (VALIDSTRING(sentry->classname) && !Q_stricmp(sentry->classname, "sentryGun") && level.time - sentry->genericValue8 < (TURRET_LIFETIME - 3000))
 					sentry->genericValue8 = level.time - (TURRET_LIFETIME - 3000); // explode in 3 seconds
-			}
+			}*/
 		}
 	}
 
