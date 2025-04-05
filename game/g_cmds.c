@@ -8820,11 +8820,11 @@ int G_ItemUsable(playerState_t *ps, int forcedUse)
 
 		return 1;
 	case HI_SENTRY_GUN:
-		if (ps->fd.sentryDeployed)
+		/*if (ps->fd.sentryDeployed)
 		{
 			G_AddEvent(&g_entities[ps->clientNum], EV_ITEMUSEFAIL, SENTRY_ALREADYPLACED);
 			return 0;
-		}
+		}*/
 
 		yawonly[ROLL] = 0;
 		yawonly[PITCH] = 0;
@@ -8851,15 +8851,34 @@ int G_ItemUsable(playerState_t *ps, int forcedUse)
 			return 0;
 		}
 
-		if (level.siegeMap == SIEGEMAP_NAR || level.siegeMap == SIEGEMAP_HOTH || level.siegeMap == SIEGEMAP_CARGO) {
-			// remove old sentries
+		// remove old sentry
+		if (!(level.clients[ps->clientNum].siegeClass != -1 &&
+			bgSiegeClasses[level.clients[ps->clientNum].siegeClass].maxSentries > 0 &&
+			level.sentriesDeployed[ps->clientNum] < bgSiegeClasses[level.clients[ps->clientNum].siegeClass].maxSentries)) {
+
+			gentity_t *oldestSentry = NULL;
+			int oldestTime = INT_MAX;
+
 			for (int i = level.maxclients; i < MAX_GENTITIES; i++) {
-				gentity_t *oldSentry = &g_entities[i];
-				if (oldSentry->die == turret_die && oldSentry->genericValue3 >= 0 && oldSentry->genericValue3 < MAX_CLIENTS && oldSentry->genericValue3 == ps->clientNum) {
-					//turret_die(oldSentry, oldSentry, oldSentry, 1000, MOD_UNKNOWN);
-					G_FreeEntity(oldSentry);
+				gentity_t *ent = &g_entities[i];
+
+				if (ent->die == turret_die &&
+					ent->genericValue3 >= 0 &&
+					ent->genericValue3 < MAX_CLIENTS &&
+					ent->genericValue3 == ps->clientNum) {
+
+					if (ent->genericValue8 < oldestTime) {
+						oldestTime = ent->genericValue8;
+						oldestSentry = ent;
+					}
 				}
 			}
+
+			if (oldestSentry) {
+				G_FreeEntity(oldestSentry);
+				--level.sentriesDeployed[ps->clientNum];
+			}
+
 			ps->fd.sentryDeployed = qfalse;
 		}
 

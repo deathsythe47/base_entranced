@@ -1188,10 +1188,7 @@ void turret_die(gentity_t *self, gentity_t *inflictor, gentity_t *attacker, int 
 			level.sentriesDeployed[self->genericValue3] = 0;
 	}
 
-	if (self->genericValue3 >= 0 && self->genericValue3 < MAX_CLIENTS)
-		g_entities[self->genericValue3].client->ps.fd.sentryDeployed = qfalse;
-	if (self->genericValue3 >= 0 && self->genericValue3 < MAX_CLIENTS && g_gametype.integer == GT_SIEGE && g_entities[self->genericValue3].client->siegeClass != -1 && bgSiegeClasses[g_entities[self->genericValue3].client->siegeClass].maxSentries > 0 && level.sentriesDeployed[self->genericValue3] >= bgSiegeClasses[g_entities[self->genericValue3].client->siegeClass].maxSentries)
-		g_entities[self->genericValue3].client->ps.fd.sentryDeployed = qtrue;
+	g_entities[self->genericValue3].client->ps.fd.sentryDeployed = qfalse;
 
 	G_FreeEntity( self );
 }
@@ -1308,12 +1305,7 @@ void ItemUse_Sentry( gentity_t *ent )
 		level.sentriesUsedThisLife[ent - g_entities]++;
 		level.sentriesDeployed[ent - g_entities]++;
 	}
-	if (level.siegeMap == SIEGEMAP_NAR || level.siegeMap == SIEGEMAP_HOTH || level.siegeMap == SIEGEMAP_CARGO)
-		ent->client->ps.fd.sentryDeployed = qfalse;
-	else if (ent - g_entities >= 0 && ent - g_entities < MAX_CLIENTS && g_gametype.integer == GT_SIEGE && ent->client->siegeClass != -1 && bgSiegeClasses[ent->client->siegeClass].maxSentries > 0 && level.sentriesDeployed[ent - g_entities] < bgSiegeClasses[ent->client->siegeClass].maxSentries)
-		ent->client->ps.fd.sentryDeployed = qfalse;
-	else
-		ent->client->ps.fd.sentryDeployed = qtrue;
+	ent->client->ps.fd.sentryDeployed = qfalse;
 
 	if (ent - g_entities >= 0 && ent - g_entities < MAX_CLIENTS && g_gametype.integer == GT_SIEGE && ent->client->siegeClass != -1 && bgSiegeClasses[ent->client->siegeClass].maxSentries > 0 && level.sentriesUsedThisLife[ent - g_entities] < bgSiegeClasses[ent->client->siegeClass].maxSentries)
 		ent->client->ps.stats[STAT_HOLDABLE_ITEMS] |= (1 << HI_SENTRY_GUN);
