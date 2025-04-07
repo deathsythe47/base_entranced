@@ -2796,6 +2796,7 @@ void G_ShutdownGame( int restart ) {
 	ListClear(&level.disconnectedPlayerList);
 	ListClear(&level.fuckVoteList);
 	ListClear(&level.goVoteList);
+	ListClear(&level.delayedUnlocksList);
 
 	iterator_t iter;
 	ListIterate(&level.queuedServerMessagesList, &iter, qfalse);
@@ -6989,6 +6990,19 @@ void G_RunFrame( int levelTime ) {
 #endif
 
 	if (g_gametype.integer == GT_SIEGE) {
+		if (level.siegeMap == SIEGEMAP_NAR && level.delayedUnlocksList.size > 0) {
+			iterator_t iter;
+			ListIterate(&level.delayedUnlocksList, &iter, qfalse);
+			while (IteratorHasNext(&iter)) {
+				delayedUnlock_t *door = IteratorNext(&iter);
+				if (door->time && (level.time - level.startTime) > door->time && door->ent) {
+					door->ent->alliedTeam = 0;
+					door->time = 0;
+					UnLockDoors(door->ent);
+				}
+			}
+		}
+
 		if (level.siegeMap == SIEGEMAP_HOTH && level.genCompletedTime && level.time - level.genCompletedTime >= 20000 && g_hothCodesAntirush.integer) {
 			for (int i = MAX_CLIENTS; i < ENTITYNUM_MAX_NORMAL; i++) {
 				gentity_t *door = &g_entities[i];

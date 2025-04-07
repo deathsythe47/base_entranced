@@ -1829,6 +1829,8 @@ typedef struct {
 #define PEPPER_CHARS	(32)
 	unsigned char pepper[PEPPER_CHARS];
 
+	list_t delayedUnlocksList;
+
 } level_locals_t;
 
 //
@@ -2075,6 +2077,11 @@ qboolean FileExists(const char *fileName);
 void Q_strstrip(char *string, const char *strip, const char *repl);
 
 const char *Cvar_VariableString(const char *var_name);
+typedef struct {
+	node_t		node;
+	int			time;
+	gentity_t	*ent;
+} delayedUnlock_t;
 
 //
 // g_object.c

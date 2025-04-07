@@ -3483,6 +3483,36 @@ void SiegeObjectiveCompleted(int team, int objective, int final, int client) {
 		}
 	}
 
+	if (level.siegeMap = SIEGEMAP_NAR) {
+		if (objective == 2) {
+			gentity_t *door = NULL;
+			while ((door = G_Find(door, FOFS(targetname), "fixeddoorobj2to3")) != NULL) {
+				delayedUnlock_t *added = ListAdd(&level.delayedUnlocksList, sizeof(delayedUnlock_t));
+				added->ent = door;
+				added->time = (level.time - level.startTime) + 12000;
+				door->alliedTeam = TEAM_BLUE;
+			}
+		}
+		else if ((objective == 3 || objective == 4) && level.objIsComplete[4 - 1] && level.objIsComplete[3 - 1]) {
+			gentity_t *door = NULL;
+			while ((door = G_Find(door, FOFS(targetname), "fixeddoorobj3to4")) != NULL) {
+				delayedUnlock_t *added = ListAdd(&level.delayedUnlocksList, sizeof(delayedUnlock_t));
+				added->ent = door;
+				added->time = (level.time - level.startTime) + 12000;
+				door->alliedTeam = TEAM_BLUE;
+			}
+		}
+		else if (objective == 5) {
+			gentity_t *door = NULL;
+            while ((door = G_Find(door, FOFS(targetname), "fixeddoorobj5to6")) != NULL) {
+				delayedUnlock_t *added = ListAdd(&level.delayedUnlocksList, sizeof(delayedUnlock_t));
+				added->ent = door;
+				added->time = (level.time - level.startTime) + 12000;
+                door->alliedTeam = TEAM_BLUE;
+            }
+		}
+	}
+
 	if (client >= 0 && client < MAX_CLIENTS && &level.clients[client] && level.clients[client].pers.connected == CON_CONNECTED)
 	{
 		level.clients[client].pers.teamState.captures++;

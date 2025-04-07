@@ -1558,6 +1558,24 @@ void SP_func_door(gentity_t *ent)
 			ent->isHothChokepointDoor = qtrue;
 		}
 	}
+	else if (level.siegeMap == SIEGEMAP_NAR) {
+		if (!Q_stricmp(ent->targetname, "imphack")) {
+			ent->targetname = G_NewString("fixeddoorobj2to3");
+		}
+		else if (!Q_stricmp(ent->targetname, "objective3")) {
+			ent->targetname = G_NewString("fixeddoorobj3to4");
+		}
+		else if (!Q_stricmp(ent->targetname, "objswitch") || ent - g_entities == 194) {
+			ent->targetname = G_NewString("fixeddoorobj5to6");
+			ent->spawnflags |= MOVER_LOCKED;
+			ent->alliedTeam = TEAM_BLUE;
+		}
+		else if (!(ent->spawnflags & MOVER_LOCKED) && !VALIDSTRING(ent->targetname) && (ent - g_entities == 235 || ent - g_entities == 236 || ent - g_entities == 237)) {
+			ent->targetname = G_NewString("fixeddoorobj2to3");
+			ent->spawnflags |= MOVER_LOCKED;
+			ent->alliedTeam = TEAM_BLUE;
+		}
+	}
 
 	if (ent->spawnflags & MOVER_LOCKED)
 	{//a locked door, set up as locked until used directly
@@ -2999,6 +3017,15 @@ void SP_func_breakable(gentity_t *self)
 	else if (level.siegeMap == SIEGEMAP_CARGO && VALIDSTRING(self->healingclass)) {
 		self->healingclass = NULL;
 		self->healingrate = 0;
+	}
+
+	if (level.siegeMap == SIEGEMAP_NAR && !Q_stricmpn(self->target, "lastobj_lockdoor", 16)) {
+		self->health = 600;
+		self->healingteam = TEAM_BLUE;
+		self->healingrate = 250;
+		self->healingclass = G_NewString("Merc Technical Specialist");
+		self->healingsound = G_NewString("sound/ambience/doomgiver/doom_bridge.wav");
+		G_SoundIndex(self->healingsound);
 	}
 
 	if (s && s[0])

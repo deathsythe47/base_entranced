@@ -1427,6 +1427,9 @@ void SP_trigger_once( gentity_t *ent )
 	G_SpawnInt("usetime", "0", &ent->genericValue7);
 	if (level.siegeMap == SIEGEMAP_CARGO && ent->genericValue7 > 5000 && !Q_stricmp(ent->target, "holdeledoors"))
 		ent->genericValue7 = 5000;
+	else if (level.siegeMap == SIEGEMAP_NAR && ent->genericValue7 == 1000) {
+		ent->genericValue7 = 1500;
+	}
 
 	//For siege gametype
 	G_SpawnInt("siegetrig", "0", &ent->genericValue1);

@@ -462,6 +462,14 @@ void SP_target_delay( gentity_t *ent ) {
 	if ( !ent->wait ) {
 		ent->wait = 1;
 	}
+	if (level.siegeMap == SIEGEMAP_NAR) {
+		if (!Q_stricmp(ent->targetname, "obj1") && !Q_stricmp(ent->target, "obj1delayfield")) {
+			ent->wait = 12;
+		}
+		else if (!Q_stricmp(ent->targetname, "objective3") && !Q_stricmp(ent->target, "fieldtobridge")) {
+			ent->wait = 12;
+		}
+	}
 	ent->use = Use_Target_Delay;
 }
 
