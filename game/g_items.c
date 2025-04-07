@@ -1173,7 +1173,7 @@ void turret_die(gentity_t *self, gentity_t *inflictor, gentity_t *attacker, int 
 	// hack the effect angle so that explode death can orient the effect properly
 	VectorSet( self->s.angles, 0, 0, 1 );
 
-	if (self->genericValue3 >= 0 && self->genericValue3 < MAX_CLIENTS && g_gametype.integer == GT_SIEGE && g_entities[self->genericValue3].client->siegeClass != -1 && (bgSiegeClasses[g_entities[self->genericValue3].client->siegeClass].classflags & (1 << CFL_EXPLOSIVESENTRY))) {
+	if (self->isExplosiveSentry) {
 		G_PlayEffect(EFFECT_EXPLOSION_DETPACK, self->r.currentOrigin, self->s.angles);
 		G_RadiusDamage(self->r.currentOrigin, &g_entities[self->genericValue3], 200, 200, self, self, MOD_SPECIAL_SENTRYBOMB);
 	}
@@ -1281,6 +1281,10 @@ void ItemUse_Sentry( gentity_t *ent )
 	VectorCopy(mins, sentry->r.mins);
 	VectorCopy(maxs, sentry->r.maxs);
 	sentry->genericValue3 = ent->s.number;
+	if (sentry->genericValue3 >= 0 && sentry->genericValue3 < MAX_CLIENTS && g_gametype.integer == GT_SIEGE && g_entities[sentry->genericValue3].client->siegeClass != -1 && (bgSiegeClasses[g_entities[sentry->genericValue3].client->siegeClass].classflags & (1 << CFL_EXPLOSIVESENTRY)))
+		sentry->isExplosiveSentry = qtrue;
+	else
+		sentry->isExplosiveSentry = qfalse;
 	sentry->genericValue2 = ent->client->sess.sessionTeam; //so we can remove ourself if our owner changes teams
 	sentry->r.absmin[0] = sentry->s.pos.trBase[0] + sentry->r.mins[0];
 	sentry->r.absmin[1] = sentry->s.pos.trBase[1] + sentry->r.mins[1];

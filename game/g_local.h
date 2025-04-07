@@ -415,6 +415,7 @@ struct gentity_s {
 	char		*soundSet;
 
 	qboolean	isSaberEntity;
+	qboolean	isExplosiveSentry;
 
 	int			damageRedirect; //if entity takes damage, redirect to..
 	int			damageRedirectTo; //this entity number
