@@ -3483,7 +3483,7 @@ void SiegeObjectiveCompleted(int team, int objective, int final, int client) {
 		}
 	}
 
-	if (level.siegeMap = SIEGEMAP_NAR) {
+	if (level.siegeMap == SIEGEMAP_NAR) {
 		if (objective == 2) {
 			gentity_t *door = NULL;
 			while ((door = G_Find(door, FOFS(targetname), "fixeddoorobj2to3")) != NULL) {
