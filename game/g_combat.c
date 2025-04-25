@@ -1853,7 +1853,7 @@ void G_AddPowerDuelScore(int team, int score)
 			check->client->sess.duelTeam == team)
 		{ //found a living client on the specified team
 			check->client->sess.wins += score;
-			ClientUserinfoChanged(check->s.number);
+			ClientUserinfoChanged(check->s.number, "14");
 		}
 		i++;
 	}
@@ -1873,7 +1873,7 @@ void G_AddPowerDuelLoserScore(int team, int score)
 			check->client->sess.duelTeam == team)
 		{ //found a living client on the specified team
 			check->client->sess.losses += score;
-			ClientUserinfoChanged(check->s.number);
+			ClientUserinfoChanged(check->s.number, "15");
 		}
 		i++;
 	}

@@ -2678,7 +2678,7 @@ void SetTeamQuick(gentity_t *ent, int team, qboolean doBegin)
 
 	ent->client->pers.teamState.state = TEAM_BEGIN;
 
-	ClientUserinfoChanged( ent->s.number );
+	ClientUserinfoChanged( ent->s.number, "26");
 
 	if (doBegin)
 	{
@@ -3388,7 +3388,7 @@ void SiegeCheckTimers(void)
 				forcedInfoReload = qtrue;
 				for (i = 0; i < MAX_CLIENTS; i++) {
 					if (level.clients[i].pers.connected && !(g_entities[i].r.svFlags & SVF_BOT))
-						ClientUserinfoChanged(i);
+						ClientUserinfoChanged(i, "27");
 				}
 			}
 		}

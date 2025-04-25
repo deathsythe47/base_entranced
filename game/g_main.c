@@ -1596,7 +1596,7 @@ int vmMain( int command, int arg0, int arg1, int arg2, int arg3, int arg4, int a
 		ClientThink( arg0, NULL );
 		return 0;
 	case GAME_CLIENT_USERINFO_CHANGED:
-		ClientUserinfoChanged( arg0 );
+		ClientUserinfoChanged( arg0, "16");
 		return 0;
 	case GAME_CLIENT_DISCONNECT:
 		ClientDisconnect( arg0 );
@@ -3190,13 +3190,13 @@ void AdjustTournamentScores( void ) {
 			clientNum = level.sortedClients[clSuccess];
 
 			level.clients[ clientNum ].sess.wins++;
-			ClientUserinfoChanged( clientNum );
+			ClientUserinfoChanged( clientNum, "17");
 			trap_SetConfigstring ( CS_CLIENT_DUELWINNER, va("%i", clientNum ) );
 
 			clientNum = level.sortedClients[clFailure];
 
 			level.clients[ clientNum ].sess.losses++;
-			ClientUserinfoChanged( clientNum );
+			ClientUserinfoChanged( clientNum, "18");
 		}
 		else
 		{
@@ -3206,13 +3206,13 @@ void AdjustTournamentScores( void ) {
 			clientNum = level.sortedClients[clSuccess];
 
 			level.clients[ clientNum ].sess.wins++;
-			ClientUserinfoChanged( clientNum );
+			ClientUserinfoChanged( clientNum, "19");
 			trap_SetConfigstring ( CS_CLIENT_DUELWINNER, va("%i", clientNum ) );
 
 			clientNum = level.sortedClients[clFailure];
 
 			level.clients[ clientNum ].sess.losses++;
-			ClientUserinfoChanged( clientNum );
+			ClientUserinfoChanged( clientNum, "20");
 		}
 	}
 	else
@@ -3220,7 +3220,7 @@ void AdjustTournamentScores( void ) {
 		clientNum = level.sortedClients[0];
 		if ( level.clients[ clientNum ].pers.connected == CON_CONNECTED ) {
 			level.clients[ clientNum ].sess.wins++;
-			ClientUserinfoChanged( clientNum );
+			ClientUserinfoChanged( clientNum, "21");
 
 			trap_SetConfigstring ( CS_CLIENT_DUELWINNER, va("%i", clientNum ) );
 		}
@@ -3228,7 +3228,7 @@ void AdjustTournamentScores( void ) {
 		clientNum = level.sortedClients[1];
 		if ( level.clients[ clientNum ].pers.connected == CON_CONNECTED ) {
 			level.clients[ clientNum ].sess.losses++;
-			ClientUserinfoChanged( clientNum );
+			ClientUserinfoChanged( clientNum, "22");
 		}
 	}
 }
@@ -5506,11 +5506,11 @@ void SetLeader(int team, int client) {
 			continue;
 		if (level.clients[i].sess.teamLeader) {
 			level.clients[i].sess.teamLeader = qfalse;
-			ClientUserinfoChanged(i);
+			ClientUserinfoChanged(i, "23");
 		}
 	}
 	level.clients[client].sess.teamLeader = qtrue;
-	ClientUserinfoChanged( client );
+	ClientUserinfoChanged( client, "24");
 	PrintTeam(team, va("print \"%s %s\n\"", level.clients[client].pers.netname, G_GetStringEdString("MP_SVGAME", "NEWTEAMLEADER")) );
 }
 
@@ -6855,7 +6855,7 @@ void G_RunFrame( int levelTime ) {
 
 			if (ent->inuse && ent->client && ent->client->pers.connected == CON_CONNECTED && ent->client->sess.restoreDataTime && now >= ent->client->sess.restoreDataTime) {
 				if (RestoreDisconnectedPlayerData(ent))
-					ClientUserinfoChanged(ent - g_entities);
+					ClientUserinfoChanged(ent - g_entities, "25");
 				ent->client->sess.restoreDataTime = 0;
 			}
 

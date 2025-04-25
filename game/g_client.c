@@ -2208,7 +2208,7 @@ if desired.
 
 qboolean G_SetSaber(gentity_t *ent, int saberNum, char *saberName, qboolean siegeOverride);
 void G_ValidateSiegeClassForTeam(gentity_t *ent, int team);
-void ClientUserinfoChanged( int clientNum ) {
+void ClientUserinfoChanged( int clientNum, char *debugMsg ) {
 	gentity_t *ent;
 	int		teamTask, teamLeader, team, health;
 	char	*s;
@@ -2750,7 +2750,7 @@ void ClientUserinfoChanged( int clientNum ) {
 	if (g_logClientInfo.integer) {
 		static char lastClientInfo[MAX_CLIENTS][MAX_STRING_CHARS] = { 0 };
 		if (!lastClientInfo[clientNum][0] || Q_stricmp(lastClientInfo[clientNum], s)) {
-			G_LogPrintf("ClientUserinfoChanged: %i %s\n", clientNum, s);
+			G_LogPrintf("ClientUserinfoChanged: %i %s debug %s\n", clientNum, s, VALIDSTRING(debugMsg) ? debugMsg : "");
 			Q_strncpyz(lastClientInfo[clientNum], s, sizeof(lastClientInfo[0]));
 		}
 	}
@@ -3208,7 +3208,7 @@ char *ClientConnect( int clientNum, qboolean firstTime, qboolean isBot ) {
 	// get and distribute relevent paramters
 	if (firstTime)
 		G_LogPrintf( "ClientConnect: %i (%s) from %s%s\n", clientNum, Info_ValueForKey(userinfo, "name") , Info_ValueForKey(userinfo, "ip"), client->sess.country[0] ? va(" (%s)", client->sess.country) : "");
-	ClientUserinfoChanged( clientNum );
+	ClientUserinfoChanged( clientNum, "2");
 
 	// don't do the "xxx connected" messages if they were caried over from previous level
 	if ( firstTime ) {
@@ -3467,7 +3467,7 @@ void ClientBegin( int clientNum, qboolean allowTeamReset ) {
 			ent->client->ps.persistant[PERS_TEAM] = ent->client->sess.sessionTeam;
 
 			ClientBegin(clientNum, qfalse);
-			ClientUserinfoChanged(clientNum);
+			ClientUserinfoChanged(clientNum, "3");
 			return;
 		}
 	}
@@ -4151,12 +4151,12 @@ void ClientSpawn(gentity_t *ent, qboolean forceUpdateInfo) {
 	}
 
 	if (forceUpdateInfo)
-		ClientUserinfoChanged(ent->s.number);
+		ClientUserinfoChanged(ent->s.number, "4");
 
 	if (changedSaber)
 	{ //make sure our new info is sent out to all the other clients, and give us a valid stance
 		if (!forceUpdateInfo)
-			ClientUserinfoChanged( ent->s.number );
+			ClientUserinfoChanged( ent->s.number, "5");
 
 		//make sure the saber models are updated
 		G_SaberModelSetup(ent);
@@ -5423,12 +5423,12 @@ void ClientDisconnect( int clientNum ) {
 		if ( level.sortedClients[1] == clientNum ) {
 			level.clients[ level.sortedClients[0] ].ps.persistant[PERS_SCORE] = 0;
 			level.clients[ level.sortedClients[0] ].sess.wins++;
-			ClientUserinfoChanged( level.sortedClients[0] );
+			ClientUserinfoChanged( level.sortedClients[0], "6");
 		}
 		else if ( level.sortedClients[0] == clientNum ) {
 			level.clients[ level.sortedClients[1] ].ps.persistant[PERS_SCORE] = 0;
 			level.clients[ level.sortedClients[1] ].sess.wins++;
-			ClientUserinfoChanged( level.sortedClients[1] );
+			ClientUserinfoChanged( level.sortedClients[1], "7");
 		}
 	}
 

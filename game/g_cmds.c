@@ -734,7 +734,7 @@ void Cmd_TeamTask_f( gentity_t *ent ) {
 	trap_GetUserinfo(client, userinfo, sizeof(userinfo));
 	Info_SetValueForKey(userinfo, "teamtask", va("%d", task));
 	trap_SetUserinfo(client, userinfo);
-	ClientUserinfoChanged(client);
+	ClientUserinfoChanged(client, "8");
 }
 
 static qboolean HasDetpackInWorld(gentity_t *ent) {
@@ -1287,7 +1287,7 @@ void SetTeam( gentity_t *ent, char *s, qboolean forceteamed ) {
 	}
 
 	// get and distribute relevent paramters
-	ClientUserinfoChanged( clientNum );
+	ClientUserinfoChanged( clientNum, "9");
 
 	//pending server commands overflow might cause that this
 	//client is no longer valid, lets check it for it here and few other places
@@ -1314,7 +1314,7 @@ void SetNameQuick( gentity_t *ent, char *s, int renameDelay ) {
 	trap_SetUserinfo( ent->s.number, userinfo );
 
 	ent->client->pers.netnameTime = level.time - 1; // bypass delay
-	ClientUserinfoChanged( ent->s.number );
+	ClientUserinfoChanged( ent->s.number, "10");
 	// TODO: display something else than "5 seconds" to the player
 	ent->client->pers.netnameTime = level.time + ( renameDelay < 0 ? 0 : renameDelay );
 }
@@ -1756,7 +1756,7 @@ void Cmd_DuelTeam_f(gentity_t *ent)
 	ent->client->sess.losses = 0;
 
 	//get and distribute relevent paramters
-	ClientUserinfoChanged( ent->s.number );
+	ClientUserinfoChanged( ent->s.number, "11");
 
 	ent->client->switchDuelTeamTime = level.time + 5000;
 }
@@ -1974,7 +1974,7 @@ void SetSiegeClass(gentity_t *ent, char* className)
 	strcpy(ent->client->sess.siegeClass, className);
 
 	// get and distribute relevent paramters
-	ClientUserinfoChanged(ent->s.number);
+	ClientUserinfoChanged(ent->s.number, "12");
 
 	if (ent->client->tempSpectate < level.time)
 	{
@@ -9296,7 +9296,7 @@ static void Cmd_Svauth_f( gentity_t *ent ) {
 			ent->client->sess.auth++;
 			ent->client->sess.restoreDataTime = trap_Milliseconds() + 1000;
 			//RestoreDisconnectedPlayerData(ent);
-			ClientUserinfoChanged( ent - g_entities );
+			ClientUserinfoChanged( ent - g_entities, "13");
 
 			return;
 		}

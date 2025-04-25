@@ -2480,7 +2480,7 @@ int GetCurrentRestartCountdown(void);
 //
 
 char *ClientConnect( int clientNum, qboolean firstTime, qboolean isBot );
-void ClientUserinfoChanged( int clientNum );
+void ClientUserinfoChanged( int clientNum, char *debugMsg );
 void ClientDisconnect( int clientNum );
 void ClientBegin( int clientNum, qboolean allowTeamReset );
 void G_BreakArm(gentity_t *ent, int arm);
