@@ -38,10 +38,10 @@ void G_PostScoreboardToWebhook(const char* stats) {
 	}
 
 	// get the time string for each team
-	char round1OffenseTimeString[64] = { 0 };
-	G_ParseMilliseconds(atoi(Cvar_VariableString("siege_r1_total")), round1OffenseTimeString, sizeof(round1OffenseTimeString));
-	char round2OffenseTimeString[64] = { 0 };
-	G_ParseMilliseconds(atoi(Cvar_VariableString("siege_r2_total")), round2OffenseTimeString, sizeof(round2OffenseTimeString));
+	char round1OffenseTimeString[64] = { 0 }, round2OffenseTimeString[64] = { 0 };
+	const int r1total = atoi(Cvar_VariableString("siege_r1_total")), r2total = atoi(Cvar_VariableString("siege_r2_total"));
+	G_ParseMilliseconds(r1total, round1OffenseTimeString, sizeof(round1OffenseTimeString));
+	G_ParseMilliseconds(r2total, round2OffenseTimeString, sizeof(round2OffenseTimeString));
 
 	int msgColor;
 	char round1OffenseString[64] = { 0 }, round2OffenseString[64] = { 0 };
@@ -63,10 +63,16 @@ void G_PostScoreboardToWebhook(const char* stats) {
 	else if (level.siegeMatchWinner == SIEGEMATCHWINNER_ROUND2OFFENSE) {
 		msgColor = 16711680;
 		const int round1MissingObjs = siege_r1_objscompleted.string[0] && siege_r1_objscompleted.integer < level.numSiegeObjectivesOnMap ? level.numSiegeObjectivesOnMap - siege_r1_objscompleted.integer : 0;
-		if (round1MissingObjs > 0)
+		if (round1MissingObjs > 0) {
 			Com_sprintf(round1OffenseString, sizeof(round1OffenseString), "LOSE (-%d obj)", round1MissingObjs);
-		else
+		}
+		else {
+			if (abs(r1total - r2total) < 2000) { // print more precise timings if round 2 offense won by a very small margin
+				G_ParseMillisecondsPrecise(r1total, round1OffenseTimeString, sizeof(round1OffenseTimeString));
+				G_ParseMillisecondsPrecise(r2total, round2OffenseTimeString, sizeof(round2OffenseTimeString));
+			}
 			Com_sprintf(round1OffenseString, sizeof(round1OffenseString), "LOSE (%s)", round1OffenseTimeString);
+		}
 
 		Com_sprintf(round2OffenseString, sizeof(round2OffenseString), "WIN (%s) :trophy:", round2OffenseTimeString);
 	}

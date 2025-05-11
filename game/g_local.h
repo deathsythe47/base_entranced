@@ -2064,6 +2064,7 @@ void CountPlayers(int *total, int *red, int *blue, int *free, int *spec, int *re
 //
 void G_ChangePlayerFromExceededClass(gentity_t *ent);
 void G_ParseMilliseconds(int ms, char *outBuf, size_t outSize);
+void G_ParseMillisecondsPrecise(int ms, char *outBuf, size_t outSize);
 int G_ObjectiveTimeDifference(int objective, int round);
 int G_FirstIncompleteObjective(int round);
 int G_FirstCompleteObjective(int round);

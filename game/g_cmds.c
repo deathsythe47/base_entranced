@@ -9484,10 +9484,25 @@ typedef struct {
 #define FORMAT_FLOAT( i )				va( "%0.1f", *(float *)&i ) /*hackerman*/
 #define FORMAT_INT( i )					va( "%d", i )
 #define FORMAT_PAIRED_INT( i )			va( "%d"S_COLOR_WHITE"/", i )
+#if 0
 #define FORMAT_MINS_SECS( m, s )		va( "%d:%02d", m, s )
 #define FORMAT_PAIRED_MINS_SECS( m,s )	va( "%d:%02d"S_COLOR_WHITE"/", m, s )
 #define FORMAT_SECS( s )				va( "0:%02d", s )
 #define FORMAT_PAIRED_SECS( s )			va( "0:%02d"S_COLOR_WHITE"/", s )
+#endif
+
+#define FORMAT_MINS_SECS_PRECISE(ms) \
+	va("%d:%02d.%03d", ((ms) / 60000) % 60, ((ms) / 1000) % 60, (ms) % 1000)
+
+#define FORMAT_PAIRED_MINS_SECS_PRECISE(ms) \
+	va("%d:%02d.%03d"S_COLOR_WHITE"/", ((ms) / 60000) % 60, ((ms) / 1000) % 60, (ms) % 1000)
+
+#define FORMAT_SECS_PRECISE(ms) \
+	va("0:%02d.%03d", ((ms) / 1000) % 60, (ms) % 1000)
+
+#define FORMAT_PAIRED_SECS_PRECISE(ms) \
+	va("0:%02d.%03d"S_COLOR_WHITE"/", ((ms) / 1000) % 60, (ms) % 1000)
+
 
 static char* GetFormattedValue( int value, StatType type ) {
 	switch ( type ) {
@@ -9496,21 +9511,18 @@ static char* GetFormattedValue( int value, StatType type ) {
 	case STAT_INT_PAIR1: case STAT_INT_PAIR1_LOWERBETTER: return FORMAT_PAIRED_INT( value );
 	case STAT_INT_PAIR2: case STAT_INT_PAIR2_LOWERBETTER: return FORMAT_INT( value );
 	case STAT_DURATION: case STAT_DURATION_PAIR1: case STAT_DURATION_PAIR1_LOWERBETTER: case STAT_DURATION_PAIR2: case STAT_DURATION_PAIR2_LOWERBETTER: case STAT_DURATION_LOWERBETTER: case STAT_OBJ_DURATION: {
-		int secs = value / 1000;
-		int mins = secs / 60;
 
 		// more or less than a minute?
 		if ( value >= 60000 ) {
-			secs %= 60;
 			if (type == STAT_DURATION_PAIR1 || type == STAT_DURATION_PAIR1_LOWERBETTER)
-				return FORMAT_PAIRED_MINS_SECS( mins, secs );
+				return FORMAT_PAIRED_MINS_SECS_PRECISE(value);
 			else
-				return FORMAT_MINS_SECS( mins, secs );
+				return FORMAT_MINS_SECS_PRECISE(value);
 		} else {
 			if (type == STAT_DURATION_PAIR1 || type == STAT_DURATION_PAIR1_LOWERBETTER)
-				return FORMAT_PAIRED_SECS( secs );
+				return FORMAT_PAIRED_SECS_PRECISE(value);
 			else
-				return FORMAT_SECS( secs );
+				return FORMAT_SECS_PRECISE( value );
 		}
 	}
 	default: return "0"; // should never happen
@@ -9896,7 +9908,7 @@ static const StatsDesc ObjStatsDesc = {
 	{
 		"OBJECTIVE 1", "OBJECTIVE 2", "OBJECTIVE 3", "OBJECTIVE 4", "OBJECTIVE 5", "OBJECTIVE 6",
 		"OBJECTIVE 7", "OBJECTIVE 8", "OBJECTIVE 9", "OBJECTIVE 10", "OBJECTIVE 11",
-		"OBJECTIVE 12", "OBJECTIVE 13", "OBJECTIVE 14", "OBJECTIVE 15", "TOTAL",
+		"OBJECTIVE 12", "OBJECTIVE 13", "OBJECTIVE 14", "OBJECTIVE 15", "TOTAL MAP TIME",
 	},
 	{
 		STAT_OBJ_DURATION, STAT_OBJ_DURATION, STAT_OBJ_DURATION, STAT_OBJ_DURATION,

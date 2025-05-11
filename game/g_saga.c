@@ -105,6 +105,19 @@ void G_ParseMilliseconds(int ms, char *outBuf, size_t outSize) {
 	Q_strncpyz(outBuf, va("%d:%02d", minutes, seconds), outSize);
 }
 
+void G_ParseMillisecondsPrecise(int ms, char *outBuf, size_t outSize) {
+	if (!outBuf)
+		return;
+
+	int totalSeconds = ms / 1000;
+	int minutes = (totalSeconds / 60) % 60;
+	int seconds = totalSeconds % 60;
+	int fractional = ms % 1000;
+
+	// format as m:ss.fff, where ss is zero-padded and fff is always 3 digits
+	Q_strncpyz(outBuf, va("%d:%02d.%03d", minutes, seconds, fractional), outSize);
+}
+
 // gets the objective that was completed just before the specified objective or time
 int G_PreviousObjective(int objective, int round, int timeOverride) {
 	int i, mostRecentObj = 0, mostRecentTime = 0;
@@ -159,7 +172,7 @@ static void PrintObjStat(int objective, int heldForMax) {
 	if (heldForMax)
 		trap_Cvar_Set(va("siege_r%i_heldformaxtime", round), va("%i", ms));
 
-	char formattedTime[8] = { 0 };
+	char formattedTime[32] = { 0 };
 	G_ParseMilliseconds(ms, formattedTime, sizeof(formattedTime));
 
 	G_TeamCommand(TEAM_RED, va("print \"%s "S_COLOR_CYAN"%s"S_COLOR_WHITE".\n\"", heldForMax ? "Held at objective for" : "Objective completed in", formattedTime));
@@ -2490,6 +2503,12 @@ void G_SiegeRoundComplete(int winningteam, int winningclient, qboolean completed
 			level.siegeMatchWinner = OtherTeam(winningteam);
 		totalRoundTime = abs(level.time - level.siegeRoundStartTime);
 		trap_Cvar_Set("siege_r2_total", va("%i", abs(level.time - level.siegeRoundStartTime)));
+	}
+
+	if (totalRoundTime) {
+		char formattedTime[32] = { 0 };
+		G_ParseMilliseconds(totalRoundTime, formattedTime, sizeof(formattedTime));
+		PrintIngame(-1, "%s ^5%s^7.", completedEntireMap ? "Map completed in" : "Map held for", formattedTime);
 	}
 
 	level.siegeRoundStartTime = 0;
