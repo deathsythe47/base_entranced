@@ -66,6 +66,7 @@ G_RunObject
 */
 extern void DoImpact( gentity_t *self, gentity_t *other, qboolean damageSelf );
 extern void pitch_roll_for_slope( gentity_t *forwhom, vec3_t pass_slope );
+extern void saberFirstThrown(gentity_t *saberent);
 void G_RunObject( gentity_t *ent ) 
 {
 	vec3_t		origin, oldOrg;
@@ -91,6 +92,12 @@ void G_RunObject( gentity_t *ent )
 	BG_EvaluateTrajectory( &ent->s.pos, level.time, origin );
 	//Get current angles?
 	BG_EvaluateTrajectory( &ent->s.apos, level.time, ent->r.currentAngles );
+
+	// duo: fix unset clipmask causing st through doors
+	if (!Q_stricmp(ent->classname, "lightsaber") && ent->think == saberFirstThrown && (ent->r.contents != CONTENTS_LIGHTSABER || !ent->clipmask)) {
+		ent->r.contents = CONTENTS_LIGHTSABER;
+		ent->clipmask = MASK_PLAYERSOLID | CONTENTS_LIGHTSABER;
+	}
 
 	if ( VectorCompare( ent->r.currentOrigin, origin ) )
 	{//error - didn't move at all!
