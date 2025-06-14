@@ -2198,7 +2198,7 @@ void Svcmd_NextPug_f(void) {
 	if (desiredPugMaps.string[0])
 		Q_strncpyz(maps, desiredPugMaps.string, sizeof(maps));
 	else
-		Q_strncpyz(maps, "hncub", sizeof(maps));
+		Q_strncpyz(maps, "hncu", sizeof(maps));
 
 	// add the current map to the cvar
 	if (thisMapChar && !strchr(played, thisMapChar)) {

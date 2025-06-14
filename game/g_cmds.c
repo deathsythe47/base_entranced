@@ -5353,7 +5353,7 @@ void Cmd_CallVote_f( gentity_t *ent, int pause ) {
 		if (desiredPugMaps.string[0])
 			Q_strncpyz(maps, desiredPugMaps.string, sizeof(maps));
 		else
-			Q_strncpyz(maps, "hncub", sizeof(maps));
+			Q_strncpyz(maps, "hncu", sizeof(maps));
 		trap_Cvar_VariableStringBuffer("mapname", currentMap, sizeof(currentMap));
 		int i, len = strlen(maps);
 		for (i = 0; i < MAX_PUGMAPS && i < len; i++) {
