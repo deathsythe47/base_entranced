@@ -2508,7 +2508,7 @@ void G_SiegeRoundComplete(int winningteam, int winningclient, qboolean completed
 	if (totalRoundTime) {
 		char formattedTime[32] = { 0 };
 		G_ParseMilliseconds(totalRoundTime, formattedTime, sizeof(formattedTime));
-		PrintIngame(-1, "%s ^5%s^7.", completedEntireMap ? "Map completed in" : "Map held for", formattedTime);
+		PrintIngame(-1, "%s ^5%s^7.\n", completedEntireMap ? "Map completed in" : "Map held for", formattedTime);
 	}
 
 	level.siegeRoundStartTime = 0;
