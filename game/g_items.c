@@ -377,13 +377,11 @@ void CreateShield(gentity_t *ent)
 {
 	// siege stats: shields placed
 	if (ent && ent->parent && ent->parent - g_entities >= 0 && ent->parent - g_entities < MAX_CLIENTS && ent->parent->client) {
-		char map[MAX_QPATH] = { 0 };
-		trap_Cvar_VariableStringBuffer("mapname", map, sizeof(map));
-		if (map[0] && !Q_stricmpn(map, "mp/siege_hoth", 13)) {
+		if (level.siegeMap == SIEGEMAP_HOTH) {
 			ent->siegeItemSpawnTime = level.time;
 			ent->parent->client->sess.siegeStats.mapSpecific[GetSiegeStatRound()][SIEGEMAPSTAT_HOTH_SHIELDS]++;
 		}
-		else if (map[0] && !Q_stricmp(map, "siege_narshaddaa")) {
+		else if (level.siegeMap == SIEGEMAP_NAR) {
 			ent->siegeItemSpawnTime = level.time;
 			ent->parent->client->sess.siegeStats.mapSpecific[GetSiegeStatRound()][SIEGEMAPSTAT_NAR_SHIELDS]++;
 		}

@@ -5111,11 +5111,11 @@ void Cmd_CallVote_f( gentity_t *ent, int pause ) {
 			}
 			else {
 				fileHandle_t f;
-				trap_FS_FOpenFile("maps/siege_hoth3_v2.bsp", &f, FS_READ);
+				trap_FS_FOpenFile("maps/siege_hoth3_v6.bsp", &f, FS_READ);
 				if (f) {
 					trap_FS_FCloseFile(f);
 					serverHasHoth3 = qtrue;
-					Q_strncpyz(arg2, "siege_hoth3_v2", sizeof(arg2));
+					Q_strncpyz(arg2, "siege_hoth3_v6", sizeof(arg2));
 				}
 				else {
 					serverHasHoth3 = qfalse;
