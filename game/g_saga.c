@@ -3238,6 +3238,8 @@ void SiegeCheckTimers(void)
 			i++;
 		}
 
+#if 0
+		// moved below
 		if (g_siegeTeamSwitch.integer &&
 			g_siegePersistant.beatingTime)
 		{
@@ -3249,11 +3251,12 @@ void SiegeCheckTimers(void)
 			gImperialCountdown = level.time + imperial_time_limit;
 			gRebelCountdown = level.time + rebel_time_limit;
 		}
+#endif
 	}
 
 	if (imperial_time_limit)
 	{ //team1
-		if (gImperialCountdown < level.time) //they were held for 20 minutes, so let's notate this differently
+		if (/*gImperialCountdown < level.time*/level.time >= gImperialCountdown) //they were held for max, so let's notate this differently
 		{
 			int round = CurrentSiegeRound();
 			trap_Cvar_Set(va("siege_r%i_heldformaxat", round), va("%i", G_FirstIncompleteObjective(round)));
@@ -3274,7 +3277,7 @@ void SiegeCheckTimers(void)
 
 	if (rebel_time_limit)
 	{ //team2
-		if (gRebelCountdown < level.time)//they were held for 20 minutes, so let's notate this differently
+		if (/*gRebelCountdown < level.time*/level.time >= gRebelCountdown)//they were held for max, so let's notate this differently
 		{
 			int round = CurrentSiegeRound();
 			trap_Cvar_Set(va("siege_r%i_heldformaxat", round), va("%i", G_FirstIncompleteObjective(round)));
@@ -3312,7 +3315,20 @@ void SiegeCheckTimers(void)
 		}
 		else if (gSiegeBeginTime < level.time)
 		{ //mark the round as having begun
-			level.siegeRoundStartTime = gSiegeBeginTime;
+			level.siegeRoundStartTime = /*gSiegeBeginTime*/level.time;
+
+			// moved here
+			if (g_siegeTeamSwitch.integer && g_siegePersistant.beatingTime)
+			{
+				gImperialCountdown = level.siegeRoundStartTime + g_siegePersistant.lastTime;
+				gRebelCountdown = level.siegeRoundStartTime + g_siegePersistant.lastTime;
+			}
+			else
+			{
+				gImperialCountdown = level.siegeRoundStartTime + imperial_time_limit;
+				gRebelCountdown = level.siegeRoundStartTime + rebel_time_limit;
+			}
+
 			if (level.wasRestarted) {
 				int numRed = 0, numBlue = 0;
 				GetPlayerCounts(qtrue, qtrue, &numRed, &numBlue, NULL, NULL);
