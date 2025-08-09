@@ -2872,45 +2872,45 @@ to the server machine, but qfalse on map changes and tournement
 restarts.
 ============
 */
-char *ClientConnect( int clientNum, qboolean firstTime, qboolean isBot ) {
-	char		*value;
-	gclient_t	*client;
+char *ClientConnect(int clientNum, qboolean firstTime, qboolean isBot) {
+	char *value;
+	gclient_t *client;
 	char		userinfo[MAX_INFO_STRING];
-	gentity_t	*ent;
-	gentity_t	*te;
-	char		cleverFakeDetection[24]; 
+	gentity_t *ent;
+	gentity_t *te;
+	char		cleverFakeDetection[24];
 	char        ipString[24] = { 0 };
-	unsigned int ip = 0; 
-    int         port = 0;
+	unsigned int ip = 0;
+	int         port = 0;
 	char		username[MAX_USERNAME_SIZE];
-    static char reason[64];
+	static char reason[64];
 	static char currentMap[MAX_MAP_NAME];
 	int			sv_allowDownload;
 	qboolean	hasSmod;
 	qboolean	canJoinLater = qtrue;
 
-	trap_Cvar_VariableStringBuffer("g_cleverFakeDetection",	cleverFakeDetection, 24);
-	ent = &g_entities[ clientNum ];
+	trap_Cvar_VariableStringBuffer("g_cleverFakeDetection", cleverFakeDetection, 24);
+	ent = &g_entities[clientNum];
 	if (firstTime && clientNum < MAX_CLIENTS) {
 		level.clients[clientNum].sess.siegeFollowing.wasFollowing = qfalse;
 	}
 
-	trap_GetUserinfo( clientNum, userinfo, sizeof( userinfo ) );
+	trap_GetUserinfo(clientNum, userinfo, sizeof(userinfo));
 
 	// check to see if they are on the banned IP list
-	value = Info_ValueForKey (userinfo, "ip");
-    if ( G_FilterPacket( value, reason, sizeof(reason) ) )
-    {
-		G_LogPrintf("Filtered client (%s) attempts to connect.\n",value);
-        return reason;
+	value = Info_ValueForKey(userinfo, "ip");
+	if (G_FilterPacket(value, reason, sizeof(reason)))
+	{
+		G_LogPrintf("Filtered client (%s) attempts to connect.\n", value);
+		return reason;
 	}
 
 	*username = '\0';
-	if ( !( ent->r.svFlags & SVF_BOT ) && !isBot ) {
-		if (firstTime){
-			Q_strncpyz(ipString, Info_ValueForKey( userinfo, "ip" ) , sizeof(ipString));
-            ip = 0;
-            getIpPortFromString( ipString, &ip, &port );
+	if (!(ent->r.svFlags & SVF_BOT) && !isBot) {
+		if (firstTime) {
+			Q_strncpyz(ipString, Info_ValueForKey(userinfo, "ip"), sizeof(ipString));
+			ip = 0;
+			getIpPortFromString(ipString, &ip, &port);
 		}
 
 
@@ -2969,17 +2969,18 @@ char *ClientConnect( int clientNum, qboolean firstTime, qboolean isBot ) {
 
 		//} else
 
-		if (g_needpass.integer || sv_passwordlessSpectators.integer){// check for standard password
+		if (g_needpass.integer || sv_passwordlessSpectators.integer) {// check for standard password
 			static char sTemp[1024];
 
-            value = Info_ValueForKey(userinfo, "password");
+			value = Info_ValueForKey(userinfo, "password");
 
-            if (!PasswordMatches(value)) 
-            {
-				if ( !sv_passwordlessSpectators.integer ) {
+			if (!PasswordMatches(value))
+			{
+				if (!sv_passwordlessSpectators.integer) {
 					Q_strncpyz(sTemp, G_GetStringEdString("MP_SVGAME", "INVALID_ESCAPE_TO_MAIN"), sizeof(sTemp));
 					return sTemp;
-				} else {
+				}
+				else {
 					// We allow passwordless clients, but don't let them join teams later
 					canJoinLater = qfalse;
 				}
@@ -2997,43 +2998,43 @@ char *ClientConnect( int clientNum, qboolean firstTime, qboolean isBot ) {
 	//		return sTemp;// return "Invalid password";
 	//	}
 	//}
-	
-	if (!( ent->r.svFlags & SVF_BOT ) && !isBot && firstTime){
+
+	if (!(ent->r.svFlags & SVF_BOT) && !isBot && firstTime) {
 		/* *CHANGE 40* anti q3 unban protection */
-		if (!ip){
-			G_HackLog("Possible Q3unban: Someone is trying to connect with invalid IP (userinfo: %s).\n",userinfo);
+		if (!ip) {
+			G_HackLog("Possible Q3unban: Someone is trying to connect with invalid IP (userinfo: %s).\n", userinfo);
 			return "Invalid IP.";
-		}		
+		}
 
 		/* *CHANGE 11* anti q3fill protections (also maxIPConnecting) */
-		if (g_protectQ3Fill.integer){
-			gentity_t*	otherEnt;
+		if (g_protectQ3Fill.integer) {
+			gentity_t *otherEnt;
 			int i, n;
 
-			if( (strcmp(cleverFakeDetection, "none") != 0 && strcmp(cleverFakeDetection, "") != 0 && strcmp(Info_ValueForKey(userinfo, cleverFakeDetection), "") == 0)
-				|| strcmp(Info_ValueForKey (userinfo, "cl_guid"),"") != 0)
+			if ((strcmp(cleverFakeDetection, "none") != 0 && strcmp(cleverFakeDetection, "") != 0 && strcmp(Info_ValueForKey(userinfo, cleverFakeDetection), "") == 0)
+				|| strcmp(Info_ValueForKey(userinfo, "cl_guid"), "") != 0)
 			{
 				// client doesn't have JKA specific info -> fake !
-				G_HackLog("Possible Q3Fill attack: Client from %s is sending fake player.\n",ipString);
-				return "Incorrect userinfo(C): fake player ?";			
+				G_HackLog("Possible Q3Fill attack: Client from %s is sending fake player.\n", ipString);
+				return "Incorrect userinfo(C): fake player ?";
 			}
 
 			//additional anti q3fill test - is already someone from this ip connecting/connected?
 			//we should accept only limits greater than 1 because someone can lost connection
-            //and attempt to reconnecting
+			//and attempt to reconnecting
 			if (g_protectQ3FillIPLimit.integer > 1)
-            {
+			{
 				otherEnt = g_entities;
-				for(i=0,n=0;i<level.maxclients;++i,++otherEnt)
-                {
-					if ( (otherEnt->client->pers.connected != CON_DISCONNECTED) && 
-                         (ip==otherEnt->client->sess.ip) )
-                    {
+				for (i = 0, n = 0; i < level.maxclients; ++i, ++otherEnt)
+				{
+					if ((otherEnt->client->pers.connected != CON_DISCONNECTED) &&
+						(ip == otherEnt->client->sess.ip))
+					{
 						++n;
 						if (n >= g_protectQ3FillIPLimit.integer)
-                        {
-							G_HackLog("Possible Q3Fill attack: Client from %s is connecting more than %i times.\n", ipString,g_protectQ3FillIPLimit.integer);
-							return "Reached limit for given IP, please try later.";	
+						{
+							G_HackLog("Possible Q3Fill attack: Client from %s is connecting more than %i times.\n", ipString, g_protectQ3FillIPLimit.integer);
+							return "Reached limit for given IP, please try later.";
 						}
 					}
 				}
@@ -3041,18 +3042,18 @@ char *ClientConnect( int clientNum, qboolean firstTime, qboolean isBot ) {
 
 		}
 
-		if (g_maxIPConnected.integer){
-			gentity_t*	otherEnt;
+		if (g_maxIPConnected.integer) {
+			gentity_t *otherEnt;
 			int i, n;
 
 			otherEnt = g_entities;
-			for(i=0,n=0;i<level.maxclients;++i,++otherEnt){
+			for (i = 0, n = 0; i < level.maxclients; ++i, ++otherEnt) {
 				if ((otherEnt->client->pers.connected == CON_CONNECTING || (otherEnt->client->pers.connected == CON_CONNECTED))
-					&& ip==otherEnt->client->sess.ip){
+					&& ip == otherEnt->client->sess.ip) {
 					++n;
-					if (n >= g_maxIPConnected.integer){
-						G_HackLog("Possible Q3Fill attack: Client from %s is connected more than %i times.\n", ipString,g_maxIPConnected.integer);
-						return "Too many players with same IP already in game.";	
+					if (n >= g_maxIPConnected.integer) {
+						G_HackLog("Possible Q3Fill attack: Client from %s is connected more than %i times.\n", ipString, g_maxIPConnected.integer);
+						return "Too many players with same IP already in game.";
 					}
 				}
 			}
@@ -3062,13 +3063,13 @@ char *ClientConnect( int clientNum, qboolean firstTime, qboolean isBot ) {
 #ifdef NEWMOD_SUPPORT
 		{
 			// first newmod verification
-			char *nm_ver = Info_ValueForKey( userinfo, "nm_ver" );
+			char *nm_ver = Info_ValueForKey(userinfo, "nm_ver");
 
-			if ( *nm_ver ) {
+			if (*nm_ver) {
 				// Version filtering should be done here
-				if ( !strcmp( nm_ver, "1.0.0" ) ) {
-					return va( "Newmod %s is banned, please update.", nm_ver );
-				}	
+				if (!strcmp(nm_ver, "1.0.0")) {
+					return va("Newmod %s is banned, please update.", nm_ver);
+				}
 			}
 		}
 #endif
@@ -3085,19 +3086,19 @@ char *ClientConnect( int clientNum, qboolean firstTime, qboolean isBot ) {
 	}
 
 	// force auto dl on non-openjk clients
-	trap_Cvar_VariableStringBuffer( "mapname", currentMap, sizeof( currentMap ) );
-	sv_allowDownload = trap_Cvar_VariableIntegerValue( "sv_allowDownload" );
-	hasSmod = Info_ValueForKey( userinfo, "smod_ver" )[0] != '\0'; // TODO: move to session data if we need it somewhere else
+	trap_Cvar_VariableStringBuffer("mapname", currentMap, sizeof(currentMap));
+	sv_allowDownload = trap_Cvar_VariableIntegerValue("sv_allowDownload");
+	hasSmod = Info_ValueForKey(userinfo, "smod_ver")[0] != '\0'; // TODO: move to session data if we need it somewhere else
 
 	// fixme: default sv_allowdownload 1 is actually broken with this, since cl_allowDownload will always
 	// be forced to 0. maybe remove SYSTEMINFO flags at runtime?
-	if ( sv_allowDownload >= 2 && !isBaseMap( currentMap ) ) {
+	if (sv_allowDownload >= 2 && !isBaseMap(currentMap)) {
 		// If the client doesn't have SMod, download in all cases. With SMod, enabling basejka auto dl
 		// disables fast autodl, so unless there is already someone connecting, don't enable it for them.
 		// Ideally the check should be done client side, g_dlURL should override cl_allowDownload
 		// SMod clients can still set cl_allowDownload 1 themselves if map is missing on g_dlURL
-		if ( !hasSmod || ( hasSmod && connectingClients ) ) {
-			trap_Cvar_Set( "cl_allowDownload", "1" );
+		if (!hasSmod || (hasSmod && connectingClients)) {
+			trap_Cvar_Set("cl_allowDownload", "1");
 			++connectingClients;
 		}
 	}
@@ -3109,12 +3110,12 @@ char *ClientConnect( int clientNum, qboolean firstTime, qboolean isBot ) {
 	//assign the pointer for bg entity access
 	ent->playerState = &ent->client->ps;
 
-    clientSession_t	sessOld = client->sess;
-	memset( client, 0, sizeof(*client) );
+	clientSession_t	sessOld = client->sess;
+	memset(client, 0, sizeof(*client));
 	level.lastLegitClass[clientNum] = -1;
 	memset(&level.tryChangeClass[clientNum], -1, sizeof(level.tryChangeClass[clientNum]));
 	level.teamChangeTime[clientNum] = 0;
-    client->sess = sessOld;
+	client->sess = sessOld;
 
 	if (firstTime) {
 		value = Info_ValueForKey(userinfo, "qport");
@@ -3135,7 +3136,7 @@ char *ClientConnect( int clientNum, qboolean firstTime, qboolean isBot ) {
 
 	client->pers.connected = CON_CONNECTING;
 
-	if (g_gametype.integer == GT_SIEGE) {
+	if (isBot && g_gametype.integer == GT_SIEGE) {
 		int defaultSiegeClassNum = SSCN_SCOUT;
 		if (g_botDefaultSiegeClass.string[0]) {
 			switch (tolower((unsigned char)g_botDefaultSiegeClass.string[0])) {
