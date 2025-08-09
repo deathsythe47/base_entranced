@@ -3075,6 +3075,33 @@ char *ClientConnect( int clientNum, qboolean firstTime, qboolean isBot ) {
 #endif
 	}
 
+	if (isBot) {
+		if (!G_BotConnect(clientNum, !firstTime)) {
+			return "BotConnectfailed";
+		}
+
+		ent->r.svFlags |= SVF_BOT;
+		ent->inuse = qtrue;
+
+		if (g_gametype.integer == GT_SIEGE) {
+			int defaultSiegeClassNum = SSCN_SCOUT;
+			if (g_botDefaultSiegeClass.string[0]) {
+				switch (tolower((unsigned char)g_botDefaultSiegeClass.string[0])) {
+				case 'a': defaultSiegeClassNum = SSCN_ASSAULT; break;
+				case 'h': defaultSiegeClassNum = SSCN_HW; break;
+				case 'd': defaultSiegeClassNum = SSCN_DEMO; break;
+				case 't': defaultSiegeClassNum = SSCN_TECH; break;
+				case 's': defaultSiegeClassNum = SSCN_SCOUT; break;
+				case 'j': defaultSiegeClassNum = SSCN_JEDI; break;
+				default: defaultSiegeClassNum = Q_irand(SSCN_ASSAULT, SSCN_JEDI); break; // random
+				}
+			}
+			siegeClass_t *scl = BG_SiegeGetClass(ent->client->sess.siegeDesiredTeam, defaultSiegeClassNum);
+			if (scl && VALIDSTRING(scl->name))
+				SetSiegeClass(ent, scl->name);
+		}
+	}
+
 	// force auto dl on non-openjk clients
 	trap_Cvar_VariableStringBuffer( "mapname", currentMap, sizeof( currentMap ) );
 	sv_allowDownload = trap_Cvar_VariableIntegerValue( "sv_allowDownload" );
@@ -3178,31 +3205,6 @@ char *ClientConnect( int clientNum, qboolean firstTime, qboolean isBot ) {
 	else if (g_gametype.integer == GT_POWERDUEL && client->sess.sessionTeam != TEAM_SPECTATOR)
 	{
 		client->sess.sessionTeam = TEAM_SPECTATOR;
-	}
-
-	if( isBot ) {
-		ent->r.svFlags |= SVF_BOT;
-		ent->inuse = qtrue;
-		if (g_gametype.integer == GT_SIEGE) {
-			int defaultSiegeClassNum = SSCN_SCOUT;
-			if (g_botDefaultSiegeClass.string[0]) {
-				switch (tolower((unsigned char)g_botDefaultSiegeClass.string[0])) {
-				case 'a': defaultSiegeClassNum = SSCN_ASSAULT; break;
-				case 'h': defaultSiegeClassNum = SSCN_HW; break;
-				case 'd': defaultSiegeClassNum = SSCN_DEMO; break;
-				case 't': defaultSiegeClassNum = SSCN_TECH; break;
-				case 's': defaultSiegeClassNum = SSCN_SCOUT; break;
-				case 'j': defaultSiegeClassNum = SSCN_JEDI; break;
-				default: defaultSiegeClassNum = Q_irand(SSCN_ASSAULT, SSCN_JEDI); break; // random
-				}
-			}
-			siegeClass_t* scl = BG_SiegeGetClass(ent->client->sess.siegeDesiredTeam, defaultSiegeClassNum);
-			if (scl && VALIDSTRING(scl->name))
-				SetSiegeClass(ent, scl->name);
-		}
-		if( !G_BotConnect( clientNum, !firstTime ) ) {
-			return "BotConnectfailed";
-		}
 	}
 
 	// get and distribute relevent paramters
