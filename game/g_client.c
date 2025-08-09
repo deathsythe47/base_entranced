@@ -3083,6 +3083,24 @@ char *ClientConnect(int clientNum, qboolean firstTime, qboolean isBot) {
 
 		ent->r.svFlags |= SVF_BOT;
 		ent->inuse = qtrue;
+
+		if (g_gametype.integer == GT_SIEGE) {
+			int defaultSiegeClassNum = SSCN_SCOUT;
+			if (g_botDefaultSiegeClass.string[0]) {
+				switch (tolower((unsigned char)g_botDefaultSiegeClass.string[0])) {
+				case 'a': defaultSiegeClassNum = SSCN_ASSAULT; break;
+				case 'h': defaultSiegeClassNum = SSCN_HW; break;
+				case 'd': defaultSiegeClassNum = SSCN_DEMO; break;
+				case 't': defaultSiegeClassNum = SSCN_TECH; break;
+				case 's': defaultSiegeClassNum = SSCN_SCOUT; break;
+				case 'j': defaultSiegeClassNum = SSCN_JEDI; break;
+				default: defaultSiegeClassNum = Q_irand(SSCN_ASSAULT, SSCN_JEDI); break; // random
+				}
+			}
+			siegeClass_t *scl = BG_SiegeGetClass(ent->client->sess.siegeDesiredTeam, defaultSiegeClassNum);
+			if (scl && VALIDSTRING(scl->name))
+				SetSiegeClass(ent, scl->name);
+		}
 	}
 
 	// force auto dl on non-openjk clients
@@ -3135,24 +3153,6 @@ char *ClientConnect(int clientNum, qboolean firstTime, qboolean isBot) {
 	}
 
 	client->pers.connected = CON_CONNECTING;
-
-	if (isBot && g_gametype.integer == GT_SIEGE) {
-		int defaultSiegeClassNum = SSCN_SCOUT;
-		if (g_botDefaultSiegeClass.string[0]) {
-			switch (tolower((unsigned char)g_botDefaultSiegeClass.string[0])) {
-			case 'a': defaultSiegeClassNum = SSCN_ASSAULT; break;
-			case 'h': defaultSiegeClassNum = SSCN_HW; break;
-			case 'd': defaultSiegeClassNum = SSCN_DEMO; break;
-			case 't': defaultSiegeClassNum = SSCN_TECH; break;
-			case 's': defaultSiegeClassNum = SSCN_SCOUT; break;
-			case 'j': defaultSiegeClassNum = SSCN_JEDI; break;
-			default: defaultSiegeClassNum = Q_irand(SSCN_ASSAULT, SSCN_JEDI); break; // random
-			}
-		}
-		siegeClass_t *scl = BG_SiegeGetClass(ent->client->sess.siegeDesiredTeam, defaultSiegeClassNum);
-		if (scl && VALIDSTRING(scl->name))
-			SetSiegeClass(ent, scl->name);
-	}
 
 	ent->forcedClass = 0;
 	ent->forcedClassTime = 0;
