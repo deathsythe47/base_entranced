@@ -5131,7 +5131,11 @@ qboolean RestoreDisconnectedPlayerData(gentity_t *ent) {
 
 	int commandTime = ent->client->ps.commandTime;
 	int pm_time = ent->client->ps.pm_time;
+
+	const int clientNum = ent - g_entities;
 	memcpy(&ent->client->ps, &data->ps, sizeof(playerState_t));
+	ent->client->ps.clientNum = clientNum;
+
 	ent->client->ps.commandTime = ent->playerState->commandTime = commandTime;
 	ent->client->ps.pm_time = ent->playerState->pm_time = pm_time;
 	ent->client->ps.stats[STAT_HEALTH] = ent->health = data->health;
