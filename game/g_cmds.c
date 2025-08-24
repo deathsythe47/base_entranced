@@ -8939,6 +8939,14 @@ void Cmd_ToggleSaber_f(gentity_t *ent)
 	{
 		if (ent->client->ps.saberEntityNum)
 		{ //turn it off in midair
+
+			// duo: fix for warping hilt when it's still going away from you
+			gentity_t *sab = &g_entities[ent->client->ps.saberEntityNum];
+			if (sab && sab->s.pos.trType != TR_STATIONARY) {
+				BG_EvaluateTrajectory(&sab->s.pos, level.time, sab->r.currentOrigin);
+				VectorCopy(sab->r.currentOrigin, sab->s.pos.trBase);
+			}
+
 			saberKnockDown(&g_entities[ent->client->ps.saberEntityNum], ent, ent);
 		}
 		return;
