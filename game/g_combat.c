@@ -4926,6 +4926,8 @@ qboolean SaberThrowInFOV(gentity_t *ent, gentity_t *from, int hFOV, int vFOV, ge
 	return qfalse;
 }
 
+extern void charge_stick(gentity_t *self, gentity_t *other, trace_t *trace);
+
 int G_Damage(gentity_t *targ, gentity_t *inflictor, gentity_t *attacker,
 	vec3_t dir, vec3_t point, int damage, int dflags, int mod) {
 	gclient_t	*client;
@@ -5316,6 +5318,12 @@ int G_Damage(gentity_t *targ, gentity_t *inflictor, gentity_t *attacker,
 
 	if (attacker && attacker->client && attacker->client->sess.siegeDuelInProgress && targ && targ->client && targ->client->sess.siegeDuelInProgress && mod == MOD_MELEE)
 	{
+		return 0;
+	}
+
+	// prevent freak teamkills by direct projectile hits (not splash) on thrown detpacks
+	if (!g_friendlyFire.integer && VALIDSTRING(targ->classname) && !strcmp(targ->classname, "detpack") && targ->touch == charge_stick &&
+		targ->projectileTeam && inflictor && inflictor->projectileTeam == targ->projectileTeam && !(dflags & DAMAGE_RADIUS)) {
 		return 0;
 	}
 
