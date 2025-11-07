@@ -3459,7 +3459,7 @@ PM_CrashLand
 Check for hard landings that generate sound events
 =================
 */
-static void PM_CrashLand( void ) {
+static void PM_CrashLand( trace_t *trace ) {
 	float		delta;
 	float		dist;
 	float		vel, acc;
@@ -3631,104 +3631,139 @@ static void PM_CrashLand( void ) {
 		return;
 	}
 
-	if ( pm->ps->pm_flags & PMF_DUCKED ) 
-	{
-		if( delta >= 2 && !PM_InOnGroundAnim( pm->ps->legsAnim ) && !PM_InKnockDown( pm->ps ) && !BG_InRoll(pm->ps, pm->ps->legsAnim) &&
-			pm->ps->forceHandExtend == HANDEXTEND_NONE )
-		{//roll!
-			int anim = PM_TryRoll();
-
-			if (PM_InRollComplete(pm->ps, pm->ps->legsAnim))
+	// fix being able to fall directly into driving a vehicle
+	qboolean boarded = qfalse;
+	if (pm->ps->clientNum < MAX_CLIENTS &&
+		!pm->ps->m_iVehicleNum &&
+		trace &&
+		trace->entityNum < ENTITYNUM_WORLD &&
+		trace->entityNum >= MAX_CLIENTS &&
+		!pm->ps->zoomMode &&
+		pm_entSelf)
+	{ //check if we landed on a vehicle
+		gentity_t *trEnt = &g_entities[trace->entityNum];
+		if (trEnt->inuse && trEnt->client && trEnt->s.eType == ET_NPC && trEnt->s.NPC_class == CLASS_VEHICLE &&
+			!trEnt->client->ps.m_iVehicleNum &&
+			trEnt->m_pVehicle &&
+			trEnt->m_pVehicle->m_pVehicleInfo->type != VH_WALKER &&
+			trEnt->m_pVehicle->m_pVehicleInfo->type != VH_FIGHTER)
+		{ //it's a vehicle alright, let's board it.. if it's not an atst or ship
+			if (!BG_SaberInSpecial(pm->ps->saberMove) &&
+				pm->ps->forceHandExtend == HANDEXTEND_NONE &&
+				pm->ps->weaponTime <= 0)
 			{
-				anim = 0;
-				pm->ps->legsTimer = 0;
-				pm->ps->legsAnim = 0;
-				PM_SetAnim(SETANIM_BOTH,BOTH_LAND1,SETANIM_FLAG_OVERRIDE|SETANIM_FLAG_HOLD, 150);
-				pm->ps->legsTimer = TIMER_LAND;
-			}
-
-			if ( anim )
-			{//absorb some impact
-				pm->ps->legsTimer = 0;
-				delta /= 3; // /= 2 just cancels out the above delta *= 2 when landing while crouched, the roll itself should absorb a little damage
-				pm->ps->legsAnim = 0;
-				if (pm->ps->torsoAnim == BOTH_A7_SOULCAL)
-				{ //get out of it on torso
-					pm->ps->torsoTimer = 0;
+				gentity_t *servEnt = (gentity_t *)pm_entSelf;
+				if (g_gametype.integer < GT_TEAM ||
+					!trEnt->alliedTeam ||
+					(trEnt->alliedTeam == servEnt->client->sess.sessionTeam))
+				{ //not belonging to a team, or client is on same team
+					trEnt->m_pVehicle->m_pVehicleInfo->Board(trEnt->m_pVehicle, pm_entSelf);
+					boarded = qtrue;
 				}
-				PM_SetAnim(SETANIM_BOTH,anim,SETANIM_FLAG_OVERRIDE|SETANIM_FLAG_HOLD, 150);
-				didRoll = qtrue;
 			}
 		}
 	}
 
-	// SURF_NODAMAGE is used for bounce pads where you don't ever
-	// want to take damage or play a crunch sound
-
-	if ( !(pml.groundTrace.surfaceFlags & SURF_NODAMAGE) )  {
-		if (delta > 7)
+	if (!boarded) {
+		if (pm->ps->pm_flags & PMF_DUCKED)
 		{
-			int delta_send = (int)delta;
+			if (delta >= 2 && !PM_InOnGroundAnim(pm->ps->legsAnim) && !PM_InKnockDown(pm->ps) && !BG_InRoll(pm->ps, pm->ps->legsAnim) &&
+				pm->ps->forceHandExtend == HANDEXTEND_NONE)
+			{//roll!
+				int anim = PM_TryRoll();
 
-			if (delta_send > 600)
-			{ //will never need to know any value above this
-				delta_send = 600;
-			}
-
-			if (pm->ps->fd.forceJumpZStart)
-			{
-				if ((int)pm->ps->origin[2] >= (int)pm->ps->fd.forceJumpZStart)
-				{ //was force jumping, landed on higher or same level as when force jump was started
-					if (delta_send > 8)
-					{
-						delta_send = 8;
-					}
-				}
-				else
+				if (PM_InRollComplete(pm->ps, pm->ps->legsAnim))
 				{
-					if (delta_send > 8)
-					{
-						int dif = ((int)pm->ps->fd.forceJumpZStart - (int)pm->ps->origin[2]);
-						int dmgLess = (forceJumpHeight[pm->ps->fd.forcePowerLevel[FP_LEVITATION]] - dif);
+					anim = 0;
+					pm->ps->legsTimer = 0;
+					pm->ps->legsAnim = 0;
+					PM_SetAnim(SETANIM_BOTH, BOTH_LAND1, SETANIM_FLAG_OVERRIDE | SETANIM_FLAG_HOLD, 150);
+					pm->ps->legsTimer = TIMER_LAND;
+				}
 
-						if (dmgLess < 0)
-						{
-							dmgLess = 0;
-						}
+				if (anim)
+				{//absorb some impact
+					pm->ps->legsTimer = 0;
+					delta /= 3; // /= 2 just cancels out the above delta *= 2 when landing while crouched, the roll itself should absorb a little damage
+					pm->ps->legsAnim = 0;
+					if (pm->ps->torsoAnim == BOTH_A7_SOULCAL)
+					{ //get out of it on torso
+						pm->ps->torsoTimer = 0;
+					}
+					PM_SetAnim(SETANIM_BOTH, anim, SETANIM_FLAG_OVERRIDE | SETANIM_FLAG_HOLD, 150);
+					didRoll = qtrue;
+				}
+			}
+		}
 
-						delta_send -= (dmgLess*0.3);
+		// SURF_NODAMAGE is used for bounce pads where you don't ever
+		// want to take damage or play a crunch sound
 
-						if (delta_send < 8)
+		if (!(pml.groundTrace.surfaceFlags & SURF_NODAMAGE)) {
+			if (delta > 7)
+			{
+				int delta_send = (int)delta;
+
+				if (delta_send > 600)
+				{ //will never need to know any value above this
+					delta_send = 600;
+				}
+
+				if (pm->ps->fd.forceJumpZStart)
+				{
+					if ((int)pm->ps->origin[2] >= (int)pm->ps->fd.forceJumpZStart)
+					{ //was force jumping, landed on higher or same level as when force jump was started
+						if (delta_send > 8)
 						{
 							delta_send = 8;
 						}
+					}
+					else
+					{
+						if (delta_send > 8)
+						{
+							int dif = ((int)pm->ps->fd.forceJumpZStart - (int)pm->ps->origin[2]);
+							int dmgLess = (forceJumpHeight[pm->ps->fd.forcePowerLevel[FP_LEVITATION]] - dif);
 
+							if (dmgLess < 0)
+							{
+								dmgLess = 0;
+							}
+
+							delta_send -= (dmgLess * 0.3);
+
+							if (delta_send < 8)
+							{
+								delta_send = 8;
+							}
+
+						}
 					}
 				}
-			}
 
-			if (didRoll)
-			{ //Add the appropriate event..
-				if (level.pause.state == PAUSE_NONE)
-					PM_AddEventWithParm( EV_ROLL, delta_send );
+				if (didRoll)
+				{ //Add the appropriate event..
+					if (level.pause.state == PAUSE_NONE)
+						PM_AddEventWithParm(EV_ROLL, delta_send);
+				}
+				else
+				{
+					if (level.pause.state == PAUSE_NONE)
+						PM_AddEventWithParm(EV_FALL, delta_send);
+				}
 			}
 			else
 			{
-				if (level.pause.state == PAUSE_NONE)
-					PM_AddEventWithParm( EV_FALL, delta_send );
-			}
-		}
-		else
-		{
-			if (didRoll)
-			{
-				if (level.pause.state == PAUSE_NONE)
-					PM_AddEventWithParm( EV_ROLL, 0 );
-			}
-			else
-			{
-				if (level.pause.state == PAUSE_NONE)
-					PM_AddEventWithParm( EV_FOOTSTEP, PM_FootstepForSurface() );
+				if (didRoll)
+				{
+					if (level.pause.state == PAUSE_NONE)
+						PM_AddEventWithParm(EV_ROLL, 0);
+				}
+				else
+				{
+					if (level.pause.state == PAUSE_NONE)
+						PM_AddEventWithParm(EV_FOOTSTEP, PM_FootstepForSurface());
+				}
 			}
 		}
 	}
@@ -3984,7 +4019,7 @@ static void PM_GroundTrace( void ) {
 			Com_Printf("%i:Land\n", c_pmove);
 		}
 		
-		PM_CrashLand();
+		PM_CrashLand(&trace);
 
 #ifdef QAGAME
 		if (pm->ps->clientNum < MAX_CLIENTS &&
