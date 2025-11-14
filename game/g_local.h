@@ -1270,8 +1270,12 @@ struct gclient_s {
 	int lastAiredOtherClientMeansOfDeath[MAX_CLIENTS];
 
 	int triesToChangeClassDuringPause;
+	char triesToChangeClassDuringPauseToThisClassName[16];
+	siegeClass_t *triesToChangeClassDuringPauseToThisClass;
 	int triesToSelfkillDuringPause;
 };
+
+#define NUM_TIMES_TRY_TO_SK_DURING_PAUSE	(5)
 
 //Interest points
 
@@ -2394,6 +2398,7 @@ typedef struct {
 	int				airOutTime;
 	int				invulnerableTimer;
 	int				saberKnockedTime;
+	int				triesToSelfkillDuringPause;
 } disconnectedPlayerData_t;
 qboolean RestoreDisconnectedPlayerData(gentity_t *ent);
 

@@ -6806,6 +6806,7 @@ static void RunAutoRestart(void) {
 }
 
 extern void G_SayTo(gentity_t *ent, gentity_t *other, int mode, int color, const char *name, const char *message, char *locMsg/*, qboolean outOfBandOk*/);
+extern void SetSiegeClass(gentity_t *ent, char *className);
 
 void G_RunFrame( int levelTime ) {
 	int			i;
@@ -7404,6 +7405,50 @@ void G_RunFrame( int levelTime ) {
 					VectorCopy(ent->pauseViewAngles, ent->client->ps.viewangles);
 					SetClientViewAngle(ent, ent->client->ps.viewangles);
 				}
+			}
+		}
+	}
+
+	if (level.pause.state == PAUSE_NONE && g_gametype.integer == GT_SIEGE) {
+		for (int i = 0; i < MAX_CLIENTS; i++) {
+			gentity_t *ent = &g_entities[i];
+			if (!ent->inuse || !ent->client)
+				continue;
+
+			if (ent->health <= 0 || ent->client->sess.sessionTeam == TEAM_SPECTATOR) {
+				ent->client->triesToSelfkillDuringPause = 0;
+				ent->client->triesToChangeClassDuringPause = 0;
+				ent->client->triesToChangeClassDuringPauseToThisClassName[0] = '\0';
+				ent->client->triesToChangeClassDuringPauseToThisClass = NULL;
+				continue;
+			}
+
+			if (ent->client->triesToChangeClassDuringPause >= NUM_TIMES_TRY_TO_SK_DURING_PAUSE && ent->client->triesToChangeClassDuringPauseToThisClass &&
+				!(ent->client->siegeClass != -1 && &bgSiegeClasses[ent->client->siegeClass] == ent->client->triesToChangeClassDuringPauseToThisClass)) {
+				
+				PrintIngame(ent - g_entities, "Changing to %s\n", ent->client->triesToChangeClassDuringPauseToThisClassName);
+				SetSiegeClass(ent, ent->client->triesToChangeClassDuringPauseToThisClass->name);
+
+				ent->client->triesToSelfkillDuringPause = 0;
+				ent->client->triesToChangeClassDuringPause = 0;
+				ent->client->triesToChangeClassDuringPauseToThisClassName[0] = '\0';
+				ent->client->triesToChangeClassDuringPauseToThisClass = NULL;
+
+				continue;
+			}
+
+			if (ent->client->triesToSelfkillDuringPause >= NUM_TIMES_TRY_TO_SK_DURING_PAUSE) {
+
+				ent->flags &= ~FL_GODMODE;
+				ent->client->ps.stats[STAT_HEALTH] = ent->health = -999;
+				player_die(ent, ent, ent, 100000, MOD_SUICIDE);
+
+				ent->client->triesToSelfkillDuringPause = 0;
+				ent->client->triesToChangeClassDuringPause = 0;
+				ent->client->triesToChangeClassDuringPauseToThisClassName[0] = '\0';
+				ent->client->triesToChangeClassDuringPauseToThisClass = NULL;
+
+				continue;
 			}
 		}
 	}

@@ -5181,6 +5181,7 @@ qboolean RestoreDisconnectedPlayerData(gentity_t *ent) {
 	ent->client->airOutTime = data->airOutTime;
 	ent->client->invulnerableTimer = data->invulnerableTimer;
 	ent->client->saberKnockedTime = data->saberKnockedTime;
+	ent->client->triesToSelfkillDuringPause = data->triesToSelfkillDuringPause;
 	
 	BG_PlayerStateToEntityState(&ent->client->ps, &ent->s, qfalse);
 
@@ -5351,6 +5352,7 @@ void ClientDisconnect( int clientNum ) {
 			data->airOutTime = ent->client->airOutTime;
 			data->invulnerableTimer = ent->client->invulnerableTimer;
 			data->saberKnockedTime = ent->client->saberKnockedTime;
+			data->triesToSelfkillDuringPause = ent->client->triesToSelfkillDuringPause;
 		}
 	}
 

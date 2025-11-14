@@ -844,14 +844,6 @@ void Cmd_Kill_f( gentity_t *ent ) {
 		}
 	}
 
-	//OSP: pause
-	if (level.pause.state != PAUSE_NONE && ++ent->client->triesToSelfkillDuringPause < 3) {
-		PrintIngame(ent - g_entities, "^3(Accidental SK protection)^7 Press your SK bind ^5%d^7 more time%s to confirm selfkilling.\n",
-			3 - ent->client->triesToSelfkillDuringPause,
-			3 - ent->client->triesToSelfkillDuringPause == 1 ? "" : "s");
-		return;
-	}
-
 	if (g_gametype.integer == GT_SIEGE && g_antiSelfMax.integer && g_siegeRespawn.integer >= 10 && (level.siegeStage == SIEGESTAGE_ROUND1 || level.siegeStage == SIEGESTAGE_ROUND2)) {
 		int timeSinceRespawn = (level.time + (g_siegeRespawn.integer * 1000)) - level.siegeRespawnCheck;
 		if (timeSinceRespawn < 3000 && !HasDetpackInWorld(ent)) { // players cannot sk within 3 seconds AFTER the spawn wave, unless they have a detpack in the world
@@ -864,6 +856,92 @@ void Cmd_Kill_f( gentity_t *ent ) {
 				return;
 			}
 		}
+	}
+
+	//OSP: pause
+	if (level.pause.state != PAUSE_NONE && g_gametype.integer == GT_SIEGE) {
+		if (++ent->client->triesToSelfkillDuringPause < NUM_TIMES_TRY_TO_SK_DURING_PAUSE) {
+			PrintIngame(ent - g_entities, "^3(Accidental SK protection)^7 Press your SK bind ^5%d^7 more time%s to confirm selfkilling.\n",
+				NUM_TIMES_TRY_TO_SK_DURING_PAUSE - ent->client->triesToSelfkillDuringPause,
+				NUM_TIMES_TRY_TO_SK_DURING_PAUSE - ent->client->triesToSelfkillDuringPause == 1 ? "" : "s");
+			return;
+		}
+
+		if (ent->client->triesToSelfkillDuringPause > NUM_TIMES_TRY_TO_SK_DURING_PAUSE) {
+			// pressed sk yet again
+
+			PrintIngame(ent - g_entities, "You will no longer selfkill when the game unpauses.\n");
+			ent->client->triesToSelfkillDuringPause = 0;
+
+			for (int i = 0; i < MAX_CLIENTS; i++) {
+				gentity_t *thisGuy = &g_entities[i];
+				if (!thisGuy->client || thisGuy->client->pers.connected == CON_DISCONNECTED || !thisGuy->inuse || i == ent - g_entities)
+					continue;
+
+				qboolean sendYouTriedToSelfkillMessage = qfalse, sendTeammateTriedToSelfkillMessage = qfalse;
+				if (thisGuy->client->sess.sessionTeam == TEAM_SPECTATOR) {
+					if (thisGuy->client->sess.spectatorState == SPECTATOR_FOLLOW && thisGuy->client->sess.spectatorClient == ent - g_entities) {
+						sendYouTriedToSelfkillMessage = qtrue; // this guy is a spec following the selfkiller directly
+					}
+					else if (thisGuy->client->sess.spectatorState == SPECTATOR_FOLLOW && thisGuy->client->sess.spectatorClient != ent - g_entities &&
+						thisGuy->client->sess.spectatorClient < MAX_CLIENTS && g_entities[thisGuy->client->sess.spectatorClient].inuse &&
+						g_entities[thisGuy->client->sess.spectatorClient].client && g_entities[thisGuy->client->sess.spectatorClient].client->sess.sessionTeam == ent->client->sess.sessionTeam) {
+						sendTeammateTriedToSelfkillMessage = qtrue; // this guy is a spec following a teammate of the selfkiller
+					}
+				}
+				else if (thisGuy->client->sess.sessionTeam == ent->client->sess.sessionTeam) {
+					sendTeammateTriedToSelfkillMessage = qtrue; // this guy is a teammate of the selfkiller
+				}
+
+				if (sendYouTriedToSelfkillMessage) {
+					PrintIngame(i, "You will no longer selfkill when the game unpauses.\n");
+				}
+				else if (sendTeammateTriedToSelfkillMessage) {
+					PrintIngame(i, "%s%s^7 will no longer selfkill when the game unpauses.\n", NM_SerializeUIntToColor(ent - g_entities), ent->client->pers.netname);
+				}
+			}
+
+			return;
+		}
+
+		PrintIngame(ent - g_entities, "You will selfkill when the game unpauses.\n");
+
+		static int lastMessageTime[MAX_CLIENTS][MAX_CLIENTS] = { 0 };
+
+		for (int i = 0; i < MAX_CLIENTS; i++) {
+			gentity_t *thisGuy = &g_entities[i];
+			if (!thisGuy->client || thisGuy->client->pers.connected == CON_DISCONNECTED || !thisGuy->inuse || i == ent - g_entities)
+				continue;
+
+			if (lastMessageTime[ent - g_entities][i] && level.time - lastMessageTime[ent - g_entities][i] < 2000)
+				continue; // don't spam
+
+			qboolean sendYouTriedToSelfkillMessage = qfalse, sendTeammateTriedToSelfkillMessage = qfalse;
+			if (thisGuy->client->sess.sessionTeam == TEAM_SPECTATOR) {
+				if (thisGuy->client->sess.spectatorState == SPECTATOR_FOLLOW && thisGuy->client->sess.spectatorClient == ent - g_entities) {
+					sendYouTriedToSelfkillMessage = qtrue; // this guy is a spec following the selfkiller directly
+				}
+				else if (thisGuy->client->sess.spectatorState == SPECTATOR_FOLLOW && thisGuy->client->sess.spectatorClient != ent - g_entities &&
+					thisGuy->client->sess.spectatorClient < MAX_CLIENTS && g_entities[thisGuy->client->sess.spectatorClient].inuse &&
+					g_entities[thisGuy->client->sess.spectatorClient].client && g_entities[thisGuy->client->sess.spectatorClient].client->sess.sessionTeam == ent->client->sess.sessionTeam) {
+					sendTeammateTriedToSelfkillMessage = qtrue; // this guy is a spec following a teammate of the selfkiller
+				}
+			}
+			else if (thisGuy->client->sess.sessionTeam == ent->client->sess.sessionTeam) {
+				sendTeammateTriedToSelfkillMessage = qtrue; // this guy is a teammate of the selfkiller
+			}
+
+			if (sendYouTriedToSelfkillMessage) {
+				lastMessageTime[ent - g_entities][i] = level.time;
+				PrintIngame(i, "You will selfkill when the game unpauses.\n");
+			}
+			else if (sendTeammateTriedToSelfkillMessage) {
+				lastMessageTime[ent - g_entities][i] = level.time;
+				PrintIngame(i, "%s%s^7 will selfkill when the game unpauses.\n", NM_SerializeUIntToColor(ent - g_entities), ent->client->pers.netname);
+			}
+		}
+
+		return;
 	}
 
 	ent->flags &= ~FL_GODMODE;
@@ -2400,17 +2478,6 @@ void Cmd_Join_f(gentity_t *ent)
 		}
 	}
 
-	if (level.pause.state != PAUSE_NONE && ent->client->sess.sessionTeam != TEAM_SPECTATOR &&
-		ent->client->tempSpectate < level.time && ent->health > 0 && ++ent->client->triesToChangeClassDuringPause < 3) {
-		PrintIngame(ent - g_entities, "^3(Accidental SK protection)^7 Press your class bind ^5%d^7 more time%s to confirm changing to %s.\n",
-			3 - ent->client->triesToChangeClassDuringPause,
-			3 - ent->client->triesToChangeClassDuringPause == 1 ? "" : "s",
-			classStr);
-		return;
-	}
-
-	PrintIngame(ent - g_entities, "Changing to %s\n", classStr);
-
 	siegeClass = BG_SiegeGetClass(desiredTeamNumber, classNumber);
 
 	if (!siegeClass)
@@ -2418,6 +2485,101 @@ void Cmd_Join_f(gentity_t *ent)
 		trap_SendServerCommand(ent - g_entities, "print \"Usage: join <team letter><first letter of class name> (no spaces)  example: '^5join rj^7' for red jedi)\n\"");
 		return;
 	}
+
+	if (level.pause.state != PAUSE_NONE && ent->client->tempSpectate < level.time && ent->health > 0 && ent->client->sess.sessionTeam != TEAM_SPECTATOR && g_gametype.integer == GT_SIEGE) {
+		if (++ent->client->triesToChangeClassDuringPause < NUM_TIMES_TRY_TO_SK_DURING_PAUSE) {
+			PrintIngame(ent - g_entities, "^3(Accidental SK protection)^7 Press your class bind ^5%d^7 more time%s to confirm changing to %s.\n",
+				NUM_TIMES_TRY_TO_SK_DURING_PAUSE - ent->client->triesToChangeClassDuringPause,
+				NUM_TIMES_TRY_TO_SK_DURING_PAUSE - ent->client->triesToChangeClassDuringPause == 1 ? "" : "s",
+				classStr);
+			return;
+		}
+
+		if (ent->client->siegeClass != -1 && &bgSiegeClasses[ent->client->siegeClass] == siegeClass) {
+			// tried to set back to the class they already are?
+			PrintIngame(ent - g_entities, "You will no longer change class when the game unpauses.\n");
+			ent->client->triesToChangeClassDuringPause = 0;
+			ent->client->triesToChangeClassDuringPauseToThisClassName[0] = '\0';
+			ent->client->triesToChangeClassDuringPauseToThisClass = NULL;
+
+			for (int i = 0; i < MAX_CLIENTS; i++) {
+				gentity_t *thisGuy = &g_entities[i];
+				if (!thisGuy->client || thisGuy->client->pers.connected == CON_DISCONNECTED || !thisGuy->inuse || i == ent - g_entities)
+					continue;
+
+				qboolean sendYouTriedToSelfkillMessage = qfalse, sendTeammateTriedToSelfkillMessage = qfalse;
+				if (thisGuy->client->sess.sessionTeam == TEAM_SPECTATOR) {
+					if (thisGuy->client->sess.spectatorState == SPECTATOR_FOLLOW && thisGuy->client->sess.spectatorClient == ent - g_entities) {
+						sendYouTriedToSelfkillMessage = qtrue; // this guy is a spec following the selfkiller directly
+					}
+					else if (thisGuy->client->sess.spectatorState == SPECTATOR_FOLLOW && thisGuy->client->sess.spectatorClient != ent - g_entities &&
+						thisGuy->client->sess.spectatorClient < MAX_CLIENTS && g_entities[thisGuy->client->sess.spectatorClient].inuse &&
+						g_entities[thisGuy->client->sess.spectatorClient].client && g_entities[thisGuy->client->sess.spectatorClient].client->sess.sessionTeam == ent->client->sess.sessionTeam) {
+						sendTeammateTriedToSelfkillMessage = qtrue; // this guy is a spec following a teammate of the selfkiller
+					}
+				}
+				else if (thisGuy->client->sess.sessionTeam == ent->client->sess.sessionTeam) {
+					sendTeammateTriedToSelfkillMessage = qtrue; // this guy is a teammate of the selfkiller
+				}
+
+				if (sendYouTriedToSelfkillMessage) {
+					PrintIngame(i, "You will no longer change class when the game unpauses.\n", classStr);
+				}
+				else if (sendTeammateTriedToSelfkillMessage) {
+					PrintIngame(i, "%s%s^7 will no longer change class when the game unpauses.\n", NM_SerializeUIntToColor(ent - g_entities), ent->client->pers.netname);
+				}
+			}
+
+			return;
+		}
+
+		ent->client->triesToChangeClassDuringPauseToThisClass = siegeClass;
+		Q_strncpyz(ent->client->triesToChangeClassDuringPauseToThisClassName, classStr, sizeof(ent->client->triesToChangeClassDuringPauseToThisClassName));
+
+		PrintIngame(ent - g_entities, "You will change to %s when the game unpauses.\n", classStr);
+
+		static int lastMessageTime[MAX_CLIENTS][MAX_CLIENTS] = { 0 };
+		static siegeClass_t *lastClass[MAX_CLIENTS][MAX_CLIENTS] = {0};
+
+		for (int i = 0; i < MAX_CLIENTS; i++) {
+			gentity_t *thisGuy = &g_entities[i];
+			if (!thisGuy->client || thisGuy->client->pers.connected == CON_DISCONNECTED || !thisGuy->inuse || i == ent - g_entities)
+				continue;
+
+			if (lastMessageTime[ent - g_entities][i] && level.time - lastMessageTime[ent - g_entities][i] < 2000 && !(lastClass[ent - g_entities][i] != ent->client->triesToChangeClassDuringPauseToThisClass))
+				continue; // don't spam
+
+			qboolean sendYouTriedToSelfkillMessage = qfalse, sendTeammateTriedToSelfkillMessage = qfalse;
+			if (thisGuy->client->sess.sessionTeam == TEAM_SPECTATOR) {
+				if (thisGuy->client->sess.spectatorState == SPECTATOR_FOLLOW && thisGuy->client->sess.spectatorClient == ent - g_entities) {
+					sendYouTriedToSelfkillMessage = qtrue; // this guy is a spec following the selfkiller directly
+				}
+				else if (thisGuy->client->sess.spectatorState == SPECTATOR_FOLLOW && thisGuy->client->sess.spectatorClient != ent - g_entities &&
+					thisGuy->client->sess.spectatorClient < MAX_CLIENTS && g_entities[thisGuy->client->sess.spectatorClient].inuse &&
+					g_entities[thisGuy->client->sess.spectatorClient].client && g_entities[thisGuy->client->sess.spectatorClient].client->sess.sessionTeam == ent->client->sess.sessionTeam) {
+					sendTeammateTriedToSelfkillMessage = qtrue; // this guy is a spec following a teammate of the selfkiller
+				}
+			}
+			else if (thisGuy->client->sess.sessionTeam == ent->client->sess.sessionTeam) {
+				sendTeammateTriedToSelfkillMessage = qtrue; // this guy is a teammate of the selfkiller
+			}
+
+			if (sendYouTriedToSelfkillMessage) {
+				lastMessageTime[ent - g_entities][i] = level.time;
+				lastClass[ent - g_entities][i] = siegeClass;
+				PrintIngame(i, "You will change to %s when the game unpauses.\n", classStr);
+			}
+			else if (sendTeammateTriedToSelfkillMessage) {
+				lastMessageTime[ent - g_entities][i] = level.time;
+				lastClass[ent - g_entities][i] = siegeClass;
+				PrintIngame(i, "%s%s^7 will change to %s when the game unpauses.\n", NM_SerializeUIntToColor(ent - g_entities), ent->client->pers.netname, classStr);
+			}
+		}
+
+		return;
+	}
+
+	PrintIngame(ent - g_entities, "Changing to %s\n", classStr);
 
 	SetSiegeClass(ent, siegeClass->name);
 }
@@ -2528,17 +2690,6 @@ void Cmd_Class_f(gentity_t *ent)
 		}
 	}
 
-	if (level.pause.state != PAUSE_NONE && ent->client->sess.sessionTeam != TEAM_SPECTATOR &&
-		ent->client->tempSpectate < level.time && ent->health > 0 && ++ent->client->triesToChangeClassDuringPause < 3) {
-		PrintIngame(ent - g_entities, "^3(Accidental SK protection)^7 Press your class bind ^5%d^7 more time%s to confirm changing to %s.\n",
-			3 - ent->client->triesToChangeClassDuringPause,
-			3 - ent->client->triesToChangeClassDuringPause == 1 ? "" : "s",
-			classStr);
-		return;
-	}
-
-	PrintIngame(ent - g_entities, "Changing to %s\n", classStr);
-
 	if (level.inSiegeCountdown && ent->client->sess.sessionTeam == TEAM_SPECTATOR && ent->client->sess.siegeDesiredTeam && (ent->client->sess.siegeDesiredTeam == SIEGETEAM_TEAM1 || ent->client->sess.siegeDesiredTeam == SIEGETEAM_TEAM2))
 	{
 		siegeClass = BG_SiegeGetClass(ent->client->sess.siegeDesiredTeam, classNumber);
@@ -2547,12 +2698,107 @@ void Cmd_Class_f(gentity_t *ent)
 	{
 		siegeClass = BG_SiegeGetClass(ent->client->sess.sessionTeam, classNumber);
 	}
-	
+
 	if (!siegeClass)
 	{
 		trap_SendServerCommand(ent - g_entities, "print \"Usage: class <number> or class <first letter of class name> (e.g. '^5class a^7' for assault)\n\"");
 		return;
 	}
+
+	if (level.pause.state != PAUSE_NONE && ent->client->tempSpectate < level.time && ent->health > 0 && ent->client->sess.sessionTeam != TEAM_SPECTATOR && g_gametype.integer == GT_SIEGE) {
+		if (++ent->client->triesToChangeClassDuringPause < NUM_TIMES_TRY_TO_SK_DURING_PAUSE) {
+			PrintIngame(ent - g_entities, "^3(Accidental SK protection)^7 Press your class bind ^5%d^7 more time%s to confirm changing to %s.\n",
+				NUM_TIMES_TRY_TO_SK_DURING_PAUSE - ent->client->triesToChangeClassDuringPause,
+				NUM_TIMES_TRY_TO_SK_DURING_PAUSE - ent->client->triesToChangeClassDuringPause == 1 ? "" : "s",
+				classStr);
+			return;
+		}
+
+		if (ent->client->siegeClass != -1 && &bgSiegeClasses[ent->client->siegeClass] == siegeClass) {
+			// tried to set back to the class they already are?
+			PrintIngame(ent - g_entities, "You will no longer change class when the game unpauses.\n");
+			ent->client->triesToChangeClassDuringPause = 0;
+			ent->client->triesToChangeClassDuringPauseToThisClassName[0] = '\0';
+			ent->client->triesToChangeClassDuringPauseToThisClass = NULL;
+
+			for (int i = 0; i < MAX_CLIENTS; i++) {
+				gentity_t *thisGuy = &g_entities[i];
+				if (!thisGuy->client || thisGuy->client->pers.connected == CON_DISCONNECTED || !thisGuy->inuse || i == ent - g_entities)
+					continue;
+
+				qboolean sendYouTriedToSelfkillMessage = qfalse, sendTeammateTriedToSelfkillMessage = qfalse;
+				if (thisGuy->client->sess.sessionTeam == TEAM_SPECTATOR) {
+					if (thisGuy->client->sess.spectatorState == SPECTATOR_FOLLOW && thisGuy->client->sess.spectatorClient == ent - g_entities) {
+						sendYouTriedToSelfkillMessage = qtrue; // this guy is a spec following the selfkiller directly
+					}
+					else if (thisGuy->client->sess.spectatorState == SPECTATOR_FOLLOW && thisGuy->client->sess.spectatorClient != ent - g_entities &&
+						thisGuy->client->sess.spectatorClient < MAX_CLIENTS && g_entities[thisGuy->client->sess.spectatorClient].inuse &&
+						g_entities[thisGuy->client->sess.spectatorClient].client && g_entities[thisGuy->client->sess.spectatorClient].client->sess.sessionTeam == ent->client->sess.sessionTeam) {
+						sendTeammateTriedToSelfkillMessage = qtrue; // this guy is a spec following a teammate of the selfkiller
+					}
+				}
+				else if (thisGuy->client->sess.sessionTeam == ent->client->sess.sessionTeam) {
+					sendTeammateTriedToSelfkillMessage = qtrue; // this guy is a teammate of the selfkiller
+				}
+
+				if (sendYouTriedToSelfkillMessage) {
+					PrintIngame(i, "You will no longer change class when the game unpauses.\n", classStr);
+				}
+				else if (sendTeammateTriedToSelfkillMessage) {
+					PrintIngame(i, "%s%s^7 will no longer change class when the game unpauses.\n", NM_SerializeUIntToColor(ent - g_entities), ent->client->pers.netname);
+				}
+			}
+
+			return;
+		}
+
+		ent->client->triesToChangeClassDuringPauseToThisClass = siegeClass;
+		Q_strncpyz(ent->client->triesToChangeClassDuringPauseToThisClassName, classStr, sizeof(ent->client->triesToChangeClassDuringPauseToThisClassName));
+
+		PrintIngame(ent - g_entities, "You will change to %s when the game unpauses.\n", classStr);
+
+		static int lastMessageTime[MAX_CLIENTS][MAX_CLIENTS] = { 0 };
+		static siegeClass_t *lastClass[MAX_CLIENTS][MAX_CLIENTS] = { 0 };
+
+		for (int i = 0; i < MAX_CLIENTS; i++) {
+			gentity_t *thisGuy = &g_entities[i];
+			if (!thisGuy->client || thisGuy->client->pers.connected == CON_DISCONNECTED || !thisGuy->inuse || i == ent - g_entities)
+				continue;
+
+			if (lastMessageTime[ent - g_entities][i] && level.time - lastMessageTime[ent - g_entities][i] < 2000 && !(lastClass[ent - g_entities][i] != ent->client->triesToChangeClassDuringPauseToThisClass))
+				continue; // don't spam
+
+			qboolean sendYouTriedToSelfkillMessage = qfalse, sendTeammateTriedToSelfkillMessage = qfalse;
+			if (thisGuy->client->sess.sessionTeam == TEAM_SPECTATOR) {
+				if (thisGuy->client->sess.spectatorState == SPECTATOR_FOLLOW && thisGuy->client->sess.spectatorClient == ent - g_entities) {
+					sendYouTriedToSelfkillMessage = qtrue; // this guy is a spec following the selfkiller directly
+				}
+				else if (thisGuy->client->sess.spectatorState == SPECTATOR_FOLLOW && thisGuy->client->sess.spectatorClient != ent - g_entities &&
+					thisGuy->client->sess.spectatorClient < MAX_CLIENTS && g_entities[thisGuy->client->sess.spectatorClient].inuse &&
+					g_entities[thisGuy->client->sess.spectatorClient].client && g_entities[thisGuy->client->sess.spectatorClient].client->sess.sessionTeam == ent->client->sess.sessionTeam) {
+					sendTeammateTriedToSelfkillMessage = qtrue; // this guy is a spec following a teammate of the selfkiller
+				}
+			}
+			else if (thisGuy->client->sess.sessionTeam == ent->client->sess.sessionTeam) {
+				sendTeammateTriedToSelfkillMessage = qtrue; // this guy is a teammate of the selfkiller
+			}
+
+			if (sendYouTriedToSelfkillMessage) {
+				lastMessageTime[ent - g_entities][i] = level.time;
+				lastClass[ent - g_entities][i] = siegeClass;
+				PrintIngame(i, "You will change to %s when the game unpauses.\n", classStr);
+			}
+			else if (sendTeammateTriedToSelfkillMessage) {
+				lastMessageTime[ent - g_entities][i] = level.time;
+				lastClass[ent - g_entities][i] = siegeClass;
+				PrintIngame(i, "%s%s^7 will change to %s when the game unpauses.\n", NM_SerializeUIntToColor(ent - g_entities), ent->client->pers.netname, classStr);
+			}
+		}
+
+		return;
+	}
+
+	PrintIngame(ent - g_entities, "Changing to %s\n", classStr);
 
 	SetSiegeClass(ent, siegeClass->name);
 }
