@@ -6311,6 +6311,7 @@ void SiegeCheckTimers(void);
 void WP_SaberStartMissileBlockCheck( gentity_t *self, usercmd_t *ucmd );
 extern void Jedi_Decloak( gentity_t *self );
 qboolean G_PointInBounds( vec3_t point, vec3_t mins, vec3_t maxs );
+extern void charge_stick(gentity_t *self, gentity_t *other, trace_t *trace);
 
 extern unsigned getstatus_LastIP;
 extern int getstatus_TimeToReset;
@@ -7501,6 +7502,24 @@ void G_RunFrame( int levelTime ) {
 
 		if ( !ent->r.linked && ent->neverFree ) {
 			continue;
+		}
+
+		if (level.pause.state != PAUSE_NONE && ent->s.eType == ET_GENERAL && VALIDSTRING(ent->classname)) {
+			if (!strcmp(ent->classname, "detpack") && ent->touch == charge_stick) {
+				ent->s.pos.trTime += level.time - level.previousTime;
+				G_RunThink(ent);
+				continue;
+			}
+			else if (!strcmp(ent->classname, "laserTrap") && !(ent->r.svFlags & SVF_OWNERNOTSHARED)) {
+				ent->s.pos.trTime += level.time - level.previousTime;
+				G_RunThink(ent);
+				continue;
+			}
+			else if (!strcmp(ent->classname, "sentryGun") && (ent->s.pos.trType == TR_GRAVITY || ent->s.groundEntityNum == -1)) {
+				ent->s.pos.trTime += level.time - level.previousTime;
+				G_RunThink(ent);
+				continue;
+			}
 		}
 
 		if ( ent->s.eType == ET_MISSILE ) {
