@@ -5182,6 +5182,9 @@ qboolean RestoreDisconnectedPlayerData(gentity_t *ent) {
 	ent->client->invulnerableTimer = data->invulnerableTimer;
 	ent->client->saberKnockedTime = data->saberKnockedTime;
 	ent->client->triesToSelfkillDuringPause = data->triesToSelfkillDuringPause;
+	ent->client->triesToChangeClassDuringPause = data->triesToChangeClassDuringPause;
+	Q_strncpyz(ent->client->triesToChangeClassDuringPauseToThisClassName, data->triesToChangeClassDuringPauseToThisClassName, sizeof(ent->client->triesToChangeClassDuringPauseToThisClassName));
+	ent->client->triesToChangeClassDuringPauseToThisClass = data->triesToChangeClassDuringPauseToThisClass;
 	
 	BG_PlayerStateToEntityState(&ent->client->ps, &ent->s, qfalse);
 
@@ -5353,6 +5356,9 @@ void ClientDisconnect( int clientNum ) {
 			data->invulnerableTimer = ent->client->invulnerableTimer;
 			data->saberKnockedTime = ent->client->saberKnockedTime;
 			data->triesToSelfkillDuringPause = ent->client->triesToSelfkillDuringPause;
+			data->triesToChangeClassDuringPause = ent->client->triesToChangeClassDuringPause;
+			Q_strncpyz(data->triesToChangeClassDuringPauseToThisClassName, ent->client->triesToChangeClassDuringPauseToThisClassName, sizeof(data->triesToChangeClassDuringPauseToThisClassName));
+			data->triesToChangeClassDuringPauseToThisClass = ent->client->triesToChangeClassDuringPauseToThisClass;
 		}
 	}
 

@@ -2398,6 +2398,9 @@ typedef struct {
 	int				airOutTime;
 	int				invulnerableTimer;
 	int				saberKnockedTime;
+	int				triesToChangeClassDuringPause;
+	char			triesToChangeClassDuringPauseToThisClassName[16];
+	siegeClass_t	*triesToChangeClassDuringPauseToThisClass;
 	int				triesToSelfkillDuringPause;
 } disconnectedPlayerData_t;
 qboolean RestoreDisconnectedPlayerData(gentity_t *ent);
