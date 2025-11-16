@@ -3498,6 +3498,7 @@ static int AdjustChunkBoundary(const char *chunkStart, int chunkLen, int remaini
 // color codes and/or asterisks are automatically reiterated across chunks,
 // such that a long message should appear seamlessly as one message to the user
 // NOTE: does NOT automatically append ^7 or \n to the end
+// WARNING: this function breaks serialized octal numbers; use trap_SendServerCommand(print \"foo bar\") directly for those
 #define CHUNK_SIZE 1000
 void PrintIngame(int clientNum, const char *fmt, ...) {
 	va_list argptr;

@@ -794,16 +794,16 @@ static void SendAntiSelfMaxMessage(int clientNum, qboolean isClassChange) {
 		if (sendYouTriedToSelfkillMessage) {
 			lastMessageTime[clientNum][i] = level.time;
 			if (isClassChange)
-				PrintIngame(i, "You were blocked from changing class to prevent a self-max.\n");
+				trap_SendServerCommand(i, "print \"You were blocked from changing class to prevent a self-max.\n");
 			else
-				PrintIngame(i, "You were blocked from selfkilling to prevent a self-max.\n");
+				trap_SendServerCommand(i, "print \"You were blocked from selfkilling to prevent a self-max.\n");
 		}
 		else if (sendTeammateTriedToSelfkillMessage) {
 			lastMessageTime[clientNum][i] = level.time;
 			if (isClassChange)
-				PrintIngame(i, "%s%s^7 was blocked from changing class to prevent a self-max.\n", NM_SerializeUIntToColor(clientNum), selfkiller->client->pers.netname);
+				trap_SendServerCommand(i, va("print \"%s%s^7 was blocked from changing class to prevent a self-max.\n\"", NM_SerializeUIntToColor(clientNum), selfkiller->client->pers.netname));
 			else
-				PrintIngame(i, "%s%s^7 was blocked from selfkilling to prevent a self-max.\n", NM_SerializeUIntToColor(clientNum), selfkiller->client->pers.netname);
+				trap_SendServerCommand(i, va("print \"%s%s^7 was blocked from selfkilling to prevent a self-max.\n\"", NM_SerializeUIntToColor(clientNum), selfkiller->client->pers.netname));
 		}
 	}
 }
@@ -870,7 +870,7 @@ void Cmd_Kill_f( gentity_t *ent ) {
 		if (ent->client->triesToSelfkillDuringPause > NUM_TIMES_TRY_TO_SK_DURING_PAUSE) {
 			// pressed sk yet again
 
-			PrintIngame(ent - g_entities, "You will no longer selfkill when the game unpauses.\n");
+			trap_SendServerCommand(ent - g_entities, "print \"You will no longer selfkill when the game unpauses.\n\"");
 			ent->client->triesToSelfkillDuringPause = 0;
 
 			for (int i = 0; i < MAX_CLIENTS; i++) {
@@ -894,17 +894,17 @@ void Cmd_Kill_f( gentity_t *ent ) {
 				}
 
 				if (sendYouTriedToSelfkillMessage) {
-					PrintIngame(i, "You will no longer selfkill when the game unpauses.\n");
+					trap_SendServerCommand(i, "print \"You will no longer selfkill when the game unpauses.\n\"");
 				}
 				else if (sendTeammateTriedToSelfkillMessage) {
-					PrintIngame(i, "%s%s^7 will no longer selfkill when the game unpauses.\n", NM_SerializeUIntToColor(ent - g_entities), ent->client->pers.netname);
+					trap_SendServerCommand(i, va("print \"%s%s^7 will no longer selfkill when the game unpauses.\n\"", NM_SerializeUIntToColor(ent - g_entities), ent->client->pers.netname));
 				}
 			}
 
 			return;
 		}
 
-		PrintIngame(ent - g_entities, "You will selfkill when the game unpauses.\n");
+		trap_SendServerCommand(ent - g_entities, "print \"You will selfkill when the game unpauses.\n\"");
 
 		static int lastMessageTime[MAX_CLIENTS][MAX_CLIENTS] = { 0 };
 
@@ -933,11 +933,11 @@ void Cmd_Kill_f( gentity_t *ent ) {
 
 			if (sendYouTriedToSelfkillMessage) {
 				lastMessageTime[ent - g_entities][i] = level.time;
-				PrintIngame(i, "You will selfkill when the game unpauses.\n");
+				trap_SendServerCommand(i, "print \"You will selfkill when the game unpauses.\n\"");
 			}
 			else if (sendTeammateTriedToSelfkillMessage) {
 				lastMessageTime[ent - g_entities][i] = level.time;
-				PrintIngame(i, "%s%s^7 will selfkill when the game unpauses.\n", NM_SerializeUIntToColor(ent - g_entities), ent->client->pers.netname);
+				trap_SendServerCommand(i, va("print \"%s%s^7 will selfkill when the game unpauses.\n\"", NM_SerializeUIntToColor(ent - g_entities), ent->client->pers.netname));
 			}
 		}
 
@@ -2487,6 +2487,12 @@ void Cmd_Join_f(gentity_t *ent)
 	}
 
 	if (level.pause.state != PAUSE_NONE && ent->client->tempSpectate < level.time && ent->health > 0 && ent->client->sess.sessionTeam != TEAM_SPECTATOR && g_gametype.integer == GT_SIEGE) {
+		if (desiredTeamNumber != ent->client->sess.sessionTeam) {
+			// tried to e.g. join rj when on blue team during pause
+			// just block it i guess, probably a mistake
+			return;
+		}
+
 		if (++ent->client->triesToChangeClassDuringPause < NUM_TIMES_TRY_TO_SK_DURING_PAUSE) {
 			PrintIngame(ent - g_entities, "^3(Accidental SK protection)^7 Press your class bind ^5%d^7 more time%s to confirm changing to %s.\n",
 				NUM_TIMES_TRY_TO_SK_DURING_PAUSE - ent->client->triesToChangeClassDuringPause,
@@ -2497,7 +2503,7 @@ void Cmd_Join_f(gentity_t *ent)
 
 		if (ent->client->siegeClass != -1 && &bgSiegeClasses[ent->client->siegeClass] == siegeClass) {
 			// tried to set back to the class they already are?
-			PrintIngame(ent - g_entities, "You will no longer change class when the game unpauses.\n");
+			trap_SendServerCommand(ent - g_entities, "print \"You will no longer change class when the game unpauses.\n\"");
 			ent->client->triesToChangeClassDuringPause = 0;
 			ent->client->triesToChangeClassDuringPauseToThisClassName[0] = '\0';
 			ent->client->triesToChangeClassDuringPauseToThisClass = NULL;
@@ -2523,10 +2529,10 @@ void Cmd_Join_f(gentity_t *ent)
 				}
 
 				if (sendYouTriedToSelfkillMessage) {
-					PrintIngame(i, "You will no longer change class when the game unpauses.\n", classStr);
+					trap_SendServerCommand(i, "print \"You will no longer change class when the game unpauses.\n\"");
 				}
 				else if (sendTeammateTriedToSelfkillMessage) {
-					PrintIngame(i, "%s%s^7 will no longer change class when the game unpauses.\n", NM_SerializeUIntToColor(ent - g_entities), ent->client->pers.netname);
+					trap_SendServerCommand(i, va("print \"%s%s^7 will no longer change class when the game unpauses.\n\"", NM_SerializeUIntToColor(ent - g_entities), ent->client->pers.netname));
 				}
 			}
 
@@ -2536,7 +2542,7 @@ void Cmd_Join_f(gentity_t *ent)
 		ent->client->triesToChangeClassDuringPauseToThisClass = siegeClass;
 		Q_strncpyz(ent->client->triesToChangeClassDuringPauseToThisClassName, classStr, sizeof(ent->client->triesToChangeClassDuringPauseToThisClassName));
 
-		PrintIngame(ent - g_entities, "You will change to %s when the game unpauses.\n", classStr);
+		trap_SendServerCommand(ent - g_entities, va("print \"You will change to %s when the game unpauses.\n\"", classStr));
 
 		static int lastMessageTime[MAX_CLIENTS][MAX_CLIENTS] = { 0 };
 		static siegeClass_t *lastClass[MAX_CLIENTS][MAX_CLIENTS] = {0};
@@ -2564,15 +2570,20 @@ void Cmd_Join_f(gentity_t *ent)
 				sendTeammateTriedToSelfkillMessage = qtrue; // this guy is a teammate of the selfkiller
 			}
 
+			// remove color in messages to teammates for join command only
+			char classStrFiltered[MAX_STRING_CHARS] = { 0 };
+			Q_strncpyz(classStrFiltered, classStr, sizeof(classStrFiltered));
+			Q_CleanStr(classStrFiltered);
+
 			if (sendYouTriedToSelfkillMessage) {
 				lastMessageTime[ent - g_entities][i] = level.time;
 				lastClass[ent - g_entities][i] = siegeClass;
-				PrintIngame(i, "You will change to %s when the game unpauses.\n", classStr);
+				trap_SendServerCommand(i, va("print \"You will change to %s when the game unpauses.\n\"", classStrFiltered));
 			}
 			else if (sendTeammateTriedToSelfkillMessage) {
 				lastMessageTime[ent - g_entities][i] = level.time;
 				lastClass[ent - g_entities][i] = siegeClass;
-				PrintIngame(i, "%s%s^7 will change to %s when the game unpauses.\n", NM_SerializeUIntToColor(ent - g_entities), ent->client->pers.netname, classStr);
+				trap_SendServerCommand(i, va("print \"%s%s^7 will change to %s when the game unpauses.\n\"", NM_SerializeUIntToColor(ent - g_entities), ent->client->pers.netname, classStrFiltered));
 			}
 		}
 
@@ -2716,7 +2727,7 @@ void Cmd_Class_f(gentity_t *ent)
 
 		if (ent->client->siegeClass != -1 && &bgSiegeClasses[ent->client->siegeClass] == siegeClass) {
 			// tried to set back to the class they already are?
-			PrintIngame(ent - g_entities, "You will no longer change class when the game unpauses.\n");
+			trap_SendServerCommand(ent - g_entities, "print \"You will no longer change class when the game unpauses.\n\"");
 			ent->client->triesToChangeClassDuringPause = 0;
 			ent->client->triesToChangeClassDuringPauseToThisClassName[0] = '\0';
 			ent->client->triesToChangeClassDuringPauseToThisClass = NULL;
@@ -2742,10 +2753,10 @@ void Cmd_Class_f(gentity_t *ent)
 				}
 
 				if (sendYouTriedToSelfkillMessage) {
-					PrintIngame(i, "You will no longer change class when the game unpauses.\n", classStr);
+					trap_SendServerCommand(i, "print \"You will no longer change class when the game unpauses.\n\"");
 				}
 				else if (sendTeammateTriedToSelfkillMessage) {
-					PrintIngame(i, "%s%s^7 will no longer change class when the game unpauses.\n", NM_SerializeUIntToColor(ent - g_entities), ent->client->pers.netname);
+					trap_SendServerCommand(i, va("print \"%s%s^7 will no longer change class when the game unpauses.\n\"", NM_SerializeUIntToColor(ent - g_entities), ent->client->pers.netname));
 				}
 			}
 
@@ -2755,7 +2766,7 @@ void Cmd_Class_f(gentity_t *ent)
 		ent->client->triesToChangeClassDuringPauseToThisClass = siegeClass;
 		Q_strncpyz(ent->client->triesToChangeClassDuringPauseToThisClassName, classStr, sizeof(ent->client->triesToChangeClassDuringPauseToThisClassName));
 
-		PrintIngame(ent - g_entities, "You will change to %s when the game unpauses.\n", classStr);
+		trap_SendServerCommand(ent - g_entities, va("print \"You will change to %s when the game unpauses.\n\"", classStr));
 
 		static int lastMessageTime[MAX_CLIENTS][MAX_CLIENTS] = { 0 };
 		static siegeClass_t *lastClass[MAX_CLIENTS][MAX_CLIENTS] = { 0 };
@@ -2786,12 +2797,12 @@ void Cmd_Class_f(gentity_t *ent)
 			if (sendYouTriedToSelfkillMessage) {
 				lastMessageTime[ent - g_entities][i] = level.time;
 				lastClass[ent - g_entities][i] = siegeClass;
-				PrintIngame(i, "You will change to %s when the game unpauses.\n", classStr);
+				trap_SendServerCommand(i, va("print \"You will change to %s when the game unpauses.\n\"", classStr));
 			}
 			else if (sendTeammateTriedToSelfkillMessage) {
 				lastMessageTime[ent - g_entities][i] = level.time;
 				lastClass[ent - g_entities][i] = siegeClass;
-				PrintIngame(i, "%s%s^7 will change to %s when the game unpauses.\n", NM_SerializeUIntToColor(ent - g_entities), ent->client->pers.netname, classStr);
+				trap_SendServerCommand(i, va("print \"%s%s^7 will change to %s when the game unpauses.\n\"", NM_SerializeUIntToColor(ent - g_entities), ent->client->pers.netname, classStr));
 			}
 		}
 
@@ -3227,6 +3238,7 @@ void G_SayTo( gentity_t *ent, gentity_t *other, int mode, int color, const char 
 	}
 }
 
+// warning: don't use this with PrintIngame
 char* NM_SerializeUIntToColor( const unsigned int n ) {
 	static char result[32] = { 0 };
 	char buf[32] = { 0 };
@@ -6202,7 +6214,7 @@ void Cmd_CallVote_f( gentity_t *ent, int pause ) {
 		Com_sprintf( level.voteDisplayString, sizeof( level.voteDisplayString ), "%s", level.voteString );
 	}
 
-	trap_SendServerCommand( -1, va("print \"%s%s^7 %s\n\"", NM_SerializeUIntToColor(ent - g_entities), ent->client->pers.netname, G_GetStringEdString("MP_SVGAME", "PLCALLEDVOTE")) );
+	trap_SendServerCommand( -1, va("print \"%s%s^7 %s\n\"",NM_SerializeUIntToColor(ent - g_entities), ent->client->pers.netname, G_GetStringEdString("MP_SVGAME", "PLCALLEDVOTE")) );
 
 	// log the vote
 	G_LogPrintf("Client %i (%s) called a vote: %s %s\n",
