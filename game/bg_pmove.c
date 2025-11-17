@@ -5593,6 +5593,26 @@ static int GetCanDisruptTime(int *in) {
 	return (*in >> 22) & 0x3ff;
 }
 
+// cram canDetpackTime into the most significant 11 bits
+static void SetCanDetpackTime(int *out, int newTime) {
+	if (!out) {
+		assert(qfalse);
+		return;
+	}
+
+	*out = (*out & 0x001fffff) | ((newTime & 0x7ff) << 21);
+}
+
+// retrieve canDetpackTime from the most significant 11 bits
+static int GetCanDetpackTime(int *in) {
+	if (!in) {
+		assert(qfalse);
+		return 0;
+	}
+
+	return (*in >> 21) & 0x7ff;
+}
+
 /*
 ===============
 PM_BeginWeaponChange
@@ -7074,6 +7094,16 @@ static void PM_Weapon( void )
 		}
 	}
 
+	if (g_unnerfDetpacks.integer && g_unnerfDetpacks.integer != 2 && pm->gametype == GT_SIEGE) {
+		int canDetpackTime = GetCanDetpackTime(&pm->ps->fd.forcePowersActive);
+		if (canDetpackTime) {
+			canDetpackTime -= pml.msec;
+			if (canDetpackTime < 0)
+				canDetpackTime = 0;
+			SetCanDetpackTime(&pm->ps->fd.forcePowersActive, canDetpackTime);
+		}
+	}
+
 	if (pm->ps->isJediMaster && pm->ps->emplacedIndex)
 	{
 		pm->ps->emplacedIndex = 0;
@@ -7225,6 +7255,14 @@ static void PM_Weapon( void )
 		if (pm->ps->weapon == WP_DISRUPTOR) {
 			int canDisruptTime = GetCanDisruptTime(&pm->ps->holocronBits);
 			if (canDisruptTime > 0)
+				return;
+		}
+	}
+	
+	if (g_unnerfDetpacks.integer && g_unnerfDetpacks.integer != 2 && pm->gametype == GT_SIEGE) {
+		if (pm->ps->weapon == WP_DET_PACK && (pm->cmd.buttons & (BUTTON_ATTACK)) && !(pm->ps->ammo[AMMO_DETPACK] <= 0)) {
+			int canDetpackTime = GetCanDetpackTime(&pm->ps->fd.forcePowersActive);
+			if (canDetpackTime > 0)
 				return;
 		}
 	}
@@ -7614,7 +7652,10 @@ static void PM_Weapon( void )
 		addTime = weaponData[pm->ps->weapon].fireTime;
 		if ( pm->gametype == GT_SIEGE && pm->ps->weapon == WP_DET_PACK )
 		{	// were far too spammy before?  So says Rick.
-			addTime *= 2;
+			if (!g_unnerfDetpacks.integer)
+				addTime *= 2;
+			else if (g_unnerfDetpacks.integer != 2)
+				SetCanDetpackTime(&pm->ps->fd.forcePowersActive, 1600);
 		}
 	}
 

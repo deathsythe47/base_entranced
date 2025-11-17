@@ -2975,6 +2975,7 @@ extern vmCvar_t		g_allow_vote_customTeams;
 
 extern vmCvar_t		g_fixForceJumpAnimationLock;
 extern vmCvar_t		g_fixSniperSwitch;
+extern vmCvar_t		g_unnerfDetpacks;
 extern vmCvar_t		g_fixGolanDamage;
 extern vmCvar_t		g_locationBasedDamage_splash;
 extern vmCvar_t		g_fixDisruptDuel;

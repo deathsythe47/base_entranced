@@ -3332,6 +3332,11 @@ void G_BroadcastServerFeatureList( int clientNum ) {
 	if (g_fixSniperSwitch.integer)
 		Q_strcat(featureListConfigString, sizeof(featureListConfigString), "fss ");
 
+	if (g_unnerfDetpacks.integer == 2 && g_gametype.integer == GT_SIEGE)
+		Q_strcat(featureListConfigString, sizeof(featureListConfigString), "ud2 ");
+	else if (g_unnerfDetpacks.integer && g_gametype.integer == GT_SIEGE)
+		Q_strcat(featureListConfigString, sizeof(featureListConfigString), "ud1 ");
+
 	if (g_fixReconnectCorpses.integer)
 		Q_strcat(featureListConfigString, sizeof(featureListConfigString), "frc ");
 
