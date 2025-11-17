@@ -1261,6 +1261,10 @@ void SP_trigger_multiple( gentity_t *ent )
 		//bugfix for final objective getting broken when two parts are delivered within 1 second of each other
 	}
 
+	if (level.siegeMap == SIEGEMAP_HOTH && !Q_stricmp(ent->target, "medlabplatb")) {
+		ent->wait = 4; // fix short liftlame
+	}
+
 	static char recalltargets[MAX_GENTITIES][32] = { 0 };
 	static char recallorigins[MAX_GENTITIES][32] = { 0 };
 	G_SpawnInt("recallsiegeitem", "0", &ent->recallSiegeItem);
