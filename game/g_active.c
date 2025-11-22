@@ -4891,13 +4891,14 @@ void ClientThink_real( gentity_t *ent ) {
 		case GENCMD_USE_JETPACK:
 			if (ent && ent->client && ent->client->emoted)
 				break;
-			if (ent->client->genCmdDebounce[GENCMD_DELAY_JETPACK] > level.time - 300)
+			if (ent->client->genCmdDebounce[GENCMD_DELAY_JETPACK] > level.time - 100)
 				break;
 			ent->client->genCmdDebounce[GENCMD_DELAY_JETPACK] = level.time;
-			if ((ent->client->ps.stats[STAT_HOLDABLE_ITEMS] & (1 << HI_JETPACK)) &&
-				G_ItemUsable(&ent->client->ps, HI_JETPACK))
+			if ((ent->client->ps.stats[STAT_HOLDABLE_ITEMS] & (1 << HI_JETPACK))/* &&
+				G_ItemUsable(&ent->client->ps, HI_JETPACK)*/)
 			{
 				ItemUse_Jetpack(ent);
+				ent->client->pers.usesJetpackToggleBind = qtrue;
 				G_AddEvent(ent, EV_USE_ITEM0 + HI_JETPACK, 0);
 			}
 			break;
@@ -5619,6 +5620,8 @@ void ClientEndFrame( gentity_t *ent ) {
 			ent->client->saberKnockedTime += time_delta;
 		if (ent->client->homingLockTime)
 			ent->client->homingLockTime += time_delta;
+		if (ent->client->lastHealedSomeone)
+			ent->client->lastHealedSomeone += time_delta;
         ent->pain_debounce_time += time_delta;
         ent->client->ps.fd.forcePowerRegenDebounceTime += time_delta;
 		if (ent->client->tempSpectate)

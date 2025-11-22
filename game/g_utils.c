@@ -2033,6 +2033,8 @@ qboolean TryHeal(gentity_t *ent, gentity_t *target)
 {
 	if (ent && ent->client && ent->client->emoted)
 		return qfalse;
+	if (ent && ent->client && ent->client->lastHealedSomeone && level.time - ent->client->lastHealedSomeone < 100)
+		return qfalse;
 	int max = target->maxHealth;
 	if (level.siegeMap == SIEGEMAP_URBAN && VALIDSTRING(target->NPC_type) && tolower(*target->NPC_type) == 'w') { // to do: make this in a generic way
 		if (target->lowestHealth <= (int)(((double)max) / 4))
@@ -2227,6 +2229,8 @@ qboolean TryTossAmmoPack(gentity_t *ent, qboolean doChecks) {
 qboolean TryHealingSomething(gentity_t *ent, gentity_t *target, qboolean doChecks) {
 	if (ent && ent->client && ent->client->emoted)
 		return qfalse;
+	if (ent && ent->client && ent->client->lastHealedSomeone && level.time - ent->client->lastHealedSomeone < 100)
+		return qfalse;
 	if (doChecks) {
 		if (g_gametype.integer == GT_SIEGE &&
 			!gSiegeRoundBegun)
@@ -2307,6 +2311,7 @@ qboolean TryHealingSomething(gentity_t *ent, gentity_t *target, qboolean doCheck
 				G_SetAnim(ent, NULL, SETANIM_TORSO, BOTH_BUTTON_HOLD, SETANIM_FLAG_OVERRIDE | SETANIM_FLAG_HOLD, 0);
 			}
 			ent->client->ps.weaponTime = ent->client->ps.torsoTimer;
+			ent->client->lastHealedSomeone = level.time;
 			return qtrue;
 		}
 
@@ -2355,7 +2360,7 @@ void TryUse( gentity_t *ent )
 		}
 	}
 
-	if (ent->client->jetPackOn)
+	if (ent->client->jetPackOn && !ent->client->pers.usesJetpackToggleBind)
 	{ //can't use anything else to jp is off
 		goto tryJetPack;
 	}
@@ -2501,7 +2506,7 @@ void TryUse( gentity_t *ent )
 
 tryJetPack:
 	//if we got here, we didn't actually use anything else, so try to toggle jetpack if we are in the air, or if it is already on
-	if (ent->client->ps.stats[STAT_HOLDABLE_ITEMS] & (1 << HI_JETPACK))
+	if ((ent->client->ps.stats[STAT_HOLDABLE_ITEMS] & (1 << HI_JETPACK)) && !ent->client->pers.usesJetpackToggleBind)
 	{
 		if (ent->client->jetPackOn || ent->client->ps.groundEntityNum == ENTITYNUM_NONE)
 		{

@@ -8928,12 +8928,18 @@ void Cmd_Vchat_f(gentity_t *sender) {
 #endif
 
 void Cmd_UsePack_f(gentity_t *ent) {
-	if (!(ent->client->ps.stats[STAT_HOLDABLE_ITEMS] & (1 << HI_JETPACK)))
+	if (!ent || !ent->client || !(ent->client->ps.stats[STAT_HOLDABLE_ITEMS] & (1 << HI_JETPACK)))
 		return;
 
+#if 0
 	if (ent->client->jetPackOn || ent->client->ps.groundEntityNum == ENTITYNUM_NONE) {
 		ItemUse_Jetpack(ent);
 	}
+#else
+	ItemUse_Jetpack(ent);
+#endif
+
+	ent->client->pers.usesJetpackToggleBind = qtrue;
 }
 
 void Cmd_UseDispenser_f(gentity_t *ent) {
@@ -8941,8 +8947,15 @@ void Cmd_UseDispenser_f(gentity_t *ent) {
 		TryTossAmmoPack(ent, qtrue);
 }
 
-#if 0
+#if 1
+extern qboolean TryHeal(gentity_t *ent, gentity_t *target);
 void Cmd_UseHealing_f(gentity_t *ent) {
+	if (g_gametype.integer != GT_SIEGE || !ent || !ent->client || !ent->inuse || ent->client->sess.sessionTeam == TEAM_SPECTATOR || ent->health <= 0 || ent->client->tempSpectate > level.time)
+		return;
+
+	if (ent->client->lastHealedSomeone && level.time - ent->client->lastHealedSomeone < 100)
+		return;
+
 	trace_t		trace;
 	vec3_t		src, dest, vf;
 	vec3_t		viewspot;
@@ -8964,7 +8977,8 @@ void Cmd_UseHealing_f(gentity_t *ent) {
 		return;
 	}
 
-	TryHealingSomething(ent, &g_entities[trace.entityNum], qtrue);
+	if (!TryHealingSomething(ent, &g_entities[trace.entityNum], qtrue))
+		TryHeal(ent, &g_entities[trace.entityNum]);
 }
 #endif
 
@@ -10691,6 +10705,7 @@ void Cmd_ServerStatus2_f(gentity_t *ent)
 	PrintCvar(g_notifyNotLive);
 	PrintCvar(g_quickPauseChat);
 	PrintCvar(g_randomConeReflection);
+	PrintCvar(g_reduceJetpackToggleTime);
 	PrintCvar(g_requireMoreCustomTeamVotes);
 	PrintCvar(g_removeHothHangarTurrets);
 	PrintCvar(g_rocketSurfing);
@@ -11549,10 +11564,10 @@ void ClientCommand( int clientNum ) {
 #endif
 	else if (!Q_stricmp(cmd, "use_pack"))
 		Cmd_UsePack_f(ent);
-	else if (!Q_stricmp(cmd, "use_dispenser"))
+	else if (!Q_stricmp(cmd, "use_dispenser") || !Q_stricmp(cmd, "use_ammo"))
 		Cmd_UseDispenser_f(ent);
-#if 0
-	else if (!Q_stricmp(cmd, "use_healing"))
+#if 1
+	else if (!Q_stricmp(cmd, "use_heal"))
 		Cmd_UseHealing_f(ent);
 #endif
 	else if (!Q_stricmp(cmd, "use_anybacta"))

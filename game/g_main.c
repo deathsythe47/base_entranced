@@ -239,6 +239,7 @@ vmCvar_t	g_ownMineDetpackCollision;
 vmCvar_t	g_greenshieldBlocksSelfDamage;
 vmCvar_t	g_fuck;
 vmCvar_t	g_fixCorpseSniping;
+vmCvar_t	g_reduceJetpackToggleTime;
 
 vmCvar_t	g_preventJoiningLargerTeam;
 vmCvar_t	g_lastIntermissionStartTime;
@@ -1211,6 +1212,7 @@ static cvarTable_t		gameCvarTable[] = {
 	{ &g_greenshieldBlocksSelfDamage, "g_greenshieldBlocksSelfDamage", "1", CVAR_ARCHIVE, 0, qtrue },
 	{ &g_fuck, "g_fuck", "100", CVAR_ARCHIVE, 0, qfalse },
 	{ &g_fixCorpseSniping, "g_fixCorpseSniping", "1", CVAR_ARCHIVE, 0, qtrue },
+	{ &g_reduceJetpackToggleTime, "g_reduceJetpackToggleTime", "1", CVAR_ARCHIVE, 0, qtrue },
 
 	{ &g_preventJoiningLargerTeam, "g_preventJoiningLargerTeam", "0", CVAR_ARCHIVE, 0, qtrue },
 	{ &g_lastIntermissionStartTime, "g_lastIntermissionStartTime", "", CVAR_TEMP | CVAR_ROM, 0, qfalse },
@@ -7306,6 +7308,8 @@ void G_RunFrame( int levelTime ) {
 					data->saberKnockedTime += dt;
 				if (data->homingLockTime)
 					data->homingLockTime += dt;
+				if (data->lastHealedSomeone)
+					data->lastHealedSomeone += dt;
 				data->ps.fd.forcePowerRegenDebounceTime += dt;
 				if (data->tempSpectate)
 					data->tempSpectate += dt;

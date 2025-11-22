@@ -897,6 +897,8 @@ typedef struct {
 
 	int			classChangeSentTime;
 	int			classChangeSentCount;
+
+	qboolean	usesJetpackToggleBind;
 } clientPersistant_t;
 
 typedef struct renderInfo_s
@@ -1273,6 +1275,8 @@ struct gclient_s {
 	char triesToChangeClassDuringPauseToThisClassName[16];
 	siegeClass_t *triesToChangeClassDuringPauseToThisClass;
 	int triesToSelfkillDuringPause;
+
+	int lastHealedSomeone;
 };
 
 #define NUM_TIMES_TRY_TO_SK_DURING_PAUSE	(5)
@@ -2402,6 +2406,8 @@ typedef struct {
 	char			triesToChangeClassDuringPauseToThisClassName[16];
 	siegeClass_t	*triesToChangeClassDuringPauseToThisClass;
 	int				triesToSelfkillDuringPause;
+	int				lastHealedSomeone;
+	qboolean		usesJetpackToggleBind;
 } disconnectedPlayerData_t;
 qboolean RestoreDisconnectedPlayerData(gentity_t *ent);
 
@@ -3142,6 +3148,7 @@ extern vmCvar_t		g_ownMineDetpackCollision;
 extern vmCvar_t		g_greenshieldBlocksSelfDamage;
 extern vmCvar_t		g_fuck;
 extern vmCvar_t		g_fixCorpseSniping;
+extern vmCvar_t		g_reduceJetpackToggleTime;
 
 extern vmCvar_t		g_preventJoiningLargerTeam;
 extern vmCvar_t		g_lastIntermissionStartTime;
