@@ -5619,6 +5619,8 @@ void ClientEndFrame( gentity_t *ent ) {
 			ent->client->saberKnockedTime += time_delta;
 		if (ent->client->homingLockTime)
 			ent->client->homingLockTime += time_delta;
+		if (ent->client->lastHealedSomeone)
+			ent->client->lastHealedSomeone += time_delta;
         ent->pain_debounce_time += time_delta;
         ent->client->ps.fd.forcePowerRegenDebounceTime += time_delta;
 		if (ent->client->tempSpectate)

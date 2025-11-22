@@ -7306,6 +7306,8 @@ void G_RunFrame( int levelTime ) {
 					data->saberKnockedTime += dt;
 				if (data->homingLockTime)
 					data->homingLockTime += dt;
+				if (data->lastHealedSomeone)
+					data->lastHealedSomeone += dt;
 				data->ps.fd.forcePowerRegenDebounceTime += dt;
 				if (data->tempSpectate)
 					data->tempSpectate += dt;

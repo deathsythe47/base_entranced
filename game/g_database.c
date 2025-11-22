@@ -52,10 +52,6 @@ void G_DBLoadDatabase( void *serverDbPtr )
 
 	dbPtr = serverDbPtr;
 
-	// register trace callback if needed
-	if ( g_traceSQL.integer ) {
-		sqlite3_trace_v2( dbPtr, SQLITE_TRACE_STMT | SQLITE_TRACE_PROFILE, TraceCallback, NULL );
-	}
 
 	// more db options
 	trap_sqlite3_exec( dbPtr, "PRAGMA foreign_keys = ON;", NULL, NULL, NULL );

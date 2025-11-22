@@ -799,6 +799,8 @@ typedef struct {
 		qboolean	wasFollowing;
 		int			followingClientNum;
 	} siegeFollowing;
+
+	qboolean usesJetpackToggleBind;
 } clientSession_t;
 
 // playerstate mGameFlags
@@ -1273,6 +1275,8 @@ struct gclient_s {
 	char triesToChangeClassDuringPauseToThisClassName[16];
 	siegeClass_t *triesToChangeClassDuringPauseToThisClass;
 	int triesToSelfkillDuringPause;
+
+	int lastHealedSomeone;
 };
 
 #define NUM_TIMES_TRY_TO_SK_DURING_PAUSE	(5)
@@ -2402,6 +2406,8 @@ typedef struct {
 	char			triesToChangeClassDuringPauseToThisClassName[16];
 	siegeClass_t	*triesToChangeClassDuringPauseToThisClass;
 	int				triesToSelfkillDuringPause;
+	int				lastHealedSomeone;
+	qboolean		usesJetpackToggleBind;
 } disconnectedPlayerData_t;
 qboolean RestoreDisconnectedPlayerData(gentity_t *ent);
 
