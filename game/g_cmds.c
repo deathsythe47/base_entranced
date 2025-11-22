@@ -10705,6 +10705,7 @@ void Cmd_ServerStatus2_f(gentity_t *ent)
 	PrintCvar(g_notifyNotLive);
 	PrintCvar(g_quickPauseChat);
 	PrintCvar(g_randomConeReflection);
+	PrintCvar(g_reduceJetpackToggleTime);
 	PrintCvar(g_requireMoreCustomTeamVotes);
 	PrintCvar(g_removeHothHangarTurrets);
 	PrintCvar(g_rocketSurfing);
@@ -11561,7 +11562,7 @@ void ClientCommand( int clientNum ) {
 	else if (!Q_stricmp(cmd, "vchl"))
 		Cmd_VchatList_f(ent);
 #endif
-	else if (!Q_stricmp(cmd, "use_pack") || !Q_stricmp(cmd, "use_jetpack"))
+	else if (!Q_stricmp(cmd, "use_pack"))
 		Cmd_UsePack_f(ent);
 	else if (!Q_stricmp(cmd, "use_dispenser") || !Q_stricmp(cmd, "use_ammo"))
 		Cmd_UseDispenser_f(ent);
