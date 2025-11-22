@@ -2360,7 +2360,7 @@ void TryUse( gentity_t *ent )
 		}
 	}
 
-	if (ent->client->jetPackOn && !ent->client->sess.usesJetpackToggleBind)
+	if (ent->client->jetPackOn && !ent->client->pers.usesJetpackToggleBind)
 	{ //can't use anything else to jp is off
 		goto tryJetPack;
 	}
@@ -2506,7 +2506,7 @@ void TryUse( gentity_t *ent )
 
 tryJetPack:
 	//if we got here, we didn't actually use anything else, so try to toggle jetpack if we are in the air, or if it is already on
-	if ((ent->client->ps.stats[STAT_HOLDABLE_ITEMS] & (1 << HI_JETPACK)) && !ent->client->sess.usesJetpackToggleBind)
+	if ((ent->client->ps.stats[STAT_HOLDABLE_ITEMS] & (1 << HI_JETPACK)) && !ent->client->pers.usesJetpackToggleBind)
 	{
 		if (ent->client->jetPackOn || ent->client->ps.groundEntityNum == ENTITYNUM_NONE)
 		{

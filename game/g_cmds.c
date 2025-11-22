@@ -8939,7 +8939,7 @@ void Cmd_UsePack_f(gentity_t *ent) {
 	ItemUse_Jetpack(ent);
 #endif
 
-	ent->client->sess.usesJetpackToggleBind = qtrue;
+	ent->client->pers.usesJetpackToggleBind = qtrue;
 }
 
 void Cmd_UseDispenser_f(gentity_t *ent) {

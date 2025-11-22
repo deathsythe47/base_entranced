@@ -799,8 +799,6 @@ typedef struct {
 		qboolean	wasFollowing;
 		int			followingClientNum;
 	} siegeFollowing;
-
-	qboolean usesJetpackToggleBind;
 } clientSession_t;
 
 // playerstate mGameFlags
@@ -899,6 +897,8 @@ typedef struct {
 
 	int			classChangeSentTime;
 	int			classChangeSentCount;
+
+	qboolean	usesJetpackToggleBind;
 } clientPersistant_t;
 
 typedef struct renderInfo_s
