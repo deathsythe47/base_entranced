@@ -3020,7 +3020,7 @@ void SP_func_breakable(gentity_t *self)
 	}
 
 	if (level.siegeMap == SIEGEMAP_NAR && !Q_stricmpn(self->target, "lastobj_lockdoor", 16)) {
-		self->health = 600;
+		self->health = 450;
 		self->healingteam = TEAM_BLUE;
 		self->healingrate = 250;
 		self->healingclass = G_NewString("Merc Technical Specialist");
