@@ -4891,7 +4891,7 @@ void ClientThink_real( gentity_t *ent ) {
 		case GENCMD_USE_JETPACK:
 			if (ent && ent->client && ent->client->emoted)
 				break;
-			if (ent->client->genCmdDebounce[GENCMD_DELAY_JETPACK] > level.time - 100)
+			if (ent->client->genCmdDebounce[GENCMD_DELAY_JETPACK] > level.time - (g_reduceJetpackToggleTime.integer ? 300 : 1000))
 				break;
 			ent->client->genCmdDebounce[GENCMD_DELAY_JETPACK] = level.time;
 			if ((ent->client->ps.stats[STAT_HOLDABLE_ITEMS] & (1 << HI_JETPACK))/* &&
