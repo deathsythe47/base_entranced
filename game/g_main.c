@@ -105,6 +105,8 @@ vmCvar_t	g_saberDefense1Angle;
 vmCvar_t	g_saberDefense2Angle;
 vmCvar_t	g_saberDefense3Angle;
 vmCvar_t	g_saberDefenseDebug;
+vmCvar_t	g_shoulderCheckNerf;
+vmCvar_t	g_saberDefenseShooterFovMatters;
 
 vmCvar_t	g_saberHitsToKillSentry;
 
@@ -845,6 +847,8 @@ static cvarTable_t		gameCvarTable[] = {
 	{ &g_saberDefense2Angle, "g_saberDefense2Angle", "30", 0, 0, qtrue },
 	{ &g_saberDefense3Angle, "g_saberDefense3Angle", "73", 0, 0, qtrue },
 	{ &g_saberDefenseDebug, "g_saberDefenseDebug", "0", 0, 0, qtrue },
+	{ &g_shoulderCheckNerf, "g_shoulderCheckNerf", "0", 0, 0, qtrue },
+	{ &g_saberDefenseShooterFovMatters, "g_saberDefenseShooterFovMatters", "0", 0, 0, qtrue },
 
 	{ &g_saberHitsToKillSentry, "g_saberHitsToKillSentry", "2", 0, 0, qtrue },
 

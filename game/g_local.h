@@ -2818,6 +2818,8 @@ extern	vmCvar_t	g_saberDefense1Angle;
 extern	vmCvar_t	g_saberDefense2Angle;
 extern	vmCvar_t	g_saberDefense3Angle;
 extern	vmCvar_t	g_saberDefenseDebug;
+extern	vmCvar_t	g_shoulderCheckNerf;
+extern	vmCvar_t	g_saberDefenseShooterFovMatters;
 
 extern	vmCvar_t	g_saberHitsToKillSentry;
 

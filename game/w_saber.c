@@ -9393,6 +9393,30 @@ int WP_SaberCanBlock(gentity_t *self, gentity_t* other, vec3_t point, int dflags
 				default: return 0;
 			}
 
+			const float dist = Distance(self->client->ps.origin, other->client->ps.origin);
+			float scale = -1;
+			if (g_shoulderCheckNerf.integer && other && other->client) {
+
+				const float maxDist = 80;
+				const float minDist = 32;
+				const float maxMultiplier = 1.333333333f;
+				const float angleCap = max(maxAngle, 90);
+
+				if (dist <= maxDist) {
+					float t = 1.0f;
+
+					if (dist > minDist)
+						t = (maxDist - dist) / (maxDist - minDist);
+
+					scale = 1.0f + (maxMultiplier - 1.0f) * t;
+					maxAngle *= scale;
+
+					// hard cap of 90
+					if (maxAngle > angleCap)
+						maxAngle = angleCap;
+				}
+			}
+
 			// allow footshots
 			float spotOnBody = self->client->ps.origin[2] - point[2];
 			if (spotOnBody >= 19.5f) {
@@ -9402,19 +9426,35 @@ int WP_SaberCanBlock(gentity_t *self, gentity_t* other, vec3_t point, int dflags
 				}
 			}
 
-			vec3_t subtractedAngles;
-			AnglesSubtract(other->client->ps.viewangles, self->client->ps.viewangles, subtractedAngles);
-			float angle = 180.0f - fabs(subtractedAngles[1]);
+			float angle;
+			if (g_saberDefenseShooterFovMatters.integer) {
+				vec3_t subtractedAngles;
+				AnglesSubtract(other->client->ps.viewangles, self->client->ps.viewangles, subtractedAngles);
+				angle = 180.0f - fabs(subtractedAngles[1]);
+			}
+			else {
+				vec3_t toSelf, dirToSelf;
+				VectorSubtract(self->client->ps.origin, other->client->ps.origin, toSelf);
+				VectorNormalize2(toSelf, dirToSelf);  // normalize into dirToSelf
 
-			if (g_saberDefenseDebug.integer)
-				trap_SendServerCommand( other - g_entities, va( "print \"Angle: %.2f\n\"", angle) );
+				vec3_t attackerYaw;
+				vectoangles(dirToSelf, attackerYaw); // get yaw from attacker to defender
+
+				vec3_t subtractedAngles;
+				AnglesSubtract(attackerYaw, self->client->ps.viewangles, subtractedAngles);
+				angle = 180.0f - fabs(subtractedAngles[1]);
+			}
 
 			// 100% block rate in range, 0% block rate otherwise
 			if (angle < maxAngle) {
+				if (g_saberDefenseDebug.integer)
+					PrintIngame(-1, "^2[^7Angle: %.2f.   Max: %.2f.   Dist: %.2f.   Scale: %s.^2]^7\n", angle, maxAngle, dist, scale == -1 ? "N/A" : va("%.2f", scale));
 				WP_SaberBlockNonRandom(self, point, projectile);
 				return 1;
 			}
 			else {
+				if (g_saberDefenseDebug.integer)
+					PrintIngame(-1, "^1[^7Angle: %.2f.   Max: %.2f.   Dist: %.2f.   Scale: %s.^1]^7\n", angle, maxAngle, dist, scale == -1 ? "N/A" : va("%.2f", scale));
 				return 0;
 			}
 		}
