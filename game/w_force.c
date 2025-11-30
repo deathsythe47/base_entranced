@@ -5965,6 +5965,10 @@ qboolean Jedi_DodgeEvasion( gentity_t *self, gentity_t *shooter, trace_t *tr, in
 		}
 	}
 
+	if (!g_friendlyFire.integer && shooter && shooter->client && self->client->sess.sessionTeam == shooter->client->sess.sessionTeam) {
+		return qfalse;
+	}
+
 	if ( self->client->ps.groundEntityNum == ENTITYNUM_NONE )
 	{//can't dodge in mid-air
 		return qfalse;
