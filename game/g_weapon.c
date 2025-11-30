@@ -1766,10 +1766,35 @@ static void WP_DisruptorMainFire( gentity_t *ent )
 			}
 
 			if (g_damageFixes.integer & DAMAGEFIXES_ROCKET_HP && g_gametype.integer == GT_SIEGE &&
-				VALIDSTRING(traceEnt->classname) && (!Q_stricmp(traceEnt->classname, "rocket_proj") || (!Q_stricmp(traceEnt->classname, "vehicle_proj") && traceEnt->s.weapon == WP_ROCKET_LAUNCHER)))
+				VALIDSTRING(traceEnt->classname) && (!Q_stricmp(traceEnt->classname, "rocket_proj") || (!Q_stricmp(traceEnt->classname, "vehicle_proj") && traceEnt->s.weapon == WP_ROCKET_LAUNCHER))) {
 				G_Damage( traceEnt, ent, ent, forward, tr.endpos, 9999999, DAMAGE_NORMAL, MOD_DISRUPTOR );
-			else
+			}
+			else {
+				if (g_disruptReverseFalloffNerf.integer && ent && ent->client && traceEnt && traceEnt->client) {
+					const float maxDist = 600;
+					const float minDist = 300;
+					const int damageAtMin = max(1, DISRUPTOR_MAIN_DAMAGE_SIEGE - 10);
+
+					const float dist = Distance(ent->client->ps.origin, traceEnt->client->ps.origin);
+					if (dist <= maxDist) {
+						float t = 1.0f;
+
+						if (dist > minDist)
+							t = (dist - minDist) / (maxDist - minDist);
+						else
+							t = 0.0f;
+
+						int scaledDamage = damageAtMin + (int)(((DISRUPTOR_MAIN_DAMAGE_SIEGE - damageAtMin) * t) + 0.5f);
+						damage = scaledDamage;
+					}
+
+					if (g_saberDefenseDebug.integer)
+						PrintIngame(-1, "Damage: %d   Dist: %.2f\n", damage, dist);
+				}
+
 				G_Damage(traceEnt, ent, ent, forward, tr.endpos, damage, DAMAGE_NORMAL, MOD_DISRUPTOR);
+			}
+
 			
 			tent = G_TempEntity( tr.endpos, EV_DISRUPTOR_HIT );
 			tent->s.eventParm = DirToByte( tr.plane.normal );

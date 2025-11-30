@@ -2321,7 +2321,7 @@ int TypesOfAmmoPlayerHasGunsFor(gentity_t *ent);
 //
 // g_weapon.c
 //
-#define DISRUPTOR_MAIN_DAMAGE_SIEGE		50
+#define DISRUPTOR_MAIN_DAMAGE_SIEGE		(g_disruptNerf.integer ? 40 : 50)
 void WP_FireTurretMissile( gentity_t *ent, vec3_t start, vec3_t dir, qboolean altFire, int damage, int velocity, int mod, gentity_t *ignore );
 void WP_FireGenericBlasterMissile( gentity_t *ent, vec3_t start, vec3_t dir, qboolean altFire, int damage, int velocity, int mod );
 qboolean LogAccuracyHit( gentity_t *target, gentity_t *attacker );
@@ -2820,6 +2820,8 @@ extern	vmCvar_t	g_saberDefense3Angle;
 extern	vmCvar_t	g_saberDefenseDebug;
 extern	vmCvar_t	g_shoulderCheckNerf;
 extern	vmCvar_t	g_saberDefenseShooterFovMatters;
+extern	vmCvar_t	g_disruptNerf;
+extern	vmCvar_t	g_disruptReverseFalloffNerf;
 
 extern	vmCvar_t	g_saberHitsToKillSentry;
 

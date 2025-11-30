@@ -9409,7 +9409,7 @@ int WP_SaberCanBlock(gentity_t *self, gentity_t* other, vec3_t point, int dflags
 						t = (maxDist - dist) / (maxDist - minDist);
 
 					scale = 1.0f + (maxMultiplier - 1.0f) * t;
-					maxAngle *= scale;
+					maxAngle = (float)((int)(maxAngle * scale + 0.5f));
 
 					// hard cap of 90
 					if (maxAngle > angleCap)

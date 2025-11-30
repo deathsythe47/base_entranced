@@ -107,6 +107,8 @@ vmCvar_t	g_saberDefense3Angle;
 vmCvar_t	g_saberDefenseDebug;
 vmCvar_t	g_shoulderCheckNerf;
 vmCvar_t	g_saberDefenseShooterFovMatters;
+vmCvar_t	g_disruptNerf;
+vmCvar_t	g_disruptReverseFalloffNerf;
 
 vmCvar_t	g_saberHitsToKillSentry;
 
@@ -849,6 +851,8 @@ static cvarTable_t		gameCvarTable[] = {
 	{ &g_saberDefenseDebug, "g_saberDefenseDebug", "0", 0, 0, qtrue },
 	{ &g_shoulderCheckNerf, "g_shoulderCheckNerf", "0", 0, 0, qtrue },
 	{ &g_saberDefenseShooterFovMatters, "g_saberDefenseShooterFovMatters", "0", 0, 0, qtrue },
+	{ &g_disruptNerf, "g_disruptNerf", "0", 0, 0, qtrue },
+	{ &g_disruptReverseFalloffNerf, "g_disruptReverseFalloffNerf", "0", 0, 0, qtrue },
 
 	{ &g_saberHitsToKillSentry, "g_saberHitsToKillSentry", "2", 0, 0, qtrue },
 
