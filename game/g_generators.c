@@ -181,6 +181,8 @@ void shield_power_converter_use(gentity_t *self, gentity_t *other, gentity_t *ac
 			self->activator = activator;
 
 			activator->client->ps.stats[STAT_ARMOR] += add;
+			if (activator->client->ps.stats[STAT_ARMOR] > 0)
+				activator->client->immuneFromDamageUntil = 0; // refresh armor tanking
 		}
 	}
 

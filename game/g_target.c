@@ -316,12 +316,21 @@ void Use_target_gear(gentity_t *ent, gentity_t *other, gentity_t *activator) {
 	}
 
 	if (doArmor) {
-		if (gearChange == GEARCHANGE_ADD)
+		if (gearChange == GEARCHANGE_ADD) {
 			activator->client->ps.stats[STAT_ARMOR] += armor;
-		else if (gearChange == GEARCHANGE_REMOVE)
+			if (activator->client->ps.stats[STAT_ARMOR] > 0)
+				activator->client->immuneFromDamageUntil = 0; // refresh armor tanking
+		}
+		else if (gearChange == GEARCHANGE_REMOVE) {
 			activator->client->ps.stats[STAT_ARMOR] -= armor;
-		else if (gearChange == GEARCHANGE_SET)
+			/*if (activator->client->ps.stats[STAT_ARMOR] > 0)
+				activator->client->immuneFromDamageUntil = 0; // refresh armor tanking*/
+		}
+		else if (gearChange == GEARCHANGE_SET) {
 			activator->client->ps.stats[STAT_ARMOR] = armor;
+			if (activator->client->ps.stats[STAT_ARMOR] > 0)
+				activator->client->immuneFromDamageUntil = 0; // refresh armor tanking
+		}
 		if (g_gametype.integer == GT_SIEGE && activator - g_entities < MAX_CLIENTS && activator->client->siegeClass != -1) {
 			if (activator->client->ps.stats[STAT_ARMOR] > bgSiegeClasses[activator->client->siegeClass].maxarmor)
 				activator->client->ps.stats[STAT_ARMOR] = bgSiegeClasses[activator->client->siegeClass].maxarmor;

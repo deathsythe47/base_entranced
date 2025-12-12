@@ -7325,6 +7325,8 @@ void G_RunFrame( int levelTime ) {
 					if (data->ps.fd.forcePowerDuration[i])
 						data->ps.fd.forcePowerDuration[i] += dt;
 				}
+				if (data->immuneFromDamageUntil)
+					data->immuneFromDamageUntil += dt;
 			}
 
 			static int accumulatedDt = 0;

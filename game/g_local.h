@@ -1277,6 +1277,8 @@ struct gclient_s {
 	int triesToSelfkillDuringPause;
 
 	int lastHealedSomeone;
+
+	int immuneFromDamageUntil;
 };
 
 #define NUM_TIMES_TRY_TO_SK_DURING_PAUSE	(5)
@@ -2408,6 +2410,7 @@ typedef struct {
 	int				triesToSelfkillDuringPause;
 	int				lastHealedSomeone;
 	qboolean		usesJetpackToggleBind;
+	int				immuneFromDamageUntil;
 } disconnectedPlayerData_t;
 qboolean RestoreDisconnectedPlayerData(gentity_t *ent);
 

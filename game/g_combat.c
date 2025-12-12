@@ -5482,6 +5482,28 @@ int G_Damage(gentity_t *targ, gentity_t *inflictor, gentity_t *attacker,
 			return 0; // only allow disruptor and demp mouse2
 	}
 
+	qboolean forceHugeShieldBubbleEffect = qfalse;
+	if (g_gametype.integer == GT_SIEGE && targ && targ->client && targ->client->sess.sessionTeam != TEAM_SPECTATOR && targ->client->siegeClass != -1 &&
+		mod != MOD_DEMP2 && mod != MOD_DEMP2_ALT &&
+		(bgSiegeClasses[targ->client->siegeClass].classflags & (1 << CFL_ARMORTANK)) &&
+		!(attacker && attacker->client && attacker->client->sess.sessionTeam == targ->client->sess.sessionTeam) &&
+		!(inflictor && inflictor->projectileTeam == targ->client->sess.sessionTeam)) {
+#define ARMORTANK_DAMAGEIMMUNITY_TIME	(300)
+		if (!targ->client->immuneFromDamageUntil) {
+			// first instance of damage
+			if (targ->client->ps.stats[STAT_ARMOR] > 0) {
+				targ->client->immuneFromDamageUntil = level.time + ARMORTANK_DAMAGEIMMUNITY_TIME;
+				damage = targ->client->ps.stats[STAT_ARMOR];
+				dflags |= (DAMAGE_NO_HIT_LOC | DAMAGE_NO_KNOCKBACK);
+				forceHugeShieldBubbleEffect = qtrue;
+			}
+		}
+		else if (level.time < targ->client->immuneFromDamageUntil) {
+			// not first instance, but still within the threshold time
+			return 0;
+		}
+	}
+
 	if (g_gametype.integer == GT_SIEGE && mod == MOD_SABER &&
 		targ && targ->client && targ - g_entities < MAX_CLIENTS &&
 		attacker && attacker->client && attacker - g_entities < MAX_CLIENTS &&
@@ -6166,8 +6188,18 @@ int G_Damage(gentity_t *targ, gentity_t *inflictor, gentity_t *attacker,
 	}
 	take = damage;
 
+	qboolean canAffectArmor = qtrue;
+	// don't let e.g. self damage or fall damage take away armor
+	if (g_gametype.integer == GT_SIEGE && targ && targ->client && targ->client->sess.sessionTeam != TEAM_SPECTATOR && targ->client->siegeClass != -1 &&
+		(bgSiegeClasses[targ->client->siegeClass].classflags & (1 << CFL_ARMORTANK)) && /*targ->client->ps.stats[STAT_ARMOR] > 0 &&*/
+		(mod == MOD_DEMP2 || mod == MOD_DEMP2_ALT ||
+		(attacker && attacker->client && attacker->client->sess.sessionTeam == targ->client->sess.sessionTeam) ||
+		(inflictor && inflictor->projectileTeam == targ->client->sess.sessionTeam))) {
+		canAffectArmor = qfalse;
+	}
+
 	// save some from armor
-	if (take > 0)
+	if (take > 0 && canAffectArmor)
 		asave = CheckArmor(targ, take, dflags);
 	else
 		asave = 0;
@@ -6543,10 +6575,13 @@ int G_Damage(gentity_t *targ, gentity_t *inflictor, gentity_t *attacker,
 		} else {
 			client->ps.persistant[PERS_ATTACKER] = ENTITYNUM_WORLD;
 		}
-		client->damage_armor += asave;
+		if (forceHugeShieldBubbleEffect)
+			client->damage_armor = 255;
+		else
+			client->damage_armor += asave;
 		client->damage_blood += take;
 		client->damage_knockback += knockback;
-		if ( dir ) {
+		if ( dir && !forceHugeShieldBubbleEffect) {
 			VectorCopy ( dir, client->damage_from );
 			client->damage_fromWorld = qfalse;
 		} else {

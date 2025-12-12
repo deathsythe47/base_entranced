@@ -5633,7 +5633,8 @@ void ClientEndFrame( gentity_t *ent ) {
 			if (ent->client->ps.fd.forcePowerDuration[i])
 				ent->client->ps.fd.forcePowerDuration[i] += time_delta;
 		}
-			
+		if (ent->client->immuneFromDamageUntil)
+			ent->client->immuneFromDamageUntil += time_delta;
     }
 
 

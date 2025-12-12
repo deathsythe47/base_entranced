@@ -5192,6 +5192,7 @@ qboolean RestoreDisconnectedPlayerData(gentity_t *ent) {
 	ent->client->triesToChangeClassDuringPauseToThisClass = data->triesToChangeClassDuringPauseToThisClass;
 	ent->client->lastHealedSomeone = data->lastHealedSomeone;
 	ent->client->pers.usesJetpackToggleBind = data->usesJetpackToggleBind;
+	ent->client->immuneFromDamageUntil = data->immuneFromDamageUntil;
 	
 	BG_PlayerStateToEntityState(&ent->client->ps, &ent->s, qfalse);
 
@@ -5368,6 +5369,7 @@ void ClientDisconnect( int clientNum ) {
 			data->triesToChangeClassDuringPauseToThisClass = ent->client->triesToChangeClassDuringPauseToThisClass;
 			data->lastHealedSomeone = ent->client->lastHealedSomeone;
 			data->usesJetpackToggleBind = ent->client->pers.usesJetpackToggleBind;
+			data->immuneFromDamageUntil = ent->client->immuneFromDamageUntil;
 		}
 	}
 
