@@ -1770,10 +1770,16 @@ static void WP_DisruptorMainFire( gentity_t *ent )
 				G_Damage( traceEnt, ent, ent, forward, tr.endpos, 9999999, DAMAGE_NORMAL, MOD_DISRUPTOR );
 			}
 			else {
-				if (g_disruptReverseFalloffNerf.integer && ent && ent->client && traceEnt && traceEnt->client) {
+				if (traceEnt && traceEnt->client && traceEnt->client->siegeClass != -1 &&
+					(!Q_stricmp(bgSiegeClasses[traceEnt->client->siegeClass].name, "Bounty Hunter") || (bgSiegeClasses[traceEnt->client->siegeClass].classflags & (1 << CFL_TAKESPRENERFDISRUPTDMG)))) {
+					damage = DISRUPTOR_MAIN_DAMAGE_SIEGE;
+				}
+
+				if (g_disruptReverseFalloffNerf.integer && ent && ent->client && traceEnt && traceEnt->client &&
+					!(traceEnt->client->siegeClass != -1 && ((bgSiegeClasses[traceEnt->client->siegeClass].classflags & (1 << CFL_TAKESPRENERFDISRUPTDMG)) || (bgSiegeClasses[traceEnt->client->siegeClass].classflags & (1 << CFL_NODISRUPTFALLOFF))))) {
 					const float maxDist = 600;
 					const float minDist = 300;
-					const int damageAtMin = max(1, DISRUPTOR_MAIN_DAMAGE_SIEGE - 10);
+					const int damageAtMin = max(1, damage - 10/*abs(g_disruptReverseFalloffNerf.integer)*/);
 
 					const float dist = Distance(ent->client->ps.origin, traceEnt->client->ps.origin);
 					if (dist <= maxDist) {
@@ -1784,7 +1790,7 @@ static void WP_DisruptorMainFire( gentity_t *ent )
 						else
 							t = 0.0f;
 
-						int scaledDamage = damageAtMin + (int)(((DISRUPTOR_MAIN_DAMAGE_SIEGE - damageAtMin) * t) + 0.5f);
+						int scaledDamage = damageAtMin + (int)(((damage - damageAtMin) * t) + 0.5f);
 						damage = scaledDamage;
 					}
 

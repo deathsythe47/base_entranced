@@ -8197,6 +8197,8 @@ static char *GenerateSiegeClassDescription(siegeClass_t *scl) {
 			case CFL_SMALLSHIELD:			AddDesc(", ^3Small Shield^7");						break;
 			case CFL_BIGSMALLSHIELD:		AddDesc(", ^3Big Small Shield^7");						break;
 			case CFL_EXPLOSIVESENTRY:		AddDesc(", ^3Explosive Sentry^7");						break;
+			case CFL_TAKESPRENERFDISRUPTDMG:	AddDesc(", ^3Takes pre-nerf disrupt damage^7");			break;
+			case CFL_NODISRUPTFALLOFF:	AddDesc(", ^3Not subject to disrupt damage falloff^7");			break;
 			}
 		}
 	}
