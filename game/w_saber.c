@@ -9400,7 +9400,7 @@ int WP_SaberCanBlock(gentity_t *self, gentity_t* other, vec3_t point, int dflags
 				const float maxDist = 80;
 				const float minDist = 32;
 				const float maxMultiplier = 1.333333333f;
-				const float angleCap = max(maxAngle, 90);
+				const float angleCap = maxAngle > 90 ? maxAngle : 90;
 
 				if (dist <= maxDist) {
 					float t = 1.0f;

@@ -1779,7 +1779,9 @@ static void WP_DisruptorMainFire( gentity_t *ent )
 					!(traceEnt->client->siegeClass != -1 && ((bgSiegeClasses[traceEnt->client->siegeClass].classflags & (1 << CFL_TAKESPRENERFDISRUPTDMG)) || (bgSiegeClasses[traceEnt->client->siegeClass].classflags & (1 << CFL_NODISRUPTFALLOFF))))) {
 					const float maxDist = 600;
 					const float minDist = 300;
-					const int damageAtMin = max(1, damage - 10/*abs(g_disruptReverseFalloffNerf.integer)*/);
+					int damageAtMin = damage - 5;
+					if (damageAtMin < 1)
+						damageAtMin = 1;
 
 					const float dist = Distance(ent->client->ps.origin, traceEnt->client->ps.origin);
 					if (dist <= maxDist) {
