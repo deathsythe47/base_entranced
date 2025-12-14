@@ -2323,6 +2323,7 @@ int TypesOfAmmoPlayerHasGunsFor(gentity_t *ent);
 //
 // g_weapon.c
 //
+#define DISRUPTOR_MAIN_DAMAGE_SIEGE_NONERF		(50)
 #define DISRUPTOR_MAIN_DAMAGE_SIEGE		(g_disruptNerf.integer ? 40 : 50)
 void WP_FireTurretMissile( gentity_t *ent, vec3_t start, vec3_t dir, qboolean altFire, int damage, int velocity, int mod, gentity_t *ignore );
 void WP_FireGenericBlasterMissile( gentity_t *ent, vec3_t start, vec3_t dir, qboolean altFire, int damage, int velocity, int mod );

@@ -1769,10 +1769,14 @@ static void WP_DisruptorMainFire( gentity_t *ent )
 				VALIDSTRING(traceEnt->classname) && (!Q_stricmp(traceEnt->classname, "rocket_proj") || (!Q_stricmp(traceEnt->classname, "vehicle_proj") && traceEnt->s.weapon == WP_ROCKET_LAUNCHER))) {
 				G_Damage( traceEnt, ent, ent, forward, tr.endpos, 9999999, DAMAGE_NORMAL, MOD_DISRUPTOR );
 			}
+			else if (g_gametype.integer == GT_SIEGE && !(traceEnt && traceEnt - g_entities < MAX_CLIENTS && traceEnt->client && traceEnt->client->sess.sessionTeam == OtherTeam(ent->client->sess.sessionTeam))) {
+				damage = DISRUPTOR_MAIN_DAMAGE_SIEGE_NONERF;
+				G_Damage(traceEnt, ent, ent, forward, tr.endpos, damage, DAMAGE_NORMAL, MOD_DISRUPTOR);
+			}
 			else {
 				if (traceEnt && traceEnt->client && traceEnt->client->siegeClass != -1 &&
 					(!Q_stricmp(bgSiegeClasses[traceEnt->client->siegeClass].name, "Bounty Hunter") || (bgSiegeClasses[traceEnt->client->siegeClass].classflags & (1 << CFL_TAKESPRENERFDISRUPTDMG)))) {
-					damage = DISRUPTOR_MAIN_DAMAGE_SIEGE;
+					damage = DISRUPTOR_MAIN_DAMAGE_SIEGE_NONERF;
 				}
 
 				if (g_disruptReverseFalloffNerf.integer && ent && ent->client && traceEnt && traceEnt->client &&
