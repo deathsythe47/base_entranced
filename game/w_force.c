@@ -611,7 +611,8 @@ void WP_SpawnInitForcePowers( gentity_t *ent )
 
 		i++;
 	}
-
+	ent->client->ps.fd.forcePowersActive = 0; // duo: sanity check
+	ent->client->ps.saberInFlight = qfalse; // duo: sanity check
 	ent->client->ps.fd.forceDeactivateAll = 0;
 
 	ent->client->ps.fd.forcePower = ent->client->ps.fd.forcePowerMax = FORCE_POWER_MAX;
@@ -5820,6 +5821,38 @@ void WP_ForcePowersUpdate( gentity_t *self, usercmd_t *ucmd )
 	int forcePowersActive = self->client->ps.fd.forcePowersActive;
 	if (self->client->sess.senseBoost && g_gametype.integer == GT_SIEGE && self->client->siegeClass != -1 && !bgSiegeClasses[self->client->siegeClass].forcePowerLevels[FP_SEE])
 		forcePowersActive &= ~(1 << FP_SEE);
+	if (d_debugRegen.integer == self - g_entities) {
+		G_LogPrintf("[DebugRegen %d] %d %d %d %d %d %d %d %d %d %d %d",
+			self - g_entities,
+			forcePowersActive,
+			self->client->ps.fd.forcePowersActive,
+			self->client->ps.m_iVehicleNum,
+			self->client->ps.saberInFlight,
+			g_improvedDisarm.integer,
+			self->client->ps.saberEntityNum,
+			self->client->ps.fd.forcePowerRegenDebounceTime,
+			level.time,
+			self->client->ps.weapon,
+			self->client->ps.saberMove,
+			BG_SaberInSpecial(self->client->ps.saberMove)
+		);
+		if (d_debugRegenPrintIngameClient.integer >= 0 && d_debugRegenPrintIngameClient.integer < MAX_CLIENTS) {
+			PrintIngame(d_debugRegenPrintIngameClient.integer, "[DebugRegen %d] %d %d %d %d %d %d %d %d %d %d %d",
+				self - g_entities,
+				forcePowersActive,
+				self->client->ps.fd.forcePowersActive,
+				self->client->ps.m_iVehicleNum,
+				self->client->ps.saberInFlight,
+				g_improvedDisarm.integer,
+				self->client->ps.saberEntityNum,
+				self->client->ps.fd.forcePowerRegenDebounceTime,
+				level.time,
+				self->client->ps.weapon,
+				self->client->ps.saberMove,
+				BG_SaberInSpecial(self->client->ps.saberMove)
+			);
+		}
+	}
 	if (!forcePowersActive ||
 		self->client->ps.fd.forcePowersActive == (1 << FP_DRAIN) ||
 		(self->client->ps.fd.forcePowersActive == (1 << FP_LEVITATION) && self->client->ps.m_iVehicleNum))

@@ -5622,8 +5622,10 @@ void ClientEndFrame( gentity_t *ent ) {
 			ent->client->homingLockTime += time_delta;
 		if (ent->client->lastHealedSomeone)
 			ent->client->lastHealedSomeone += time_delta;
-        ent->pain_debounce_time += time_delta;
-        ent->client->ps.fd.forcePowerRegenDebounceTime += time_delta;
+		if (ent->pain_debounce_time)
+		   ent->pain_debounce_time += time_delta;
+		if (ent->client->ps.fd.forcePowerRegenDebounceTime)
+			ent->client->ps.fd.forcePowerRegenDebounceTime += time_delta;
 		if (ent->client->tempSpectate)
 		{
 			ent->client->tempSpectate += time_delta;

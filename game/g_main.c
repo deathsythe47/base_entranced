@@ -278,6 +278,8 @@ vmCvar_t	g_damageFixes;
 vmCvar_t	g_healWalkerWithAmmoCans;
 vmCvar_t	g_unlagged;
 vmCvar_t	g_friendlyFreeze;
+vmCvar_t	d_debugRegen;
+vmCvar_t	d_debugRegenPrintIngameClient;
 #ifdef _DEBUG
 vmCvar_t	g_unlaggedMaxCompensation;
 vmCvar_t	g_unlaggedSkeletonTime;
@@ -1266,6 +1268,8 @@ static cvarTable_t		gameCvarTable[] = {
 	{ &g_healWalkerWithAmmoCans, "g_healWalkerWithAmmoCans", "0", CVAR_ARCHIVE, 0, qtrue },
 	{ &g_friendlyFreeze, "g_friendlyFreeze", "0", CVAR_ARCHIVE, 0, qtrue },
 	{ &g_fixLiftkillTraps, "g_fixLiftkillTraps", "1", CVAR_ARCHIVE, 0, qtrue },
+	{ &d_debugRegen, "d_debugRegen", "-1", CVAR_ARCHIVE, 0, qfalse },
+	{ &d_debugRegenPrintIngameClient, "d_debugRegenPrintIngameClient", "-1", CVAR_ARCHIVE, 0, qfalse },
 
 	{ &lastMapName, "lastMapName", "", CVAR_ARCHIVE | CVAR_ROM, 0, qtrue },
 
@@ -7318,7 +7322,8 @@ void G_RunFrame( int levelTime ) {
 					data->homingLockTime += dt;
 				if (data->lastHealedSomeone)
 					data->lastHealedSomeone += dt;
-				data->ps.fd.forcePowerRegenDebounceTime += dt;
+				if (data->ps.fd.forcePowerRegenDebounceTime)
+					data->ps.fd.forcePowerRegenDebounceTime += dt;
 				if (data->tempSpectate)
 					data->tempSpectate += dt;
 				for (int i = 0; i < NUM_FORCE_POWERS; ++i) {

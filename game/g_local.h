@@ -3195,6 +3195,8 @@ extern vmCvar_t		g_damageFixes;
 extern vmCvar_t		g_healWalkerWithAmmoCans;
 extern vmCvar_t    g_unlagged;
 extern vmCvar_t		g_friendlyFreeze;
+extern vmCvar_t		d_debugRegen;
+extern vmCvar_t		d_debugRegenPrintIngameClient;
 #ifdef _DEBUG
 extern vmCvar_t    g_unlaggedMaxCompensation;
 extern vmCvar_t	   g_unlaggedSkeletonTime;
