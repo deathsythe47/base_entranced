@@ -1121,7 +1121,7 @@ static void WP_FireBryarPistol( gentity_t *ent, qboolean altFire )
 	// we don't want it to bounce forever
 	missile->bounceCount = 8;
 
-	if (ent && ent->client && !g_friendlyFire.integer && g_gametype.integer == GT_SIEGE)
+	if (ent && ent->client && !g_friendlyFire.integer && g_gametype.integer == GT_SIEGE && level.wasRestarted)
 		missile->projectileTeam = ent->client->sess.sessionTeam;
 }
 
@@ -1156,7 +1156,7 @@ void WP_FireTurretMissile( gentity_t *ent, vec3_t start, vec3_t dir, qboolean al
 
 	// we don't want it to bounce forever
 	missile->bounceCount = 8;
-	if (ent && ent->client && !g_friendlyFire.integer && g_gametype.integer == GT_SIEGE)
+	if (ent && ent->client && !g_friendlyFire.integer && g_gametype.integer == GT_SIEGE && level.wasRestarted)
 		missile->projectileTeam = ent->client->sess.sessionTeam;
 }
 
@@ -1180,7 +1180,7 @@ void WP_FireGenericBlasterMissile( gentity_t *ent, vec3_t start, vec3_t dir, qbo
 
 	// we don't want it to bounce forever
 	missile->bounceCount = 8;
-	if (ent && ent->client && !g_friendlyFire.integer && g_gametype.integer == GT_SIEGE)
+	if (ent && ent->client && !g_friendlyFire.integer && g_gametype.integer == GT_SIEGE && level.wasRestarted)
 		missile->projectileTeam = ent->client->sess.sessionTeam;
 }
 
@@ -1217,7 +1217,7 @@ void WP_FireBlasterMissile( gentity_t *ent, vec3_t start, vec3_t dir, qboolean a
 
 	// we don't want it to bounce forever
 	missile->bounceCount = 8;
-	if (ent && ent->client && !g_friendlyFire.integer && g_gametype.integer == GT_SIEGE)
+	if (ent && ent->client && !g_friendlyFire.integer && g_gametype.integer == GT_SIEGE && level.wasRestarted)
 		missile->projectileTeam = ent->client->sess.sessionTeam;
 }
 
@@ -1256,7 +1256,7 @@ void WP_FireTurboLaserMissile( gentity_t *ent, vec3_t start, vec3_t dir )
 	missile->think = G_FreeEntity;
 	missile->nextthink = level.time + 5000;//at 20000 speed, that should be more than enough
 
-	if (ent && ent->client && !g_friendlyFire.integer && g_gametype.integer == GT_SIEGE)
+	if (ent && ent->client && !g_friendlyFire.integer && g_gametype.integer == GT_SIEGE && level.wasRestarted)
 		missile->projectileTeam = ent->client->sess.sessionTeam;
 }
 
@@ -1288,7 +1288,7 @@ void WP_FireEmplacedMissile( gentity_t *ent, vec3_t start, vec3_t dir, qboolean 
 	// we don't want it to bounce forever
 	missile->bounceCount = 8;
 
-	if (ent && ent->client && !g_friendlyFire.integer && g_gametype.integer == GT_SIEGE)
+	if (ent && ent->client && !g_friendlyFire.integer && g_gametype.integer == GT_SIEGE && level.wasRestarted)
 		missile->projectileTeam = ent->client->sess.sessionTeam;
 }
 
@@ -2358,7 +2358,7 @@ static void WP_BowcasterAltFire( gentity_t *ent )
 	missile->flags |= FL_BOUNCE;
 	missile->bounceCount = 3;
 
-	if (ent && ent->client && !g_friendlyFire.integer && g_gametype.integer == GT_SIEGE)
+	if (ent && ent->client && !g_friendlyFire.integer && g_gametype.integer == GT_SIEGE && level.wasRestarted)
 		missile->projectileTeam = ent->client->sess.sessionTeam;
 }
 
@@ -2454,7 +2454,7 @@ static void WP_BowcasterMainFire( gentity_t *ent )
 		// we don't want it to bounce
 		missile->bounceCount = 0;
 
-		if (ent && ent->client && !g_friendlyFire.integer && g_gametype.integer == GT_SIEGE)
+		if (ent && ent->client && !g_friendlyFire.integer && g_gametype.integer == GT_SIEGE && level.wasRestarted)
 			missile->projectileTeam = ent->client->sess.sessionTeam;
 
 	}
@@ -2503,7 +2503,7 @@ static void WP_RepeaterMainFire( gentity_t *ent, vec3_t dir )
 	// we don't want it to bounce forever
 	missile->bounceCount = 8;
 
-	if (ent && ent->client && !g_friendlyFire.integer && g_gametype.integer == GT_SIEGE)
+	if (ent && ent->client && !g_friendlyFire.integer && g_gametype.integer == GT_SIEGE && level.wasRestarted)
 		missile->projectileTeam = ent->client->sess.sessionTeam;
 
 }
@@ -2545,7 +2545,7 @@ static void WP_RepeaterAltFire( gentity_t *ent )
 	// we don't want it to bounce forever
 	missile->bounceCount = 8;
 
-	if (ent && ent->client && !g_friendlyFire.integer && g_gametype.integer == GT_SIEGE)
+	if (ent && ent->client && !g_friendlyFire.integer && g_gametype.integer == GT_SIEGE && level.wasRestarted)
 		missile->projectileTeam = ent->client->sess.sessionTeam;
 
 }
@@ -2602,7 +2602,7 @@ static void WP_DEMP2_MainFire( gentity_t *ent )
 	// we don't want it to ever bounce
 	missile->bounceCount = 0;
 
-	if (ent && ent->client && !g_friendlyFire.integer && g_gametype.integer == GT_SIEGE)
+	if (ent && ent->client && !g_friendlyFire.integer && g_gametype.integer == GT_SIEGE && level.wasRestarted)
 		missile->projectileTeam = ent->client->sess.sessionTeam;
 }
 
@@ -2901,7 +2901,7 @@ static void WP_DEMP2_AltFire( gentity_t *ent )
 	// we don't want it to ever bounce
 	missile->bounceCount = 0;
 
-	if (ent && ent->client && !g_friendlyFire.integer && g_gametype.integer == GT_SIEGE)
+	if (ent && ent->client && !g_friendlyFire.integer && g_gametype.integer == GT_SIEGE && level.wasRestarted)
 		missile->projectileTeam = ent->client->sess.sessionTeam;
 }
 
@@ -2988,7 +2988,7 @@ static void WP_FlechetteMainFire( gentity_t *ent )
 
 		missile->flags |= FL_BOUNCE_SHRAPNEL;
 
-		if (ent && ent->client && !g_friendlyFire.integer && g_gametype.integer == GT_SIEGE)
+		if (ent && ent->client && !g_friendlyFire.integer && g_gametype.integer == GT_SIEGE && level.wasRestarted)
 			missile->projectileTeam = ent->client->sess.sessionTeam;
 
 	}
@@ -3126,7 +3126,7 @@ static void WP_CreateFlechetteBouncyThing( vec3_t start, vec3_t fwd, gentity_t *
 
 	VectorCopy( start, missile->pos2 );
 
-	if (self && self->client && !g_friendlyFire.integer && g_gametype.integer == GT_SIEGE)
+	if (self && self->client && !g_friendlyFire.integer && g_gametype.integer == GT_SIEGE && level.wasRestarted)
 		missile->projectileTeam = self->client->sess.sessionTeam;
 }
 
@@ -3465,7 +3465,7 @@ static void WP_FireRocket( gentity_t *ent, qboolean altFire )
 	// duo: fix clientside prediction when running into your own rocket
 	missile->s.genericenemyindex = ent->s.number + MAX_GENTITIES;
 
-	if (ent && ent->client && !g_friendlyFire.integer && g_gametype.integer == GT_SIEGE)
+	if (ent && ent->client && !g_friendlyFire.integer && g_gametype.integer == GT_SIEGE && level.wasRestarted)
 		missile->projectileTeam = ent->client->sess.sessionTeam;
 }
 
@@ -3695,7 +3695,7 @@ gentity_t *WP_FireThermalDetonator(gentity_t *ent, qboolean altFire)
 
 	bolt->bounceCount = -5;
 
-	if (ent && ent->client && !g_friendlyFire.integer && g_gametype.integer == GT_SIEGE)
+	if (ent && ent->client && !g_friendlyFire.integer && g_gametype.integer == GT_SIEGE && level.wasRestarted)
 		bolt->projectileTeam = ent->client->sess.sessionTeam;
 
 	return bolt;
@@ -4178,7 +4178,7 @@ void CreateLaserTrap(gentity_t *laserTrap, vec3_t start, gentity_t *owner, qbool
 	laserTrap->touch = touchLaserTrap;
 	laserTrap->think = TrapThink;
 	laserTrap->nextthink = level.time + 50;
-	if (owner && owner->client && !g_friendlyFire.integer && g_gametype.integer == GT_SIEGE)
+	if (owner && owner->client && !g_friendlyFire.integer && g_gametype.integer == GT_SIEGE && level.wasRestarted)
 		laserTrap->projectileTeam = owner->client->sess.sessionTeam;
 }
 
@@ -4545,7 +4545,7 @@ void drop_charge (gentity_t *self, vec3_t start, vec3_t dir)
 
 	bolt->originalYaw = self && self->client ? self->client->ps.viewangles[YAW] : 0;
 
-	if (self && self->client && !g_friendlyFire.integer && g_gametype.integer == GT_SIEGE)
+	if (self && self->client && !g_friendlyFire.integer && g_gametype.integer == GT_SIEGE && level.wasRestarted)
 		bolt->projectileTeam = self->client->sess.sessionTeam;
 
 	trap_LinkEntity(bolt);
@@ -4999,7 +4999,7 @@ static void WP_FireConcussion( gentity_t *ent )
 	// we don't want it to ever bounce
 	missile->bounceCount = 0;
 
-	if (ent && ent->client && !g_friendlyFire.integer && g_gametype.integer == GT_SIEGE)
+	if (ent && ent->client && !g_friendlyFire.integer && g_gametype.integer == GT_SIEGE && level.wasRestarted)
 		missile->projectileTeam = ent->client->sess.sessionTeam;
 }
 
@@ -6083,7 +6083,7 @@ void FireVehicleWeapon( gentity_t *ent, qboolean alt_fire )
 												
 						missile = WP_FireVehicleWeapon( ent, start, dir, vehWeapon, alt_fire, qfalse );
 						if (missile) {
-							if (ent && ent->lastPilot && ent->lastPilot->client && !g_friendlyFire.integer && g_gametype.integer == GT_SIEGE)
+							if (ent && ent->lastPilot && ent->lastPilot->client && !g_friendlyFire.integer && g_gametype.integer == GT_SIEGE && level.wasRestarted)
 								missile->projectileTeam = ent->lastPilot->client->sess.sessionTeam;
 						}
 						if ( vehWeapon->fHoming )
