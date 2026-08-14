@@ -3340,6 +3340,9 @@ void G_BroadcastServerFeatureList( int clientNum ) {
 	if (g_fixReconnectCorpses.integer)
 		Q_strcat(featureListConfigString, sizeof(featureListConfigString), "frc ");
 
+	if (g_fixDemp.integer)
+		Q_strcat(featureListConfigString, sizeof(featureListConfigString), "fxdm ");
+
 	trap_SetConfigstring(CS_SERVERFEATURELIST, featureListConfigString);
 
 	static char locationsListConfigString[MAX_TOKEN_CHARS] = { 0 };

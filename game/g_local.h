@@ -2996,6 +2996,7 @@ extern vmCvar_t		g_fixDisruptDuel;
 extern vmCvar_t		g_fixReconnectCorpses;
 
 extern vmCvar_t		g_fixWeaponChargeTime;
+extern vmCvar_t		g_fixDemp;
 
 extern vmCvar_t		g_fixRoll;
 

@@ -655,6 +655,7 @@ vmCvar_t	g_fixDisruptDuel;
 vmCvar_t	g_fixReconnectCorpses;
 
 vmCvar_t	g_fixWeaponChargeTime;
+vmCvar_t	g_fixDemp;
 
 vmCvar_t	g_fixRoll;
 
@@ -1060,6 +1061,7 @@ static cvarTable_t		gameCvarTable[] = {
 	{ &g_fixReconnectCorpses,	"g_fixReconnectCorpses"		, "1"	, CVAR_ARCHIVE | CVAR_LATCH, 0, qtrue },
 
 	{ &g_fixWeaponChargeTime,	"g_fixWeaponChargeTime"	, "0"	, CVAR_ARCHIVE, 0, qtrue },
+	{ &g_fixDemp,	"g_fixDemp"	, "1"	, CVAR_ARCHIVE | CVAR_LATCH, 0, qtrue },
 
 	{ &g_fixRoll,	"g_fixRoll"		, "1"	, CVAR_ARCHIVE, 0, qtrue },
 

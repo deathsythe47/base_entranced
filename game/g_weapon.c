@@ -2608,43 +2608,33 @@ static void WP_DEMP2_MainFire( gentity_t *ent )
 
 static gentity_t *ent_list[MAX_GENTITIES];
 
-void DEMP2_AltRadiusDamage( gentity_t *missile )
+/*
+	How far the shockwave has spread is a function of elapsed time, but the think that applies it
+	can only fire on a server frame boundary. Unless the frame interval divides the 50ms think
+	period, the passes land somewhere other than the 50ms marks stock sv_fps 20 produces: fewer
+	of them, and a last one that fires late. Radius is the cube of elapsed time, so late in time
+	is a lot further in reach - a 30fps server runs 13 passes ending at 858ms and reaches 246
+	units on the smallest charge instead of 200, while hitting for less up close because it lost
+	three of the passes that land while the wave is still crawling.
+
+	g_fixDemp replays sv_fps 20's schedule instead: one pass per elapsed 50ms step, at most
+	DEMP2_ALT_STEPS of them, so reach and hit count come out the same at any tick rate.
+	genericValue7 is the last step already applied. A target that moves between two real thinks
+	is evaluated at its current position for every step replayed in that think, which only
+	matters when the server cannot manage a think per step.
+*/
+#define DEMP2_ALT_STEP_MSEC		50		// the think interval, and sv_fps 20's frame interval
+#define DEMP2_ALT_STEPS			16		// 800ms of growth, in DEMP2_ALT_STEP_MSEC steps
+
+static void DEMP2_AltDamagePass( gentity_t *missile, gentity_t *myOwner, float radius )
 {
-	float		frac = ( level.time - missile->genericValue5 ) / 800.0f;
-	float		dist, radius, fact;
+	float		dist;
 	gentity_t	*gent;
 	int			iEntityList[MAX_GENTITIES];
 	gentity_t	*entityList[MAX_GENTITIES];
-	gentity_t	*myOwner = NULL;
 	int			numListedEntities, i, e;
 	vec3_t		mins, maxs;
 	vec3_t		v, dir;
-
-	if (missile->r.ownerNum >= 0 &&
-		missile->r.ownerNum < /*MAX_CLIENTS ... let npc's/shooters use it*/MAX_GENTITIES)
-	{
-		myOwner = &g_entities[missile->r.ownerNum];
-	}
-
-	if (!myOwner || !myOwner->inuse || !myOwner->client)
-	{
-		missile->think = G_FreeEntity;
-		missile->nextthink = level.time;
-		return;
-	}
-
-	frac *= frac * frac; // yes, this is completely ridiculous...but it causes the shell to grow slowly then "explode" at the end
-	
-	radius = frac * 200.0f; // 200 is max radius...the model is aprox. 100 units tall...the fx draw code mults. this by 2.
-
-	fact = missile->count*0.6;
-
-	if (fact < 1)
-	{
-		fact = 1;
-	}
-
-	radius *= fact;
 
 	for ( i = 0 ; i < 3 ; i++ ) 
 	{
@@ -2767,11 +2757,77 @@ void DEMP2_AltRadiusDamage( gentity_t *missile )
 
 	// store the last fraction so that next time around we can test against those things that fall between that last point and where the current shockwave edge is
 	missile->genericValue6 = radius;
+}
 
-	if ( frac < 1.0f )
+void DEMP2_AltRadiusDamage( gentity_t *missile )
+{
+	float		frac = 0.0f;
+	float		radius, fact;
+	gentity_t	*myOwner = NULL;
+	qboolean	fixed;
+	int			step, lastStep;
+
+	if (missile->r.ownerNum >= 0 &&
+		missile->r.ownerNum < /*MAX_CLIENTS ... let npc's/shooters use it*/MAX_GENTITIES)
+	{
+		myOwner = &g_entities[missile->r.ownerNum];
+	}
+
+	if (!myOwner || !myOwner->inuse || !myOwner->client)
+	{
+		missile->think = G_FreeEntity;
+		missile->nextthink = level.time;
+		return;
+	}
+
+	fact = missile->count*0.6;
+
+	if (fact < 1)
+	{
+		fact = 1;
+	}
+
+	fixed = g_fixDemp.integer ? qtrue : qfalse;
+
+	if ( fixed )
+	{
+		lastStep = ( level.time - missile->genericValue5 ) / DEMP2_ALT_STEP_MSEC;
+		if ( lastStep > DEMP2_ALT_STEPS )
+		{
+			lastStep = DEMP2_ALT_STEPS;
+		}
+		step = missile->genericValue7 + 1;
+	}
+	else
+	{
+		step = lastStep = 0; // a single pass, timed off whenever this think happened to fire
+	}
+
+	for ( ; step <= lastStep ; step++ )
+	{
+		if ( fixed )
+		{
+			missile->genericValue7 = step;
+			frac = ( step * DEMP2_ALT_STEP_MSEC ) / 800.0f;
+		}
+		else
+		{
+			frac = ( level.time - missile->genericValue5 ) / 800.0f;
+		}
+
+		frac *= frac * frac; // yes, this is completely ridiculous...but it causes the shell to grow slowly then "explode" at the end
+
+		radius = frac * 200.0f; // 200 is max radius...the model is aprox. 100 units tall...the fx draw code mults. this by 2.
+
+		radius *= fact;
+
+		DEMP2_AltDamagePass( missile, myOwner, radius );
+	}
+
+	if ( fixed ? ( missile->genericValue7 < DEMP2_ALT_STEPS ) : ( frac < 1.0f ) )
 	{
 		// shock is still happening so continue letting it expand
-		missile->nextthink = level.time + 50;
+		missile->nextthink = level.time + DEMP2_ALT_STEP_MSEC;
 	}
 	else
 	{ //don't just leave the entity around
@@ -2801,6 +2857,7 @@ void DEMP2_AltDetonate( gentity_t *ent )
 
 	ent->genericValue5 = level.time;
 	ent->genericValue6 = 0;
+	ent->genericValue7 = 0;
 	ent->nextthink = level.time + 50;
 	ent->think = DEMP2_AltRadiusDamage;
 	ent->s.eType = ET_GENERAL; // make us a missile no longer
