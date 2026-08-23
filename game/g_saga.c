@@ -160,6 +160,9 @@ static int HeldForMaxTime(void) {
 
 // print time of the objective that was either just completed or you were held for a max at
 static void PrintObjStat(int objective, int heldForMax) {
+	if (level.korribanSilentObjectiveComplete)
+		return;
+
 	if (!g_autoStats.integer || !g_siegeTeamSwitch.integer)
 		return;
 
@@ -603,6 +606,132 @@ failure:
 	siege_valid = 0;
 }
 
+/*
+================
+Korriban g_korriCrystals support
+
+g_korriCrystals (default "rgb") controls which of Korriban's three crystal
+objectives are actually playable this map load -- any subset of 'r'/'g'/'b',
+case-insensitive, order-independent; an invalid/empty value falls back to all
+three. For every crystal NOT in the active set: its room door becomes
+indestructible, its "already placed" decorative crystal model is revealed at
+the altar, and its info_siege_objective is silently completed (real
+bookkeeping -- objIsComplete, totalObjectivesCompleted, goals_completed, the
+cyrstalsinplacecounter decrement, the crystal-combining stat above -- with no
+sound/print) the moment the round actually begins, so the valley door opens at
+exactly the same moment it would if all three were legitimately delivered.
+================
+*/
+
+typedef struct {
+	const char *doorTarget;         // func_breakable's own "target" key
+	const char *spawnTargetname;    // the decorative "already placed" misc_siege_item
+	const char *deliveryTargetname; // the trigger_multiple's targetname == the real item's goaltarget
+} korribanCrystalInfo_t;
+
+static const korribanCrystalInfo_t korribanCrystals[3] = {
+	{ "redroomprint",   "redcrystalspawn",   "redcrystaldelivery"   },
+	{ "greenroomprint", "greencrystalspawn", "greencrystaldelivery" },
+	{ "blueroomprint",  "bluecrystalspawn",  "bluecrystaldelivery"  },
+};
+
+// active[0]=red, active[1]=green, active[2]=blue
+static void G_KorribanParseCrystals(qboolean active[3])
+{
+	const char *p;
+
+	active[0] = active[1] = active[2] = qfalse;
+
+	for (p = g_korriCrystals.string; *p; p++) {
+		if (*p == 'r' || *p == 'R')
+			active[0] = qtrue;
+		else if (*p == 'g' || *p == 'G')
+			active[1] = qtrue;
+		else if (*p == 'b' || *p == 'B')
+			active[2] = qtrue;
+	}
+
+	if (!active[0] && !active[1] && !active[2]) {
+		// never allow zero crystals -- an invalid/empty setting defaults to all three
+		active[0] = active[1] = active[2] = qtrue;
+	}
+}
+
+void G_KorribanSetupCrystals(void)
+{
+	qboolean active[3];
+	int i;
+
+	if (level.siegeMap != SIEGEMAP_KORRIBAN || g_gametype.integer != GT_SIEGE)
+		return;
+
+	G_KorribanParseCrystals(active);
+
+	for (i = 0; i < 3; i++) {
+		gentity_t *door, *item, *placeholder;
+
+		if (active[i])
+			continue; // active crystal rooms are left completely untouched
+
+		// seal the door to this crystal's room -- indestructible
+		door = G_Find(NULL, FOFS(target), korribanCrystals[i].doorTarget);
+		if (door && door->inuse && !Q_stricmp(door->classname, "func_breakable")) {
+			door->health = 9999999;
+			door->spawnflags |= 1;
+			door->paintarget = NULL;
+			door->maxHealth = 0;
+			door->s.maxhealth = 0;
+			door->s.health = 0;
+		}
+
+		// the real pickupable crystal is now unreachable behind the sealed door; remove it
+		item = G_Find(NULL, FOFS(goaltarget), korribanCrystals[i].deliveryTargetname);
+		if (item && item->inuse && !Q_stricmp(item->classname, "misc_siege_item")) {
+			G_FreeEntity(item);
+		}
+
+		// reveal the decorative "already placed" crystal model at the altar
+		placeholder = G_Find(NULL, FOFS(targetname), korribanCrystals[i].spawnTargetname);
+		if (placeholder && placeholder->inuse && placeholder->use) {
+			placeholder->use(placeholder, NULL, NULL);
+		}
+	}
+}
+
+void G_KorribanSilentCompleteInactiveCrystals(void)
+{
+	qboolean active[3];
+	int i;
+
+	if (level.siegeMap != SIEGEMAP_KORRIBAN || g_gametype.integer != GT_SIEGE)
+		return;
+
+	G_KorribanParseCrystals(active);
+
+	for (i = 0; i < 3; i++) {
+		gentity_t *deliveryTrig, *objEnt;
+
+		if (active[i])
+			continue;
+
+		deliveryTrig = G_Find(NULL, FOFS(targetname), korribanCrystals[i].deliveryTargetname);
+		if (!deliveryTrig || !deliveryTrig->inuse || !deliveryTrig->target)
+			continue;
+
+		objEnt = G_Find(NULL, FOFS(targetname), deliveryTrig->target);
+		if (!objEnt || !objEnt->inuse || !objEnt->use || Q_stricmp(objEnt->classname, "info_siege_objective"))
+			continue;
+
+		objEnt->s.eFlags |= EF_RADAROBJECT; // bypass the "first use just arms radar" behavior
+
+		level.korribanSilentObjectiveComplete = qtrue;
+		objEnt->use(objEnt, deliveryTrig, deliveryTrig); // deliveryTrig has no ->client; UseSiegeTarget tolerates that
+		level.korribanSilentObjectiveComplete = qfalse;
+
+		objEnt->use = NULL; // done for good -- never let anything (e.g. the map's own round-start radar-arm relay) fire this again
+	}
+}
+
 void G_SiegeSetObjectiveComplete(int team, int objective, qboolean failIt)
 {
 	char *p = NULL;
@@ -760,6 +889,9 @@ void SiegeBroadcast_OBJECTIVECOMPLETE(int team, int client, int objective)
 {
 	gentity_t *te;
 	vec3_t nomatter;
+
+	if (level.korribanSilentObjectiveComplete)
+		return;
 
 	VectorClear(nomatter);
 
@@ -3352,6 +3484,7 @@ void SiegeCheckTimers(void)
 			level.inSiegeCountdown = qtrue;
 			level.siegeRoundComplete = qfalse;
 			SiegeBeginRound(i); //perform any round start tasks
+			G_KorribanSilentCompleteInactiveCrystals();
 			for (i = 0; i < MAX_CLIENTS; i++) {
 				if (g_entities[i].client && g_entities[i].client->pers.connected != CON_DISCONNECTED && g_entities[i].client->sess.skillBoost) {
 					trap_SendServerCommand(-1, va("print \"^7%s^7 has a level ^5%d^7 skillboost.\n\"",
@@ -3666,14 +3799,19 @@ void SiegeObjectiveCompleted(int team, int objective, int final, int client) {
 	}
 	else if (level.siegeMap == SIEGEMAP_KORRIBAN) {
 		if (objective == 2 || objective == 3 || objective == 4) {
-			static int crystalCaptureNumber = 1;
-			static int crystalsTime = 0;
-			if (crystalCaptureNumber++ <= 2) { // first/second one captured
-				crystalsTime += ms;
+			// level-scoped (not function-static) so this resets every round via the
+			// level_locals_t memset in G_InitGame -- statics here never reset across
+			// map_restart, which silently broke round 2+ crystal stats. Also generic
+			// to g_korriCrystals: exactly 3 completions always occur per round (real
+			// deliveries for active crystals, silent ones for inactive crystals -- see
+			// G_KorribanSilentCompleteInactiveCrystals), so "the third one" is always
+			// correct regardless of which crystals are actually active.
+			if (level.korribanCrystalCaptureNumber++ < 2) { // first/second one captured
+				level.korribanCrystalsAccumTime += ms;
 				topTimesObjNum = 0; // don't run toptimes on this obj
 			}
 			else { // third one captured
-				ms += crystalsTime;
+				ms += level.korribanCrystalsAccumTime;
 				topTimesObjNum = 2;
 			}
 		}

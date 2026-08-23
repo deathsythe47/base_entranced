@@ -20,7 +20,7 @@ CC = gcc
 # w             		disable warnings
 # O3            		optimisation (warning: may cause issues)
 # m32           		force 32-bit compilation
-# -masm=intel   		assembler syntax¨
+# -masm=intel   		assembler syntaxï¿½
 
 # Compiler Flags - swap CONFIG for release/debug builds
 CONFIG = -O2 -DFINAL_BUILD -DNDEBUG -fno-stack-protector -U_FORTIFY_SOURCE -D_FORTIFY_SOURCE=0 -D_GNU_SOURCE -std=c99
@@ -28,7 +28,7 @@ CONFIG = -O2 -DFINAL_BUILD -DNDEBUG -fno-stack-protector -U_FORTIFY_SOURCE -D_FO
 #CONFIG = -g3 -D_DEBUG -D_GNU_SOURCE
 INCLUDES = -I./ -I../include/
 DEFINES = -DMISSION_PACK -DQAGAME -D_JK2 -D__linux__ -D__GCC__
-OPTIONS = -Wall -fno-strict-aliasing -m32 #-masm=intel
+OPTIONS = -Wall -fno-strict-aliasing -m32 -Wno-incompatible-pointer-types -fcommon #-masm=intel
 FLAGS = $(INCLUDES) $(DEFINES) $(OPTIONS) $(CONFIG)
 LIBS = -pthread ../lib/libsodium.a
 #LIBS = -fno-stack-protector -U_FORTIFY_SOURCE -D_FORTIFY_SOURCE=0 -D_GNU_SOURCE /usr/local/lib/libcurl.a -lrt -Wl,-Bstatic -lz -Wl,-Bdynamic 

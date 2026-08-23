@@ -1643,6 +1643,14 @@ typedef struct {
 	qboolean	zombies;
 	qboolean	narStationBreached[2];
 
+	// Korriban g_korriCrystals support: replaces what used to be function-local
+	// statics inside SiegeObjectiveCompleted's crystal-combining logic (those
+	// never reset across map_restart/rounds since the game DLL persists -- these
+	// do, since level_locals_t is memset at the top of every G_InitGame call).
+	int			korribanCrystalCaptureNumber;
+	int			korribanCrystalsAccumTime;
+	qboolean	korribanSilentObjectiveComplete; // suppress fanfare for the current SiegeObjectiveCompleted call
+
 	gentity_t	*killerOfLastDesertComputer;
 
 	int			numConnectedClients;
@@ -2691,6 +2699,7 @@ int getGlobalTime();
 
 // g_siege.c
 void InitSiegeMode(void);
+void G_KorribanSetupCrystals(void);
 void G_SiegeClientExData(gentity_t *msgTarg);
 #ifdef NEWMOD_SUPPORT
 void UpdateNewmodSiegeTimers(void);
@@ -3096,6 +3105,7 @@ extern vmCvar_t	   g_moreTaunts;
 extern vmCvar_t    g_fixRancorCharge;
 extern vmCvar_t    g_autoKorribanFloatingItems;
 extern vmCvar_t    g_autoKorribanSpam;
+extern vmCvar_t    g_korriCrystals;
 extern vmCvar_t    g_forceDTechItems;
 extern vmCvar_t    g_antiHothCodesLiftLame;
 extern vmCvar_t    g_antiHothHangarLiftLame;

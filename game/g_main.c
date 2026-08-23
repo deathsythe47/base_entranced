@@ -183,6 +183,7 @@ vmCvar_t    g_moreTaunts;
 vmCvar_t    g_fixRancorCharge;
 vmCvar_t    g_autoKorribanFloatingItems;
 vmCvar_t    g_autoKorribanSpam;
+vmCvar_t    g_korriCrystals;
 vmCvar_t	g_forceDTechItems;
 vmCvar_t    g_antiHothCodesLiftLame;
 vmCvar_t    g_antiHothHangarLiftLame;
@@ -1182,6 +1183,7 @@ static cvarTable_t		gameCvarTable[] = {
 	{ &g_fixRancorCharge, "g_fixRancorCharge", "0", CVAR_ARCHIVE, 0, qtrue },
 	{ &g_autoKorribanFloatingItems, "g_autoKorribanFloatingItems", "1", CVAR_ARCHIVE, 0, qtrue },
 	{ &g_autoKorribanSpam, "g_autoKorribanSpam", "1", CVAR_ARCHIVE, 0, qtrue },
+	{ &g_korriCrystals, "g_korriCrystals", "rgb", CVAR_ARCHIVE | CVAR_LATCH, 0, qtrue },
 	{ &g_forceDTechItems, "g_forceDTechItems", "5", CVAR_ARCHIVE, 0, qtrue },
 	{ &g_antiHothCodesLiftLame, "g_antiHothCodesLiftLame", "1", CVAR_ARCHIVE, 0, qtrue },
 	{ &g_antiHothHangarLiftLame, "g_antiHothHangarLiftLame", "4", CVAR_ARCHIVE, 0, qtrue },
@@ -2614,6 +2616,8 @@ void G_InitGame( int levelTime, int randomSeed, int restart, void *serverDbPtr )
 
 	// parse the key/value pairs and spawn gentities
 	G_SpawnEntitiesFromString(qfalse);
+
+	G_KorribanSetupCrystals();
 
 	// general initialization
 	G_FindTeams();
