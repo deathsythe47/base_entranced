@@ -152,8 +152,25 @@ void trap_SendServerCommand( int clientNum, const char *text ) {
 		char truncated[64];
 		Q_strncpyz(truncated,text,sizeof(truncated));
 
+		/*
+			clientNum is -1 for a BROADCAST, and g_entities[-1] is an out-of-bounds read that
+			deterministically aliases the tail of g_clients[31] (g_clients ends exactly where
+			g_entities begins). Dereferencing .client from there is either a NULL deref or a wild
+			pointer, depending on whether slot 31 was ever occupied. Reachable today via
+			"rcon say <~1010 chars>", which lands in the 1006-1019 window that trips this guard.
+
+			Note G_HackLog's own "logging is off, return early" does NOT save it -- the arguments
+			are evaluated at the call site, before the call. Guarding here also covers the separate
+			case of an in-range clientNum whose slot holds a non-player entity, where .client is
+			legitimately NULL.
+		*/
+		qboolean validClient = (qboolean)( clientNum >= 0 && clientNum < MAX_CLIENTS && g_entities[clientNum].client );
+
 		G_HackLog( "Too long command: To client num %d (%s) from %s has been sent too long (%d chars) a command (truncated: %s)\n", 
-			clientNum, g_entities[clientNum].client->pers.netname, g_entities[clientNum].client->sess.ipString, strlen(text), truncated ); 
+			clientNum,
+			validClient ? g_entities[clientNum].client->pers.netname : "N/A",
+			validClient ? g_entities[clientNum].client->sess.ipString : "N/A",
+			strlen(text), truncated ); 
         return; 
 	} 
 
