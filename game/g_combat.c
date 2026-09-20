@@ -2831,6 +2831,20 @@ void player_die( gentity_t *self, gentity_t *inflictor, gentity_t *attacker, int
 		// no real player to credit for this one -- fed to the rancor, not killed by it
 		customObituary = CUSTOMOBITUARY_GENERIC_RANCOREATEN;
 	}
+	else if (meansOfDeath == MOD_DISRUPTOR_SNIPER && attacker && attacker->client && attacker != self &&
+		attacker - g_entities < MAX_CLIENTS && attacker->client->ps.groundEntityNum == ENTITYNUM_NONE) {
+		// a snipe from the air: the sniper is off solid ground by at least the height that makes
+		// an air frag (the same measurement G_Damage takes of an aired target)
+		trace_t ultTr;
+		vec3_t ultDown;
+		VectorCopy(attacker->r.currentOrigin, ultDown);
+		ultDown[2] -= 4096;
+		trap_Trace(&ultTr, attacker->r.currentOrigin, attacker->r.mins, attacker->r.maxs, ultDown, attacker - g_entities, MASK_SOLID);
+		VectorSubtract(attacker->r.currentOrigin, ultTr.endpos, ultDown);
+		if (VectorLength(ultDown) >= AIRSHOT_GROUND_DISTANCE_THRESHOLD) {
+			customObituary = CUSTOMOBITUARY_GENERIC_ULTED;
+		}
+	}
 
 	if (level.zombies && meansOfDeath != MOD_SUICIDE && self && self->client && self->client->sess.sessionTeam == TEAM_BLUE)
 	{	

@@ -3393,10 +3393,12 @@ void G_BroadcastServerFeatureList( int clientNum ) {
 	Q_strcat(customObituariesString, sizeof(customObituariesString), va(
 		"\"was sentry-bombed by\" %d "
 		"\"sentry-bombed $\" %d "
-		"\"was eaten.\" %d ",
+		"\"was eaten.\" %d "
+		"\"was ulted by\" %d ",
 		CUSTOMOBITUARY_GENERIC_SENTRYBOMBED,
 		CUSTOMOBITUARY_GENERIC_SENTRYBOMBED_SELF,
-		CUSTOMOBITUARY_GENERIC_RANCOREATEN));
+		CUSTOMOBITUARY_GENERIC_RANCOREATEN,
+		CUSTOMOBITUARY_GENERIC_ULTED));
 	if (level.siegeMap == SIEGEMAP_CARGO) {
 		Q_strcat(customObituariesString, sizeof(customObituariesString), va(
 			"\"was minced by\" %d "
