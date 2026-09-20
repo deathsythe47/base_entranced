@@ -146,6 +146,11 @@ void G_ReflectMissile( gentity_t *ent, gentity_t *missile, vec3_t forward, qbool
 		// you are mine, now!
 		missile->r.ownerNum = ent->s.number;
 		missile->isReflected = qtrue;
+		if ( ent->client ) {
+			missile->parent = ent; // splash credit/FF should follow the reflect too, not just direct hits
+			if ( !g_friendlyFire.integer && g_gametype.integer == GT_SIEGE && level.wasRestarted )
+				missile->projectileTeam = ent->client->sess.sessionTeam;
+		}
 	}
 
 	if ( missile->s.weapon == WP_ROCKET_LAUNCHER ) {
@@ -200,6 +205,11 @@ void G_DeflectMissile( gentity_t *ent, gentity_t *missile, vec3_t forward )
 	{//you are mine, now!
 		missile->r.ownerNum = ent->s.number;
 		missile->isReflected = qtrue;
+		if ( ent->client ) {
+			missile->parent = ent; // splash credit/FF should follow the deflect too, not just direct hits
+			if ( !g_friendlyFire.integer && g_gametype.integer == GT_SIEGE && level.wasRestarted )
+				missile->projectileTeam = ent->client->sess.sessionTeam;
+		}
 	}
 	if ( missile->s.weapon == WP_ROCKET_LAUNCHER )
 	{//stop homing
