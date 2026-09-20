@@ -820,6 +820,9 @@ void Cmd_Kill_f( gentity_t *ent ) {
 	if (ent->health <= 0) {
 		return;
 	}
+	if (g_fixRancor.integer && (ent->client->ps.eFlags2 & EF2_HELD_BY_MONSTER)) {
+		return;
+	}
 
     if ( ent->client->tempSpectate > level.time )
     {
@@ -2132,6 +2135,11 @@ void Cmd_SiegeClass_f(gentity_t *ent)
 		return;
 	}
 
+	if (g_fixRancor.integer && (ent->client->ps.eFlags2 & EF2_HELD_BY_MONSTER))
+	{
+		return;
+	}
+
 	if (ClassChangeLimitExceeded(ent)) {
 		trap_SendServerCommand(ent - g_entities, "print \"Please wait before switching classes.\n\"");
 		return;
@@ -2347,6 +2355,11 @@ void Cmd_Join_f(gentity_t *ent)
 	int	timeRemaining = 0;
 
 	if (!ent || !ent->client)
+	{
+		return;
+	}
+
+	if (g_fixRancor.integer && (ent->client->ps.eFlags2 & EF2_HELD_BY_MONSTER))
 	{
 		return;
 	}
@@ -2618,6 +2631,11 @@ void Cmd_Class_f(gentity_t *ent)
 	if (trap_Argc() < 1)
 	{
 		trap_SendServerCommand(ent - g_entities, "print \"Usage: class <number> or class <first letter of class name> (e.g. '^5class a^7' for assault)\n\"");
+		return;
+	}
+
+	if (g_fixRancor.integer && (ent->client->ps.eFlags2 & EF2_HELD_BY_MONSTER))
+	{
 		return;
 	}
 

@@ -554,7 +554,8 @@ void P_DamageFeedback( gentity_t *player ) {
 	}
 
 	// play an apropriate pain sound
-	if ( (level.time > player->pain_debounce_time) && !(player->flags & FL_GODMODE) && !(player->s.eFlags & EF_DEAD) && player->health > 0 ) {
+	if ( (level.time > player->pain_debounce_time) && !(player->flags & FL_GODMODE) && !(player->s.eFlags & EF_DEAD) && player->health > 0 &&
+		!(g_fixRancor.integer && (client->ps.eFlags2 & EF2_HELD_BY_MONSTER)) ) { //no pain sounds while the rancor has you -- the falling-scream plays instead, on pickup
 
 		// don't do more than two pain sounds a second
 		// nmckenzie: also don't make him loud and whiny if he's only getting nicked.
@@ -2414,6 +2415,10 @@ void G_HeldByMonster( gentity_t *ent, usercmd_t **ucmd )
 
 void G_SetTauntAnim( gentity_t *ent, int taunt )
 {
+	if (g_fixRancor.integer && (ent->client->ps.eFlags2 & EF2_HELD_BY_MONSTER))
+	{ //no taunting while the rancor has you
+		return;
+	}
 	if (taunt == TAUNT_MEDITATE &&
 		(ent->client->pers.cmd.upmove ||
 		ent->client->pers.cmd.forwardmove ||

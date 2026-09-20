@@ -3392,9 +3392,11 @@ void G_BroadcastServerFeatureList( int clientNum ) {
 	static char customObituariesString[MAX_TOKEN_CHARS] = "cobt ";
 	Q_strcat(customObituariesString, sizeof(customObituariesString), va(
 		"\"was sentry-bombed by\" %d "
-		"\"sentry-bombed $\" %d ",
+		"\"sentry-bombed $\" %d "
+		"\"was eaten.\" %d ",
 		CUSTOMOBITUARY_GENERIC_SENTRYBOMBED,
-		CUSTOMOBITUARY_GENERIC_SENTRYBOMBED_SELF));
+		CUSTOMOBITUARY_GENERIC_SENTRYBOMBED_SELF,
+		CUSTOMOBITUARY_GENERIC_RANCOREATEN));
 	if (level.siegeMap == SIEGEMAP_CARGO) {
 		Q_strcat(customObituariesString, sizeof(customObituariesString), va(
 			"\"was minced by\" %d "

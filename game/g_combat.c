@@ -2825,6 +2825,12 @@ void player_die( gentity_t *self, gentity_t *inflictor, gentity_t *attacker, int
 		else
 			customObituary = CUSTOMOBITUARY_GENERIC_SENTRYBOMBED;
 	}
+	else if (g_fixRancor.integer && meansOfDeath == MOD_MELEE && attacker && attacker->client &&
+		attacker->client->NPC_class == CLASS_RANCOR &&
+		(self->client->ps.eFlags2 & EF2_HELD_BY_MONSTER)) {
+		// no real player to credit for this one -- fed to the rancor, not killed by it
+		customObituary = CUSTOMOBITUARY_GENERIC_RANCOREATEN;
+	}
 
 	if (level.zombies && meansOfDeath != MOD_SUICIDE && self && self->client && self->client->sess.sessionTeam == TEAM_BLUE)
 	{	

@@ -361,6 +361,7 @@ struct gentity_s {
 	int			count;
 	int			bounceCount;
 	qboolean	alt_fire;
+	qboolean	rancorHasBitten;	// on the rancor NPC itself: has it already done its one quick bite on the current held victim?
 
 	gentity_t	*chain;
 	gentity_t	*enemy;
@@ -659,6 +660,7 @@ enum {
 enum {
 	CUSTOMOBITUARY_GENERIC_SENTRYBOMBED = 1,
 	CUSTOMOBITUARY_GENERIC_SENTRYBOMBED_SELF,
+	CUSTOMOBITUARY_GENERIC_RANCOREATEN,
 	CUSTOMOBITUARY_MAPSPECIFIC_START
 };
 enum {
@@ -3110,6 +3112,7 @@ extern vmCvar_t    g_infiniteCharge;
 extern vmCvar_t    g_siegeTiebreakEnd;
 extern vmCvar_t	   g_moreTaunts;
 extern vmCvar_t    g_fixRancorCharge;
+extern vmCvar_t    g_fixRancor;
 extern vmCvar_t    g_autoKorribanFloatingItems;
 extern vmCvar_t    g_autoKorribanSpam;
 extern vmCvar_t    g_korriCrystals;

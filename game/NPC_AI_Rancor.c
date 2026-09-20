@@ -251,6 +251,11 @@ void Rancor_Swing( qboolean tryGrab )
 				}
 				NPC->enemy = radiusEnt;//make him my new best friend
 				radiusEnt->client->ps.eFlags2 |= EF2_HELD_BY_MONSTER;
+				NPC->rancorHasBitten = qfalse;//g_fixRancor: exactly one quick bite before the kill on this victim
+				if ( g_fixRancor.integer && radiusEnt->client )
+				{//scream in terror as the rancor picks you up -- no more regular pain sounds until you die
+					G_EntitySound( radiusEnt, CHAN_VOICE, G_SoundIndex("*falling1.wav") );
+				}
 				//FIXME: this makes it so that the victim can't hit us with shots!  Just use activator or something
 				radiusEnt->client->ps.hasLookTarget = qtrue;
 				radiusEnt->client->ps.lookTarget = NPC->s.number;
@@ -425,8 +430,10 @@ void Rancor_Attack( float distance, qboolean doCharge )
 		}
 		else if ( NPC->count == 1 && NPC->activator )
 		{//holding enemy
-			if ( NPC->activator->health > 0 && Q_irand( 0, 1 ) )
+			// stock: a coin flip each time, quick bite or eat, g_fixRancor: exactly one.
+			if ( NPC->activator->health > 0 && ( g_fixRancor.integer ? !NPC->rancorHasBitten : Q_irand( 0, 1 ) ) )
 			{//quick bite
+				NPC->rancorHasBitten = qtrue;
 				NPC_SetAnim( NPC, SETANIM_BOTH, BOTH_ATTACK1, SETANIM_FLAG_OVERRIDE | SETANIM_FLAG_HOLD );
 				TIMER_Set( NPC, "attack_dmg", 450 );
 			}

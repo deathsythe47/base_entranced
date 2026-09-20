@@ -181,6 +181,7 @@ vmCvar_t    g_infiniteCharge;
 vmCvar_t    g_siegeTiebreakEnd;
 vmCvar_t    g_moreTaunts;
 vmCvar_t    g_fixRancorCharge;
+vmCvar_t    g_fixRancor;
 vmCvar_t    g_autoKorribanFloatingItems;
 vmCvar_t    g_autoKorribanSpam;
 vmCvar_t    g_korriCrystals;
@@ -1183,6 +1184,7 @@ static cvarTable_t		gameCvarTable[] = {
 	{ &g_siegeTiebreakEnd, "g_siegeTiebreakEnd", "1", CVAR_ARCHIVE, 0, qtrue },
 	{ &g_moreTaunts, "g_moreTaunts", "1", CVAR_ARCHIVE, 0, qtrue },
 	{ &g_fixRancorCharge, "g_fixRancorCharge", "0", CVAR_ARCHIVE, 0, qtrue },
+	{ &g_fixRancor, "g_fixRancor", "1", CVAR_ARCHIVE, 0, qtrue },
 	{ &g_autoKorribanFloatingItems, "g_autoKorribanFloatingItems", "1", CVAR_ARCHIVE, 0, qtrue },
 	{ &g_autoKorribanSpam, "g_autoKorribanSpam", "1", CVAR_ARCHIVE, 0, qtrue },
 	{ &g_korriCrystals, "g_korriCrystals", "rgb", CVAR_ARCHIVE | CVAR_LATCH, 0, qtrue },
