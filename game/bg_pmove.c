@@ -8219,7 +8219,11 @@ void BG_AdjustClientSpeed(playerState_t *ps, usercmd_t *cmd, int svTime)
 
 	if (ps->fd.forceGripCripple)
 	{
-		if (ps->fd.forcePowersActive & (1 << FP_RAGE))
+		if (g_gripRework.integer)
+		{
+			ps->speed *= 0.2;
+		}
+		else if (ps->fd.forcePowersActive & (1 << FP_RAGE))
 		{
 			ps->speed *= 0.9;
 		}

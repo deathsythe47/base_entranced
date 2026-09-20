@@ -5641,6 +5641,16 @@ void ClientEndFrame( gentity_t *ent ) {
 			ent->client->ps.otherKillerTime += time_delta;
 		if (ent->client->ps.otherKillerDebounceTime)
 			ent->client->ps.otherKillerDebounceTime += time_delta;
+		if (ent->client->ps.fd.forceGripBeingGripped)
+			ent->client->ps.fd.forceGripBeingGripped += time_delta;
+		if (ent->client->ps.fd.forceGripStarted)
+			ent->client->ps.fd.forceGripStarted += time_delta;
+		if (ent->client->ps.fd.forceGripUseTime)
+			ent->client->ps.fd.forceGripUseTime += time_delta;
+		if (ent->client->ps.forceGripMoveInterval)
+			ent->client->ps.forceGripMoveInterval += time_delta;
+		if (ent->client->noLightningTime)
+			ent->client->noLightningTime += time_delta;
 		if (ent->client->ps.emplacedTime)
 			ent->client->ps.emplacedTime += time_delta;
 		if (ent->client->ps.hyperSpaceTime)

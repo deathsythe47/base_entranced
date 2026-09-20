@@ -1674,6 +1674,10 @@ void ForceGrip( gentity_t *self )
 		return;
 	}
 
+	if (g_gripRework.integer && self->client->ps.fd.forceGripBeingGripped > level.time) {
+		return; // no grip wars; can't initiate a grip while you're the one being gripped
+	}
+
 	VectorCopy(self->client->ps.origin, tfrom);
 	tfrom[2] += self->client->ps.viewheight;
 	AngleVectors(self->client->ps.viewangles, fwd, NULL, NULL);
@@ -1681,13 +1685,22 @@ void ForceGrip( gentity_t *self )
 	tto[1] = tfrom[1] + fwd[1]*MAX_GRIP_DISTANCE;
 	tto[2] = tfrom[2] + fwd[2]*MAX_GRIP_DISTANCE;
 
+	qboolean compensate = self->client->sess.unlagged;
+	if (g_unlagged.integer && compensate)
+		G_TimeShiftAllClients(trap_Milliseconds() - (level.time - self->client->pers.cmd.serverTime), self, qfalse);
+
 	trap_Trace(&tr, tfrom, NULL, NULL, tto, self->s.number, MASK_PLAYERSOLID);
+
+	if (g_unlagged.integer && compensate)
+		G_UnTimeShiftAllClients(self, qfalse);
 
 	if ( tr.fraction != 1.0 &&
 		tr.entityNum != ENTITYNUM_NONE &&
 		g_entities[tr.entityNum].client &&
-		!g_entities[tr.entityNum].client->ps.fd.forceGripCripple &&
-		g_entities[tr.entityNum].client->ps.fd.forceGripBeingGripped < level.time &&
+		(g_gripRework.integer ?
+			g_entities[tr.entityNum].client->ps.fd.forceGripBeingGripped < level.time :
+			(!g_entities[tr.entityNum].client->ps.fd.forceGripCripple &&
+				g_entities[tr.entityNum].client->ps.fd.forceGripBeingGripped < level.time)) &&
 		ForcePowerUsableOn(self, &g_entities[tr.entityNum], FP_GRIP) &&
 		(g_friendlyFire.integer || !OnSameTeam(self, &g_entities[tr.entityNum])) &&
 		Distance(self->client->ps.origin, g_entities[tr.entityNum].client->ps.origin) <= MAX_GRIP_DISTANCE) //don't grip someone who's still crippled
@@ -1707,6 +1720,20 @@ void ForceGrip( gentity_t *self )
 		self->client->ps.fd.forceGripEntityNum = tr.entityNum;
 		g_entities[tr.entityNum].client->ps.fd.forceGripStarted = level.time;
 		self->client->ps.fd.forceGripDamageDebounceTime = 0;
+
+		if (g_gripRework.integer && self->client->ps.fd.forcePowerLevel[FP_GRIP] < FORCE_LEVEL_3) {
+			// grabbing a fast-moving victim (sprint/force-speed/knockback) at level 1-2
+			// used to fling them off with their existing momentum; cap it on the grab.
+			const float xyVelocityCap = 50.0f;
+			const float vx = g_entities[tr.entityNum].client->ps.velocity[0];
+			const float vy = g_entities[tr.entityNum].client->ps.velocity[1];
+			const float speed = sqrt(vx * vx + vy * vy);
+			if (speed > xyVelocityCap && speed > 0) {
+				const float scale = xyVelocityCap / speed;
+				g_entities[tr.entityNum].client->ps.velocity[0] *= scale;
+				g_entities[tr.entityNum].client->ps.velocity[1] *= scale;
+			}
+		}
 
 		self->client->ps.forceHandExtend = HANDEXTEND_FORCE_HOLD;
 		self->client->ps.forceHandExtendTime = level.time + 5000;
@@ -1905,6 +1932,9 @@ void ForceLightning( gentity_t *self )
 	if ( self->health <= 0 )
 	{
 		return;
+	}
+	if (self->client->ps.fd.forceGripBeingGripped > level.time && g_gripRework.integer) {
+		return; // being actively gripped blocks starting a new lightning cast
 	}
 	if ( self->client->ps.fd.forcePower < 25 || !WP_ForcePowerUsable( self, FP_LIGHTNING ) )
 	{
@@ -2161,6 +2191,10 @@ void ForceDrain( gentity_t *self )
 	if ( self->health <= 0 )
 	{
 		return;
+	}
+
+	if (self->client->ps.fd.forceGripBeingGripped > level.time && g_gripRework.integer) {
+		return; // being actively gripped blocks starting a new drain cast
 	}
 
 	if (self->client->ps.forceHandExtend != HANDEXTEND_NONE)
@@ -3911,7 +3945,7 @@ void ForceThrow( gentity_t *self, qboolean pull )
 							{ //only break the grip if our push/pull level is >= their grip level
 								WP_ForcePowerStop(push_list[x], FP_GRIP);
 								self->client->ps.fd.forceGripBeingGripped = 0;
-								push_list[x]->client->ps.fd.forceGripUseTime = level.time + 1000; //since we just broke out of it..
+								push_list[x]->client->ps.fd.forceGripUseTime = level.time + 500; //since we just broke out of it.. (intentionally 500, stock is 1000)
 							}
 						}
 					}
@@ -4104,7 +4138,7 @@ void WP_ForcePowerStop( gentity_t *self, forcePowers_t forcePower )
 		}
 		break;
 	case FP_GRIP:
-		self->client->ps.fd.forceGripUseTime = level.time + 3000;
+		self->client->ps.fd.forceGripUseTime = level.time + 500; // intentionally 500, stock is 3000
 		if (self->client->ps.fd.forcePowerLevel[FP_GRIP] > FORCE_LEVEL_1 &&
 			g_entities[self->client->ps.fd.forceGripEntityNum].client &&
 			g_entities[self->client->ps.fd.forceGripEntityNum].health > 0 &&
@@ -4236,7 +4270,9 @@ void DoGripAction(gentity_t *self, forcePowers_t forcePower)
 		return;
 	}
 
-	if (VectorLength(a) > MAX_GRIP_DISTANCE)
+	// no distance check for maintaining grip 3 (would only punish fast strafing),
+	// and forgiving distance check for maintaining grip1/2
+	if (gripLevel != FORCE_LEVEL_3 && VectorLength(a) > MAX_GRIP_DISTANCE * 2)
 	{
 		WP_ForcePowerStop(self, forcePower);
 		return;
@@ -4268,7 +4304,14 @@ void DoGripAction(gentity_t *self, forcePowers_t forcePower)
 	if (gripLevel == FORCE_LEVEL_1)
 	{
 		gripEnt->client->ps.fd.forceGripBeingGripped = level.time + 1000;
-		
+
+		if (g_gripRework.integer) {
+			gripEnt->client->ps.forceGripChangeMovetype = PM_FLOAT;
+			gripEnt->client->ps.otherKiller = self->s.number;
+			gripEnt->client->ps.otherKillerTime = level.time + 5000;
+			gripEnt->client->ps.otherKillerDebounceTime = level.time + 100;
+		}
+
 		if ((level.time - gripEnt->client->ps.fd.forceGripStarted) > 5000)
 		{
 			WP_ForcePowerStop(self, forcePower);
@@ -4624,16 +4667,26 @@ static void WP_ForcePowerRun( gentity_t *self, forcePowers_t forcePower, usercmd
 			break;
 		}
 
+		if (g_gripRework.integer) { // allow grip to continue with 0fp during the initial freebie second
+			if (self->client->ps.fd.forcePower < 1 && self->client->ps.fd.forcePowerDebounce[FP_PULL] < level.time)
+			{
+				WP_ForcePowerStop(self, FP_GRIP);
+				break;
+			}
+		}
+
 		if (self->client->ps.fd.forcePowerDebounce[FP_PULL] < level.time)
 		{ //This is sort of not ideal. Using the debounce value reserved for pull for this because pull doesn't need it.
 			BG_ForcePowerDrain( &self->client->ps, forcePower, 1 );
 			self->client->ps.fd.forcePowerDebounce[FP_PULL] = level.time + 100;
 		}
 
-		if (self->client->ps.fd.forcePower < 1)
-		{
-			WP_ForcePowerStop(self, FP_GRIP);
-			break;
+		if (!g_gripRework.integer) {
+			if (self->client->ps.fd.forcePower < 1)
+			{
+				WP_ForcePowerStop(self, FP_GRIP);
+				break;
+			}
 		}
 
 		DoGripAction(self, forcePower);
@@ -4841,6 +4894,8 @@ int WP_DoSpecificPower( gentity_t *self, usercmd_t *ucmd, forcePowers_t forcepow
 			{
 				WP_ForcePowerStart( self, FP_GRIP, 0 );
 				BG_ForcePowerDrain( &self->client->ps, FP_GRIP, GRIP_DRAIN_AMOUNT );
+				if (g_gripRework.integer)
+					self->client->ps.fd.forcePowerDebounce[FP_PULL] = level.time + 1000; // give a freebie second to use grip
 			}
 		}
 		else

@@ -3123,6 +3123,11 @@ extern vmCvar_t    g_autoKorribanFloatingItems;
 extern vmCvar_t    g_autoKorribanSpam;
 extern vmCvar_t    g_korriCrystals;
 extern vmCvar_t    g_forceDTechItems;
+// 0 = stock grip. 1 = ported base_enhanced g_gripRework tier-2 behavior (no grip wars,
+// grab velocity cap on levels 1-2, 0fp grace period, grip blocks victim's own
+// lightning/drain), MINUS the tier's force-cost changes -- grip still costs stock
+// 30/30/60 to activate at every level.
+extern vmCvar_t    g_gripRework;
 extern vmCvar_t    g_antiHothCodesLiftLame;
 extern vmCvar_t    g_antiHothHangarLiftLame;
 extern vmCvar_t    g_antiHothInfirmaryLiftLame;
