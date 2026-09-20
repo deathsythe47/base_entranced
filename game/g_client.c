@@ -2568,6 +2568,19 @@ void ClientUserinfoChanged( int clientNum, char *debugMsg ) {
 			//make sure the saber models are updated
 			G_SaberModelSetup(ent);
 
+			//force the blade color(s) too, if the class dictates -- otherwise the player's
+			//own color1/color2 preference is left untouched, same as saber1/saber2 above
+			if (scl->hasForcedSaberColor)
+			{
+				Info_SetValueForKey(userinfo, "color1", va("%d", scl->forcedSaberColor));
+				trap_SetUserinfo(clientNum, userinfo);
+			}
+			if (scl->hasForcedSaber2Color)
+			{
+				Info_SetValueForKey(userinfo, "color2", va("%d", scl->forcedSaber2Color));
+				trap_SetUserinfo(clientNum, userinfo);
+			}
+
 			if (scl->forcedModel[0])
 			{ //be sure to override the model we actually use
 				strcpy(model, scl->forcedModel);
