@@ -3224,10 +3224,10 @@ void SiegeBeginRound(int entNum)
 	// if round 2, reset only round 2 cvars
 	int i, j, currentRound = CurrentSiegeRound();
 	for (i = 2; i >= currentRound; i--) {
-		trap_Cvar_Set(va("siege_r%i_objscompleted", currentRound), "");
-		trap_Cvar_Set(va("siege_r%i_heldformaxat", currentRound), "");
-		trap_Cvar_Set(va("siege_r%i_heldformaxtime", currentRound), "");
-		trap_Cvar_Set(va("siege_r%i_total", currentRound), "");
+		trap_Cvar_Set(va("siege_r%i_objscompleted", i), "");
+		trap_Cvar_Set(va("siege_r%i_heldformaxat", i), "");
+		trap_Cvar_Set(va("siege_r%i_heldformaxtime", i), "");
+		trap_Cvar_Set(va("siege_r%i_total", i), "");
 		for (j = 1; j <= MAX_STATS - 1; j++) {
 			trap_Cvar_Set(va("siege_r%i_obj%i", i, j), "");
 		}
