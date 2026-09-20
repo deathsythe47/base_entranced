@@ -5084,6 +5084,13 @@ void ClientSpawn(gentity_t *ent, qboolean forceUpdateInfo) {
 		ent->client->invulnerableTimer = level.time + g_spawnInvulnerability.integer;
 	}
 
+	// siege passiveheal/lifesteal: fresh life, fresh timers -- don't let a passiveheal
+	// tick fire before this spawn's own 2-second grace period, and don't carry banked
+	// lifesteal fractions or a stale debounce time over from a previous life
+	ent->client->lastDamageTakenTime = level.time;
+	ent->client->passiveHealDebounceTime = 0;
+	ent->client->lifestealAccum = 0.0f;
+
 	// run the presend to set anything else, follow spectators wait
 	// until all clients have been reconnected after map_restart
 	if ( ent->client->sess.spectatorState != SPECTATOR_FOLLOW ) {

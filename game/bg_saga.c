@@ -1092,6 +1092,16 @@ void BG_SiegeParseClassFile(const char *filename, siegeClassDesc_t *descBuffer)
 	if (!strcmp(scl->name, "Jedi Guardian") && g_hothRebalance.integer & (1 << 2))
 		scl->forcePowerLevels[FP_HEAL] = 3;
 
+	//parse forcewithitem -- powers listed here stay usable while carrying a forcelimit siege item
+	if (BG_SiegeGetPairedValue(classInfo, "forcewithitem", parseBuf))
+	{
+		scl->forceWithItem = BG_SiegeTranslateGenericTable(parseBuf, FPTable, qtrue);
+	}
+	else
+	{
+		scl->forceWithItem = 0;
+	}
+
 	//Parse classflags
 	if (BG_SiegeGetPairedValue(classInfo, "classflags", parseBuf))
 	{
@@ -1100,6 +1110,22 @@ void BG_SiegeParseClassFile(const char *filename, siegeClassDesc_t *descBuffer)
 	else
 	{ //fine, we'll 0 it.
 		scl->classflags = 0;
+	}
+
+	//parse forceregen -- generalized replacement for CFL_FASTFORCEREGEN's hardcoded 5x.
+	//If not explicitly set, default to 5 for classes still using that classflag (so existing
+	//classes keep their current behavior unchanged), or 1 (normal) otherwise.
+	if (BG_SiegeGetPairedValue(classInfo, "forceregen", parseBuf))
+	{
+		scl->forceRegen = atof(parseBuf);
+	}
+	else if (scl->classflags & (1 << CFL_FASTFORCEREGEN))
+	{
+		scl->forceRegen = 5.0f;
+	}
+	else
+	{
+		scl->forceRegen = 1.0f;
 	}
 
 	if (BG_SiegeGetPairedValue(classInfo, "audiomindtrick", parseBuf))
@@ -1255,7 +1281,57 @@ void BG_SiegeParseClassFile(const char *filename, siegeClassDesc_t *descBuffer)
 	{ //It's alright, just default to 0 then.
 		scl->maxSentries = 0;
 	}
-	
+
+	//parse passiveheal
+	if (BG_SiegeGetPairedValue(classInfo, "passiveheal", parseBuf))
+	{
+		scl->passiveHeal = atof(parseBuf);
+	}
+	else
+	{ //it's alright, just default to 0 then.
+		scl->passiveHeal = 0;
+	}
+
+	//parse lifesteal
+	if (BG_SiegeGetPairedValue(classInfo, "lifesteal", parseBuf))
+	{
+		scl->lifesteal = atof(parseBuf);
+	}
+	else
+	{ //it's alright, just default to 0 then.
+		scl->lifesteal = 0;
+	}
+
+	//parse touchgiveammo
+	if (BG_SiegeGetPairedValue(classInfo, "touchgiveammo", parseBuf))
+	{
+		scl->touchGiveAmmo = atoi(parseBuf) ? qtrue : qfalse;
+	}
+	else
+	{
+		scl->touchGiveAmmo = qfalse;
+	}
+
+	//parse saberblock -- default 1 (normal, stock behavior)
+	if (BG_SiegeGetPairedValue(classInfo, "saberblock", parseBuf))
+	{
+		scl->saberBlock = atoi(parseBuf) ? qtrue : qfalse;
+	}
+	else
+	{
+		scl->saberBlock = qtrue;
+	}
+
+	//parse knockdudesover -- default 1 (normal, stock behavior)
+	if (BG_SiegeGetPairedValue(classInfo, "knockdudesover", parseBuf))
+	{
+		scl->knockdudesOver = atoi(parseBuf) ? qtrue : qfalse;
+	}
+	else
+	{
+		scl->knockdudesOver = qtrue;
+	}
+
 	memset(&scl->incomingDamageParam, 0, sizeof(scl->incomingDamageParam));
 	memset(&scl->outgoingDamageParam, 0, sizeof(scl->outgoingDamageParam));
 	for (i = 0; i < MAX_SPECIALDAMAGEPARAMETERS; i++) {

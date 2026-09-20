@@ -8245,6 +8245,18 @@ static char *GenerateSiegeClassDescription(siegeClass_t *scl) {
 		AddDesc(", ^3Pull Level 1 If Saber In Air^7");
 	if (scl->detKillDelay)
 		AddDesc(va(", ^3%d ms Detkill Delay^7", scl->detKillDelay));
+	if (scl->passiveHeal > 0.0f)
+		AddDesc(va(", ^3Passive Heal (1 HP/%.1fs)^7", scl->passiveHeal));
+	if (scl->lifesteal > 0.0f)
+		AddDesc(va(", ^3Lifesteal (%.2f HP/HP dealt)^7", scl->lifesteal));
+	if (scl->forceWithItem)
+		AddDesc(", ^3Force Usable While Holding Item^7");
+	if (scl->forceRegen != 1.0f)
+		AddDesc(va(", ^3%.2gx Force Regen^7", scl->forceRegen));
+	if (scl->touchGiveAmmo)
+		AddDesc(", ^3Can Resupply Teammates By Touch^7");
+	if (!scl->saberBlock)
+		AddDesc(", ^3Cannot Block With Saber^7");
 
 	if (scl->ammoblaster)
 		AddDesc(va(", ^8%d Blaster Ammo^7", scl->ammoblaster));

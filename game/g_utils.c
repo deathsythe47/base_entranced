@@ -2287,16 +2287,23 @@ qboolean TryHealingSomething(gentity_t *ent, gentity_t *target, qboolean doCheck
 				}
 			}
 		}
-#else  
-		if (((ent->client->ps.stats[STAT_HOLDABLE_ITEMS] & (1 << HI_HEALTHDISP)) || (ent->client->ps.stats[STAT_HOLDABLE_ITEMS] & (1 << HI_AMMODISP))) &&
+#else
+		//siege "touchgiveammo" class key: lets a class give ammo to a touched teammate the same
+		//way HI_AMMODISP does, without actually holding HI_AMMODISP -- and therefore without the
+		//separate, unconditional ability to toss ammo canisters (see TryTossAmmoPack above, which
+		//only checks the real holdable, not this flag).
+		qboolean canGiveAmmo = (ent->client->ps.stats[STAT_HOLDABLE_ITEMS] & (1 << HI_AMMODISP)) ? qtrue :
+			((g_gametype.integer == GT_SIEGE && ent->client->siegeClass != -1 && bgSiegeClasses[ent->client->siegeClass].touchGiveAmmo) ? qtrue : qfalse);
+
+		if (((ent->client->ps.stats[STAT_HOLDABLE_ITEMS] & (1 << HI_HEALTHDISP)) || canGiveAmmo) &&
 			target && target->inuse && target->client && target->health > 0 && OnSameTeam(ent, target) &&
-			(G_CanUseDispOn(target, HI_HEALTHDISP) || G_CanUseDispOn(target, HI_AMMODISP)))
+			(G_CanUseDispOn(target, HI_HEALTHDISP) || (canGiveAmmo && G_CanUseDispOn(target, HI_AMMODISP))))
 		{ //a live target that's on my team, we can use him
 			if (G_CanUseDispOn(target, HI_HEALTHDISP))
 			{
 				G_UseDispenserOn(ent, HI_HEALTHDISP, target);
 			}
-			if (G_CanUseDispOn(target, HI_AMMODISP))
+			if (canGiveAmmo && G_CanUseDispOn(target, HI_AMMODISP))
 			{
 				G_UseDispenserOn(ent, HI_AMMODISP, target);
 			}

@@ -1146,6 +1146,10 @@ struct gclient_s {
 
 	int			dangerTime;		// level.time when last attack occured
 
+	int			lastDamageTakenTime;	// level.time this client last lost health/armor from any source (siege passiveheal)
+	int			passiveHealDebounceTime;	// level.time of the next allowed passiveheal tick
+	float		lifestealAccum;	// fractional HP banked from siege lifesteal, applied once it reaches a whole point
+
 	int			idleTime;		//keep track of when to play an idle anim on the client.
 
 	int			idleHealth;		//stop idling if health decreases
@@ -2541,6 +2545,7 @@ void G_CheckClientTimeouts	( gentity_t *ent );
 void ClientThink			( int clientNum, usercmd_t *ucmd );
 void ClientEndFrame			( gentity_t *ent );
 void G_RunClient			( gentity_t *ent );
+void G_SiegePassiveHealTick	( gentity_t *ent );
 
 typedef enum {
 	NMTAUNT_ANGER1 = 100, //gloat

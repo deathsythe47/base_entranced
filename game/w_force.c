@@ -28,6 +28,18 @@ static int absorbLoopSound = 0;
 static int seeLoopSound = 0;
 static int ysalamiriLoopSound = 0;
 
+// siege "forcewithitem" class key: does self's siege class carve out an exception
+// letting forcePower stay usable despite the forcelimit item self is currently holding?
+static qboolean G_SiegeForceAllowedWithItem( gentity_t *self, int forcePower )
+{
+	if ( g_gametype.integer != GT_SIEGE || !self->client || self->client->siegeClass == -1 )
+	{
+		return qfalse;
+	}
+
+	return (bgSiegeClasses[self->client->siegeClass].forceWithItem & (1 << forcePower)) ? qtrue : qfalse;
+}
+
 #define FORCE_VELOCITY_DAMAGE 0
 
 int ForceShootDrain( gentity_t *self );
@@ -1725,10 +1737,11 @@ void ForceSpeed( gentity_t *self, int forceDuration )
 		return;
 	}
 
-	if ( self->client->holdingObjectiveItem >= MAX_CLIENTS  
+	if ( self->client->holdingObjectiveItem >= MAX_CLIENTS
 		&& self->client->holdingObjectiveItem < ENTITYNUM_WORLD )
 	{//holding Siege item
-		if ( g_entities[self->client->holdingObjectiveItem].genericValue15 )
+		if ( g_entities[self->client->holdingObjectiveItem].genericValue15 &&
+			!G_SiegeForceAllowedWithItem( self, FP_SPEED ) )
 		{//disables force powers
 			return;
 		}
@@ -2860,6 +2873,16 @@ void ForceTelepathy(gentity_t *self)
 		return;
 	}
 
+	if ( self->client->holdingObjectiveItem >= MAX_CLIENTS
+		&& self->client->holdingObjectiveItem < ENTITYNUM_WORLD )
+	{//holding Siege item
+		if ( g_entities[self->client->holdingObjectiveItem].genericValue15 &&
+			!G_SiegeForceAllowedWithItem( self, FP_TELEPATHY ) )
+		{//disables force powers
+			return;
+		}
+	}
+
 	// special mind trick power on cargo
 	if (g_gametype.integer == GT_SIEGE && self - g_entities < MAX_CLIENTS && self->client && self->client->siegeClass != -1 &&
 		bgSiegeClasses[self->client->siegeClass].audioMindTrick &&
@@ -3841,6 +3864,7 @@ void ForceThrow( gentity_t *self, qboolean pull )
 				if ((modPowerLevel > otherPushPower || push_list[x]->client->ps.m_iVehicleNum) && push_list[x]->client)
 				{
 					if (modPowerLevel == FORCE_LEVEL_3 &&
+						(g_gametype.integer != GT_SIEGE || !self || self - g_entities >= MAX_CLIENTS || !self->client || self->client->siegeClass == -1 || bgSiegeClasses[self->client->siegeClass].knockdudesOver) &&
 						push_list[x]->client->ps.forceHandExtend != HANDEXTEND_KNOCKDOWN)
 					{
 						dirLen = VectorLength(pushDir);
@@ -4583,10 +4607,11 @@ static void WP_ForcePowerRun( gentity_t *self, forcePowers_t forcePower, usercmd
 #endif
 
 		//This is handled in PM_WalkMove and PM_StepSlideMove
-		if ( self->client->holdingObjectiveItem >= MAX_CLIENTS  
+		if ( self->client->holdingObjectiveItem >= MAX_CLIENTS
 			&& self->client->holdingObjectiveItem < ENTITYNUM_WORLD )
 		{
-			if ( g_entities[self->client->holdingObjectiveItem].genericValue15 )
+			if ( g_entities[self->client->holdingObjectiveItem].genericValue15 &&
+				!G_SiegeForceAllowedWithItem( self, FP_SPEED ) )
 			{//disables force powers
 				WP_ForcePowerStop( self, forcePower );
 			}
@@ -4630,6 +4655,7 @@ static void WP_ForcePowerRun( gentity_t *self, forcePowers_t forcePower, usercmd
 			int addTime = 400;
 
 			self->health -= 2;
+			self->client->lastDamageTakenTime = level.time;
 
 			if (self->client->ps.fd.forcePowerLevel[FP_RAGE] == FORCE_LEVEL_1)
 			{
@@ -4706,9 +4732,10 @@ static void WP_ForcePowerRun( gentity_t *self, forcePowers_t forcePower, usercmd
 		}
 		break;
 	case FP_TELEPATHY:
-		if ( self->client->holdingObjectiveItem >= MAX_CLIENTS  
+		if ( self->client->holdingObjectiveItem >= MAX_CLIENTS
 			&& self->client->holdingObjectiveItem < ENTITYNUM_WORLD
-			&& g_entities[self->client->holdingObjectiveItem].genericValue15 )
+			&& g_entities[self->client->holdingObjectiveItem].genericValue15
+			&& !G_SiegeForceAllowedWithItem( self, FP_TELEPATHY ) )
 		{ //if force hindered can't mindtrick whilst carrying a siege item
 			WP_ForcePowerStop( self, FP_TELEPATHY );
 		}
@@ -5921,10 +5948,9 @@ void WP_ForcePowersUpdate( gentity_t *self, usercmd_t *ucmd )
 				{ //1 point per 7 seconds.. super slow
 					self->client->ps.fd.forcePowerRegenDebounceTime = level.time + 7000;
 				}
-				else if (self->client->siegeClass != -1 &&
-					(bgSiegeClasses[self->client->siegeClass].classflags & (1<<CFL_FASTFORCEREGEN)))
-				{ //if this is siege and our player class has the fast force regen ability, then recharge with 1/5th the usual delay
-					self->client->ps.fd.forcePowerRegenDebounceTime = level.time + (regenTime*0.2);
+				else if (self->client->siegeClass != -1)
+				{ //siege classes use their forceRegen multiplier (1 = normal, 5 = old CFL_FASTFORCEREGEN speed)
+					self->client->ps.fd.forcePowerRegenDebounceTime = level.time + (int)(regenTime / bgSiegeClasses[self->client->siegeClass].forceRegen);
 				}
 				else
 				{

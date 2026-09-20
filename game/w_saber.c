@@ -9287,6 +9287,13 @@ int WP_SaberCanBlock(gentity_t *self, gentity_t* other, vec3_t point, int dflags
 		return 1;
 	}
 
+	// siege "saberblock" class key: this class can never block anything with a saber,
+	// melee or thrown -- covers every caller of this function (melee blockStuff,
+	// thrown-saber-vs-held-saber, and the missile-deflection path in g_missile.c).
+	if (g_gametype.integer == GT_SIEGE && self->client->siegeClass != -1 && !bgSiegeClasses[self->client->siegeClass].saberBlock) {
+		return 0;
+	}
+
 	if (self->client->emoted)
 		return 0;
 

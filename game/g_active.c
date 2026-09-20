@@ -1400,6 +1400,52 @@ void ClientTimerActions( gentity_t *ent, int msec ) {
 }
 
 /*
+==================
+G_SiegePassiveHealTick
+
+Siege "passiveheal" class key: regenerates 1 HP every N seconds, but only while
+the client hasn't taken damage from any source in the last 2 seconds, and isn't
+currently using protect, absorb, rage, speed, mind trick (telepathy), or sense (see).
+Rage's post-use recovery period doesn't block this -- only forcePowersActive's
+FP_RAGE bit (the active-use window) does.
+==================
+*/
+void G_SiegePassiveHealTick( gentity_t *ent ) {
+	gclient_t *client = ent->client;
+	int maxHealth;
+
+	if ( g_gametype.integer != GT_SIEGE || client->siegeClass == -1 )
+		return;
+
+	if ( bgSiegeClasses[client->siegeClass].passiveHeal <= 0.0f )
+		return;
+
+	if ( ent->health <= 0 )
+		return;
+
+	maxHealth = bgSiegeClasses[client->siegeClass].maxhealth;
+	if ( ent->health >= maxHealth )
+		return;
+
+	if ( level.time - client->lastDamageTakenTime < 2000 )
+		return;
+
+	if ( client->ps.fd.forcePowersActive & ( (1 << FP_PROTECT) | (1 << FP_ABSORB) | (1 << FP_RAGE) |
+		(1 << FP_SPEED) | (1 << FP_TELEPATHY) | (1 << FP_SEE) ) )
+		return;
+
+	if ( client->passiveHealDebounceTime > level.time )
+		return;
+
+	ent->health++;
+	if ( ent->health > maxHealth )
+		ent->health = maxHealth;
+	client->ps.stats[STAT_HEALTH] = ent->health;
+
+	client->passiveHealDebounceTime = level.time + (int)( bgSiegeClasses[client->siegeClass].passiveHeal * 1000.0f );
+}
+
+/*
 ====================
 ClientIntermissionThink
 ====================

@@ -5347,12 +5347,18 @@ int G_Damage(gentity_t *targ, gentity_t *inflictor, gentity_t *attacker,
 		return 0;
 	}
 
+	// siege "saberblock" class key: this class is always treated as a gunner for the
+	// DAMAGEFIXES_SABERTHROW_GUNNERS/SABERISTS split below, regardless of what weapon
+	// they're actually holding.
+	qboolean targCannotSaberBlock = (g_gametype.integer == GT_SIEGE && targ && targ->client &&
+		targ->client->siegeClass != -1 && !bgSiegeClasses[targ->client->siegeClass].saberBlock) ? qtrue : qfalse;
+
 	// guaranteed 100 damage saber throws on gunners
 	if (g_damageFixes.integer & DAMAGEFIXES_SABERTHROW_GUNNERS &&
 		g_gametype.integer == GT_SIEGE &&
 		nonJediSaberDmgIncrease != NONJEDISABERDMGINCREASE_NO &&
 		targ && targ->client && targ - g_entities < MAX_CLIENTS &&
-		mod == MOD_SABER && (targ->client->ps.weapon != WP_SABER || nonJediSaberDmgIncrease == NONJEDISABERDMGINCREASE_YES) &&
+		mod == MOD_SABER && (targ->client->ps.weapon != WP_SABER || nonJediSaberDmgIncrease == NONJEDISABERDMGINCREASE_YES || targCannotSaberBlock) &&
 		attacker && attacker->client && attacker - g_entities < MAX_CLIENTS && attacker->client->ps.saberInFlight &&
 		attacker->client->ps.saberMove != LS_DUAL_FB && attacker->client->ps.saberMove != LS_DUAL_LR) {
 		// duoTODO: fix damage for saberthrow with dual saber when holding mouse1 with the other saber at the same time
@@ -5368,7 +5374,7 @@ int G_Damage(gentity_t *targ, gentity_t *inflictor, gentity_t *attacker,
 	if (g_damageFixes.integer & DAMAGEFIXES_SABERTHROW_SABERISTS &&
 		g_gametype.integer == GT_SIEGE &&
 		targ && targ->client && targ - g_entities < MAX_CLIENTS &&
-		mod == MOD_SABER && targ->client->ps.weapon == WP_SABER &&
+		mod == MOD_SABER && targ->client->ps.weapon == WP_SABER && !targCannotSaberBlock &&
 		attacker && attacker->client && attacker - g_entities < MAX_CLIENTS && attacker->client->ps.saberInFlight && attacker->client->ps.saberEntityNum &&
 		attacker->client->ps.saberEntityNum != ENTITYNUM_NONE && attacker->client->ps.saberMove != LS_DUAL_FB && attacker->client->ps.saberMove != LS_DUAL_LR) {
 		// duoTODO: fix damage for saberthrow with dual saber when holding mouse1 with the other saber at the same time
@@ -6773,7 +6779,32 @@ int G_Damage(gentity_t *targ, gentity_t *inflictor, gentity_t *attacker,
 			}
 		}
 		targ->health = targ->health - take;
-		
+
+		if (g_gametype.integer == GT_SIEGE && take > 0 && targ->client && targ - g_entities < MAX_CLIENTS)
+		{
+			targ->client->lastDamageTakenTime = level.time;
+
+			if (attacker && attacker->client && attacker != targ && attacker - g_entities < MAX_CLIENTS &&
+				attacker->client->siegeClass != -1 && bgSiegeClasses[attacker->client->siegeClass].lifesteal > 0.0f &&
+				(attacker->client->sess.sessionTeam == TEAM_RED || attacker->client->sess.sessionTeam == TEAM_BLUE) &&
+				targ->client->sess.sessionTeam != TEAM_SPECTATOR && targ->client->sess.sessionTeam != attacker->client->sess.sessionTeam)
+			{ //siege lifesteal: bank fractional HP, apply whole points once they accumulate
+				attacker->client->lifestealAccum += (float)take * bgSiegeClasses[attacker->client->siegeClass].lifesteal;
+
+				int lifestealHeal = (int)attacker->client->lifestealAccum;
+				if (lifestealHeal >= 1)
+				{
+					int attackerMaxHealth = bgSiegeClasses[attacker->client->siegeClass].maxhealth;
+
+					attacker->client->lifestealAccum -= lifestealHeal;
+					attacker->health += lifestealHeal;
+					if (attacker->health > attackerMaxHealth)
+						attacker->health = attackerMaxHealth;
+					attacker->client->ps.stats[STAT_HEALTH] = attacker->health;
+				}
+			}
+		}
+
 		// check that we didn't put them over their max hp
 		if (negativeDamageOk && take < 0) {
 			if (targ->client && targ - g_entities < MAX_CLIENTS && targ->client->siegeClass != -1) {
