@@ -248,3 +248,127 @@ int Crypto_Hash( const char *inRaw, char *outHex, size_t outHexSize ) {
 
 	return CRYPTO_FINE;
 }
+
+int Crypto_GenerateStreamKey( streamKey_t *key ) {
+	if ( !key ) {
+		Crypto_Error( "NULL key" );
+		return CRYPTO_ERROR;
+	}
+
+	randombytes_buf( key->keyBin, sizeof( key->keyBin ) );
+	sodium_bin2hex( key->keyHex, sizeof( key->keyHex ), key->keyBin, sizeof( key->keyBin ) );
+
+	return CRYPTO_FINE;
+}
+
+int Crypto_LoadStreamKeyFromString( streamKey_t *key, const char *keyHex ) {
+	size_t len;
+
+	if ( !key || !keyHex ) {
+		Crypto_Error( "NULL argument" );
+		return CRYPTO_ERROR;
+	}
+
+	if ( sodium_hex2bin( key->keyBin, sizeof( key->keyBin ), keyHex, strlen( keyHex ),
+		NULL, &len, NULL ) != 0 || len != sizeof( key->keyBin ) ) {
+		Crypto_Error( "Failed to decode stream key" );
+		return CRYPTO_ERROR;
+	}
+
+	strncpyz( keyHex, key->keyHex, sizeof( key->keyHex ) );
+
+	return CRYPTO_FINE;
+}
+
+int Crypto_StreamXor( const streamKey_t *key, uint64_t nonce, uint64_t blockCounter,
+	const unsigned char *in, unsigned char *out, size_t len ) {
+	unsigned char nonceBin[crypto_stream_chacha20_NONCEBYTES];
+	int i;
+
+	if ( !key || !in || !out ) {
+		Crypto_Error( "NULL argument" );
+		return CRYPTO_ERROR;
+	}
+
+	for ( i = 0; i < (int)sizeof( nonceBin ); i++ ) {
+		nonceBin[i] = (unsigned char)( ( nonce >> ( i * 8 ) ) & 0xFF );
+	}
+
+	if ( crypto_stream_chacha20_xor_ic( out, in, (unsigned long long)len, nonceBin, blockCounter,
+		key->keyBin ) != 0 ) {
+		Crypto_Error( "Failed to apply ChaCha20 keystream" );
+		return CRYPTO_ERROR;
+	}
+
+	return CRYPTO_FINE;
+}
+
+size_t Crypto_Pack7Bit( const unsigned char *in, size_t inSize, char *out, size_t outSize ) {
+	size_t needed, outIndex = 0;
+	unsigned int accum = 0;
+	int bits = 0;
+	size_t i;
+
+	if ( !in || !out ) {
+		Crypto_Error( "NULL argument" );
+		return 0;
+	}
+
+	needed = Crypto_PackedSizeForBin( inSize );
+	if ( outSize < needed + 1 ) {
+		Crypto_Error( "Output buffer too small (need %u, have %u)", (unsigned int)( needed + 1 ),
+			(unsigned int)outSize );
+		return 0;
+	}
+
+	for ( i = 0; i < inSize; i++ ) {
+		accum = ( accum << 8 ) | in[i];
+		bits += 8;
+
+		while ( bits >= 7 ) {
+			bits -= 7;
+			out[outIndex++] = (char)( 0x80 | ( ( accum >> bits ) & 0x7F ) );
+		}
+	}
+
+	if ( bits > 0 ) {
+		out[outIndex++] = (char)( 0x80 | ( ( accum << ( 7 - bits ) ) & 0x7F ) );
+	}
+
+	out[outIndex] = '\0';
+
+	return outIndex;
+}
+
+size_t Crypto_Unpack7Bit( const char *in, unsigned char *out, size_t outSize ) {
+	size_t outIndex = 0;
+	unsigned int accum = 0;
+	int bits = 0;
+
+	if ( !in || !out ) {
+		Crypto_Error( "NULL argument" );
+		return 0;
+	}
+
+	while ( *in ) {
+		unsigned char c = (unsigned char)*in++;
+
+		if ( !( c & 0x80 ) ) {
+			Crypto_Error( "Malformed packed data" );
+			return 0;
+		}
+
+		accum = ( accum << 7 ) | ( c & 0x7F );
+		bits += 7;
+
+		if ( bits >= 8 ) {
+			bits -= 8;
+			if ( outIndex >= outSize ) {
+				break;
+			}
+			out[outIndex++] = (unsigned char)( ( accum >> bits ) & 0xFF );
+		}
+	}
+
+	return outIndex;
+}

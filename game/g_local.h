@@ -49,6 +49,8 @@ extern vec3_t gPainPoint;
 #ifdef NEWMOD_SUPPORT
 #define NM_AUTH_PROTOCOL				5
 
+#define SPECINFO_ENC_PROTOCOL			2
+
 #define PUBLIC_KEY_FILENAME				"public_key.bin"
 #define SECRET_KEY_FILENAME				"secret_key.bin"
 #endif
@@ -1826,6 +1828,10 @@ typedef struct {
 	qboolean nmAuthEnabled;
 	publicKey_t publicKey;
 	secretKey_t secretKey;
+	streamKey_t specInfoKey;
+	qboolean specInfoKeyValid;
+	int specInfoSeq;
+	int specInfoOverflowWarnTime;
 	char classLimits[MAX_STRING_CHARS];
 #endif
 
@@ -2976,6 +2982,7 @@ extern vmCvar_t		g_netUnlock;
 extern vmCvar_t		g_nmFlags;
 extern vmCvar_t		g_enableNmAuth;
 extern vmCvar_t		g_specInfo;
+extern vmCvar_t		g_specInfoEncrypted;
 #endif
 
 extern vmCvar_t     g_strafejump_mod;

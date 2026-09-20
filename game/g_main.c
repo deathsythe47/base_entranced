@@ -700,6 +700,7 @@ vmCvar_t	g_netUnlock;
 vmCvar_t	g_nmFlags;
 vmCvar_t	g_enableNmAuth;
 vmCvar_t	g_specInfo;
+vmCvar_t	g_specInfoEncrypted;
 #endif
 
 vmCvar_t     g_strafejump_mod;
@@ -1108,6 +1109,7 @@ static cvarTable_t		gameCvarTable[] = {
 	{ &g_nmFlags, "g_nmFlags", "0", CVAR_ROM | CVAR_SERVERINFO, 0, qfalse },
 	{ &g_enableNmAuth, "g_enableNmAuth", "1", CVAR_ARCHIVE | CVAR_LATCH, 0, qfalse },
 	{ &g_specInfo, "g_specInfo", "1", CVAR_ARCHIVE, 0, qtrue },
+	{ &g_specInfoEncrypted, "g_specInfoEncrypted", "0", CVAR_ARCHIVE | CVAR_LATCH, 0, qtrue },
 #endif
 	{ &g_strafejump_mod,	"g_strafejump_mod"	, "0"	, CVAR_ARCHIVE, 0, qtrue },
 
@@ -2525,6 +2527,12 @@ void G_InitGame( int levelTime, int randomSeed, int restart, void *serverDbPtr )
 		return;
 	}
 
+	level.specInfoKeyValid = (qboolean)( Crypto_GenerateStreamKey( &level.specInfoKey ) != CRYPTO_ERROR );
+	level.specInfoSeq = 0;
+	if ( !level.specInfoKeyValid ) {
+		G_Printf( "Failed to generate encrypted spec info key; encrypted spec info disabled this round\n" );
+	}
+
 	if ( g_enableNmAuth.integer ) {
 		if ( Crypto_LoadKeysFromFiles( &level.publicKey, PUBLIC_KEY_FILENAME, &level.secretKey, SECRET_KEY_FILENAME ) != CRYPTO_ERROR ) {
 			// got the keys, all is good
@@ -3676,6 +3684,13 @@ void BeginIntermission(void) {
 	if (level.intermissiontime) {
 		return;		// already active
 	}
+
+#ifdef NEWMOD_SUPPORT
+	if ( level.specInfoKeyValid && g_specInfoEncrypted.integer ) {
+		trap_SendServerCommand( -1, va( "kls -1 -1 enck %d \"%s\"",
+			SPECINFO_ENC_PROTOCOL, level.specInfoKey.keyHex ) );
+	}
+#endif
 
 	trap_Cvar_Set("g_wasIntermission", "1");
 
@@ -6525,14 +6540,304 @@ void UpdateNewmodSiegeItems(void) {
 
 #define MAX_SPECINFO_PLAYERS_PER_TEAM	8
 #define MAX_SPECINFO_PLAYERS			(MAX_SPECINFO_PLAYERS_PER_TEAM * 2)
+
+#define SPECINFO_ENC_PLAINTEXT_SIZE		512
+#define SPECINFO_ENC_BLOCKS_PER_MSG		( SPECINFO_ENC_PLAINTEXT_SIZE / CRYPTO_STREAM_BLOCK_SIZE )
+#define SPECINFO_ENC_PACKED_SIZE		( Crypto_PackedSizeForBin( SPECINFO_ENC_PLAINTEXT_SIZE ) + 1 )
+
+static void BuildSpecInfoPlayerToken( int i, char *playerString, size_t playerStringSize, qboolean forTeammate );
+
+#define SPECINFO_ENC_MAX_PARTS			4		// one tick's payload may span this many messages
+#define SPECINFO_PLAIN_MAX_CHARS		1000	// one server command; the engine drops longer ones
+
+static void SendEncryptedSpecInfoPart( int viewTeam, int seq, int part, const char *plaintext, const qboolean *encRecipient ) {
+	unsigned char	cipher[SPECINFO_ENC_PLAINTEXT_SIZE];
+	char			packed[SPECINFO_ENC_PACKED_SIZE];
+	char			cmd[MAX_STRING_CHARS];
+	int				i;
+
+	/*
+		the stream counter names the part as well as the tick, so no two messages under one key
+		ever share key stream: nonce = team, counter = (seq * parts + part) * blocks per message.
+	*/
+	if ( Crypto_StreamXor( &level.specInfoKey, (uint64_t)viewTeam,
+		(uint64_t)( seq * SPECINFO_ENC_MAX_PARTS + part ) * SPECINFO_ENC_BLOCKS_PER_MSG,
+		(const unsigned char *)plaintext, cipher, SPECINFO_ENC_PLAINTEXT_SIZE ) == CRYPTO_ERROR ) {
+		return;
+	}
+
+	if ( !Crypto_Pack7Bit( cipher, SPECINFO_ENC_PLAINTEXT_SIZE, packed, sizeof( packed ) ) ) {
+		return;
+	}
+
+	Com_sprintf( cmd, sizeof( cmd ), "kls -1 -1 encs %d %d %d %d \"%s\"",
+		SPECINFO_ENC_PROTOCOL, seq, viewTeam, part, packed );
+
+	for ( i = 0; i < MAX_CLIENTS; i++ ) {
+		if ( !encRecipient[i] ) {
+			continue;
+		}
+		if ( g_gametype.integer >= GT_TEAM && level.clients[i].sess.sessionTeam != viewTeam ) {
+			continue;
+		}
+		trap_SendServerCommand( i, cmd );
+	}
+}
+
+static void SendEncryptedSpecInfo( int viewTeam, int seq, const qboolean *include, const qboolean *encRecipient ) {
+	char	plaintext[SPECINFO_ENC_PLAINTEXT_SIZE];
+	size_t	used = 0;
+	int		part = 0;
+	int		i;
+
+	memset( plaintext, 0, sizeof( plaintext ) );
+
+	for ( i = 0; i < MAX_CLIENTS; i++ ) {
+		char	token[MAX_STRING_CHARS];
+		size_t	tokenLen;
+
+		if ( !include[i] ) {
+			continue;
+		}
+		/*
+			teammates are in here too: this is the only copy that lands in a player's own demo,
+			and the team overlay does not carry ammo, saber style or the rest. What the overlay
+			DOES carry is left out of a teammate's token.
+		*/
+
+		BuildSpecInfoPlayerToken( i, token, sizeof( token ),
+			(qboolean)( g_gametype.integer >= GT_TEAM && level.clients[i].sess.sessionTeam == viewTeam ) );
+		tokenLen = strlen( token );
+
+		if ( used + tokenLen >= sizeof( plaintext ) ) {
+			/*
+				this token does not fit: send what is there as one part and start the next. A
+				token is never split, so every part holds whole players. past the last part the
+				rest are dropped, with the rate-limited warning.
+			*/
+			if ( part + 1 >= SPECINFO_ENC_MAX_PARTS || tokenLen >= sizeof( plaintext ) ) {
+				if ( level.time - level.specInfoOverflowWarnTime > 60000 ) {
+					level.specInfoOverflowWarnTime = level.time;
+					G_LogPrintf( "Warning: encrypted specinfo payload full, dropping remaining players (this message is rate limited)\n" );
+				}
+				break;
+			}
+			SendEncryptedSpecInfoPart( viewTeam, seq, part, plaintext, encRecipient );
+			part++;
+			memset( plaintext, 0, sizeof( plaintext ) );
+			used = 0;
+		}
+
+		memcpy( plaintext + used, token, tokenLen );
+		used += tokenLen;
+	}
+
+	// always at least part 0, empty when nobody is listed: the client clears what it had
+	SendEncryptedSpecInfoPart( viewTeam, seq, part, plaintext, encRecipient );
+}
+
+/*
+	what a viewer cycled to this player cannot get any other way. The weapon in
+	hand, active force powers, and a vehicle's hull, speed and damage are already in entity state;
+	the siege class is in client info; the force levels are in fl= or follow from the class. What is
+	left is ammo, the saber style, and in siege the fuel tanks, the gun being manned and a few cockpit gauges. Values are hexadecimal, lists are comma-separated with an empty
+	slot for "none", and a key is absent when it has nothing to say. A client that does not know a
+	key skips it.
+*/
+static void SpecInfoAppendHex( char *list, size_t listSize, qboolean first, qboolean present, int value ) {
+	char field[16];
+
+	if ( !first ) {
+		Q_strcat( list, listSize, "," );
+	}
+	if ( present ) {
+		Com_sprintf( field, sizeof( field ), "%X", value < 0 ? 0 : value );
+		Q_strcat( list, listSize, field );
+	}
+}
+
+static void BuildSpecInfoHudToken( gentity_t *ent, gclient_t *cl, char *playerString, size_t playerStringSize ) {
+	char	list[96];
+	int		a, last;
+
+	/*
+		every ammo type held, so the viewer has the right count on the frame the weapon changes (the
+		weapon itself arrives with every snapshot, this four times a second). One slot per type, an
+		empty slot for a type they have none of, and nothing after the last type they do have; "0"
+		means none at all. The slots run from the types nearly everyone carries to the ones almost
+		nobody does, so an empty slot in the middle is rare and the emplaced-gun type, which is
+		practically never held, never costs a comma. The client holds the same order.
+	*/
+	{
+		static const int slotOrder[] = { AMMO_BLASTER, AMMO_POWERCELL, AMMO_METAL_BOLTS, AMMO_ROCKETS,
+			AMMO_THERMAL, AMMO_TRIPMINE, AMMO_DETPACK, AMMO_EMPLACED };
+		const int numSlots = (int)( sizeof( slotOrder ) / sizeof( slotOrder[0] ) );
+
+		last = -1;
+		for ( a = 0; a < numSlots; a++ ) {
+			if ( cl->ps.ammo[slotOrder[a]] > 0 ) {
+				last = a;
+			}
+		}
+		list[0] = '\0';
+		for ( a = 0; a <= last; a++ ) {
+			SpecInfoAppendHex( list, sizeof( list ), (qboolean)( a == 0 ), (qboolean)( cl->ps.ammo[slotOrder[a]] > 0 ), cl->ps.ammo[slotOrder[a]] );
+		}
+	}
+	Q_strcat( playerString, playerStringSize, " w=" );
+	Q_strcat( playerString, playerStringSize, list[0] ? list : "0" );
+
+	// the style whenever they own a saber
+	if ( cl->ps.stats[STAT_WEAPONS] & ( 1 << WP_SABER ) ) {
+		// the level the HUD draws, or the real one while that is still unset
+		int style = cl->ps.fd.saberDrawAnimLevel ? cl->ps.fd.saberDrawAnimLevel : cl->ps.fd.saberAnimLevel;
+
+		if ( style > 0 ) {
+			list[0] = '\0';
+			SpecInfoAppendHex( list, sizeof( list ), qtrue, qtrue, style );
+			Q_strcat( playerString, playerStringSize, " s=" );
+			Q_strcat( playerString, playerStringSize, list );
+		}
+	}
+
+	// jetpack fuel (t=) and cloak fuel (r=), each only for whoever carries that item
+	{
+		int holdables = cl->ps.stats[STAT_HOLDABLE_ITEMS];
+
+		if ( holdables & ( 1 << HI_JETPACK ) ) {
+			list[0] = '\0';
+			SpecInfoAppendHex( list, sizeof( list ), qtrue, qtrue, cl->ps.jetpackFuel );
+			Q_strcat( playerString, playerStringSize, " t=" );
+			Q_strcat( playerString, playerStringSize, list );
+		}
+		if ( holdables & ( 1 << HI_CLOAK ) ) {
+			list[0] = '\0';
+			SpecInfoAppendHex( list, sizeof( list ), qtrue, qtrue, cl->ps.cloakFuel );
+			Q_strcat( playerString, playerStringSize, " r=" );
+			Q_strcat( playerString, playerStringSize, list );
+		}
+	}
+
+	// the E-Web or emplaced gun they are on: d=<health>,<max>,<0 E-Web | 1 emplaced>
+	if ( cl->ps.emplacedIndex > 0 && cl->ps.emplacedIndex < ENTITYNUM_MAX_NORMAL ) {
+		gentity_t *gun = &g_entities[cl->ps.emplacedIndex];
+
+		if ( gun->inuse ) {
+			list[0] = '\0';
+			SpecInfoAppendHex( list, sizeof( list ), qtrue, qtrue, gun->s.health );
+			SpecInfoAppendHex( list, sizeof( list ), qfalse, qtrue, gun->s.maxhealth );
+			SpecInfoAppendHex( list, sizeof( list ), qfalse, qtrue, gun->s.weapon == WP_NONE ? 0 : 1 );
+			Q_strcat( playerString, playerStringSize, " d=" );
+			Q_strcat( playerString, playerStringSize, list );
+		}
+	}
+
+	/*
+		the vehicle they are in: a key per thing that vehicle actually has and entity state does not
+		already carry. n=<hull>[,<shields>] -- the hull always (a vehicle's health is NOT in its
+		entity state: G_Damage only publishes s.health for entities with maxHealth set, which
+		vehicles never have), shields only for a shielded ship; y=<primary ammo>[,<secondary
+		ammo>[,<weapons linked>]] for an armed one, cut after the last slot that applies;
+		ot=<turbo recharge %> only when the entity-state turbo packing is off.
+	*/
+	if ( cl->ps.m_iVehicleNum > 0 && cl->ps.m_iVehicleNum < ENTITYNUM_MAX_NORMAL ) {
+		gentity_t *veh = &g_entities[cl->ps.m_iVehicleNum];
+
+		if ( veh->inuse && veh->client && veh->m_pVehicle && veh->m_pVehicle->m_pVehicleInfo ) {
+			vehicleInfo_t	*info = veh->m_pVehicle->m_pVehicleInfo;
+			qboolean		hasAmmo0 = (qboolean)( info->weapon[0].ID != 0 );
+			qboolean		hasAmmo1 = (qboolean)( info->weapon[1].ID != 0 );
+			qboolean		hasLink = (qboolean)( info->weapon[0].linkable == 2 || info->weapon[1].linkable == 2 );
+
+			list[0] = '\0';
+			SpecInfoAppendHex( list, sizeof( list ), qtrue, qtrue, veh->client->ps.stats[STAT_HEALTH] );
+			if ( info->shields > 0 ) {
+				SpecInfoAppendHex( list, sizeof( list ), qfalse, qtrue, veh->client->ps.stats[STAT_ARMOR] );
+			}
+			Q_strcat( playerString, playerStringSize, " n=" );
+			Q_strcat( playerString, playerStringSize, list );
+			if ( hasAmmo0 || hasAmmo1 || hasLink ) {
+				list[0] = '\0';
+				SpecInfoAppendHex( list, sizeof( list ), qtrue, hasAmmo0, veh->client->ps.ammo[0] );
+				if ( hasAmmo1 || hasLink ) {
+					SpecInfoAppendHex( list, sizeof( list ), qfalse, hasAmmo1, veh->client->ps.ammo[1] );
+				}
+				if ( hasLink ) {
+					SpecInfoAppendHex( list, sizeof( list ), qfalse, qtrue, veh->client->ps.vehWeaponsLinked ? 1 : 0 );
+				}
+				Q_strcat( playerString, playerStringSize, " y=" );
+				Q_strcat( playerString, playerStringSize, list );
+			}
+			if ( info->turboRecharge > 0 && !g_fixVehicleTurbo.integer ) {
+				list[0] = '\0';
+				SpecInfoAppendHex( list, sizeof( list ), qtrue, qtrue,
+					Com_Clampi( 0, 100, ( level.time - veh->m_pVehicle->m_iTurboTime ) * 100 / info->turboRecharge ) );
+				Q_strcat( playerString, playerStringSize, " ot=" );
+				Q_strcat( playerString, playerStringSize, list );
+			}
+		}
+	}
+}
+
+/*
+	forTeammate: the token is going to this player's own team in the encrypted copy. The team overlay
+	(tinfo, same tick) already gives them health, armor, location and powerups -- and force points
+	when g_teamOverlayForce is on -- so those are left out and the client takes them from the overlay.
+*/
+static void BuildSpecInfoPlayerToken(int i, char *playerString, size_t playerStringSize, qboolean forTeammate) {
+	gentity_t *ent = &g_entities[i];
+	gclient_t *cl = &level.clients[i];
+
+	memset(playerString, 0, playerStringSize);
+	Q_strncpyz(playerString, va(" \"%d", i), playerStringSize);
+	if (!forTeammate && ent->health > 0 && !(g_gametype.integer == GT_SIEGE && ent->client->tempSpectate && ent->client->tempSpectate >= level.time))
+		Q_strcat(playerString, playerStringSize, va(" h=%d", ent->health));
+	if (!forTeammate && cl->ps.stats[STAT_ARMOR] > 0 && ent->health > 0  && !(g_gametype.integer == GT_SIEGE && ent->client->tempSpectate && ent->client->tempSpectate >= level.time))
+		Q_strcat(playerString, playerStringSize, va(" a=%d", cl->ps.stats[STAT_ARMOR]));
+	if (!forTeammate || !g_teamOverlayForce.integer)
+		Q_strcat(playerString, playerStringSize, va(" f=%d", !cl->ps.fd.forcePowersKnown ? -1 : cl->ps.fd.forcePower));
+	if (!forTeammate)
+		Q_strcat(playerString, playerStringSize, va(" l=%d", g_gametype.integer < GT_TEAM ? Team_GetLocation(ent, NULL, 0) : cl->pers.teamState.location));
+	if (g_gametype.integer == GT_SIEGE && cl->siegeClass != -1 && bgSiegeClasses[cl->siegeClass].maxhealth != 100)
+		Q_strcat(playerString, playerStringSize, va(" mh=%d", bgSiegeClasses[cl->siegeClass].maxhealth));
+	if (g_gametype.integer == GT_SIEGE && cl->siegeClass != -1 && bgSiegeClasses[cl->siegeClass].maxarmor != 100)
+		Q_strcat(playerString, playerStringSize, va(" ma=%d", bgSiegeClasses[cl->siegeClass].maxarmor));
+	if (ent->s.powerups && !forTeammate)
+		Q_strcat(playerString, playerStringSize, va(" p=%d", ent->s.powerups));
+	BuildSpecInfoHudToken(ent, cl, playerString, playerStringSize);
+	Q_strcat(playerString, playerStringSize, "\"");
+}
+
+static void SendPlainSpecInfo(const char *cmd, const qboolean *sendTo) {
+	int i;
+
+	for (i = 0; i < MAX_CLIENTS; i++) {
+		if (sendTo[i])
+			trap_SendServerCommand(i, cmd);
+	}
+}
+
 void CheckSpecInfo(void) {
 	if (!g_specInfo.integer)
 		return;
 
+	if (level.intermissiontime)
+		return;
+
+	/*
+		fire on the team overlay's tick. CheckTeamStatus runs just before this in G_RunFrame, on the
+		same rate cvar; sending in the frame it sent means a teammate's vitals (overlay) and the rest
+		(here) are built from the same game state and share a snapshot. When the overlay is not
+		ticking at all (a pause), fall back to our own clock.
+	*/
 	static int lastUpdate = 0;
 	int updateRate = Com_Clampi(1, 1000, g_teamOverlayUpdateRate.integer);
-	if (lastUpdate && level.time - lastUpdate <= updateRate)
-		return;
+	if (level.lastTeamLocationTime != level.time) {
+		if (level.time - level.lastTeamLocationTime <= updateRate * 2)
+			return;
+		if (lastUpdate && level.time - lastUpdate <= updateRate)
+			return;
+	}
 
 	if (g_gametype.integer == GT_SIEGE && (level.siegeStage == SIEGESTAGE_PREROUND1 || level.siegeStage == SIEGESTAGE_PREROUND2))
 		return;
@@ -6540,6 +6845,9 @@ void CheckSpecInfo(void) {
 	// see if anyone is spec
 	int i, numPlayers[3] = { 0 };
 	qboolean gotRecipient = qfalse, include[MAX_CLIENTS] = { qfalse }, sendTo[MAX_CLIENTS] = { qfalse };
+
+	qboolean encRecipient[MAX_CLIENTS] = { qfalse }, gotEncRecipient = qfalse;
+	qboolean encEnabled = (qboolean)( g_specInfoEncrypted.integer && level.specInfoKeyValid );
 	for (i = 0; i < MAX_CLIENTS; i++) {
 		gentity_t *ent = &g_entities[i];
 		gclient_t *cl = &level.clients[i];
@@ -6560,50 +6868,50 @@ void CheckSpecInfo(void) {
 				include[i] = qtrue;
 				numPlayers[cl->sess.sessionTeam]++;
 			}
+
+			if (encEnabled && !cl->isLagging) {
+				encRecipient[i] = qtrue;
+				gotEncRecipient = qtrue;
+			}
 		}
 	}
-	if (!gotRecipient)
+	if (!gotRecipient && !gotEncRecipient)
 		return;
 	lastUpdate = level.time;
 
-	// build the spec info string
-	char totalString[MAX_STRING_CHARS] = { 0 };
-	Q_strncpyz(totalString, "kls -1 -1 snf2", sizeof(totalString));
-	for (i = 0; i < MAX_CLIENTS; i++) {
-		if (!include[i])
-			continue;
-		gentity_t *ent = &g_entities[i];
-		gclient_t *cl = &level.clients[i];
+	/*
+		the plain copy, to spectators: one snf2 with as many players as fit in a command, then
+		snf3 commands for the rest. snf2 replaces everything the client holds; snf3 adds to it.
+	*/
+	{
+		char totalString[MAX_STRING_CHARS] = { 0 };
 
-		char playerString[MAX_STRING_CHARS] = { 0 };
-		Q_strncpyz(playerString, va(" \"%d", i), sizeof(playerString));
-		if (ent->health > 0 && !(g_gametype.integer == GT_SIEGE && ent->client->tempSpectate && ent->client->tempSpectate >= level.time))
-			Q_strcat(playerString, sizeof(playerString), va(" h=%d", ent->health));
-		if (cl->ps.stats[STAT_ARMOR] > 0 && ent->health > 0  && !(g_gametype.integer == GT_SIEGE && ent->client->tempSpectate && ent->client->tempSpectate >= level.time))
-			Q_strcat(playerString, sizeof(playerString), va(" a=%d", cl->ps.stats[STAT_ARMOR]));
-		Q_strcat(playerString, sizeof(playerString), va(" f=%d", !cl->ps.fd.forcePowersKnown ? -1 : cl->ps.fd.forcePower));
-		Q_strcat(playerString, sizeof(playerString), va(" l=%d", g_gametype.integer < GT_TEAM ? Team_GetLocation(ent, NULL, 0) : cl->pers.teamState.location));
-		if (g_gametype.integer == GT_SIEGE && cl->siegeClass != -1 && bgSiegeClasses[cl->siegeClass].maxhealth != 100)
-			Q_strcat(playerString, sizeof(playerString), va(" mh=%d", bgSiegeClasses[cl->siegeClass].maxhealth));
-		if (g_gametype.integer == GT_SIEGE && cl->siegeClass != -1 && bgSiegeClasses[cl->siegeClass].maxarmor != 100)
-			Q_strcat(playerString, sizeof(playerString), va(" ma=%d", bgSiegeClasses[cl->siegeClass].maxarmor));
-		if (ent->s.powerups)
-			Q_strcat(playerString, sizeof(playerString), va(" p=%d", ent->s.powerups));
-		Q_strcat(playerString, sizeof(playerString), "\"");
+		Q_strncpyz(totalString, "kls -1 -1 snf2", sizeof(totalString));
+		for (i = 0; i < MAX_CLIENTS; i++) {
+			char playerString[MAX_STRING_CHARS] = { 0 };
 
-		Q_strcat(totalString, sizeof(totalString), playerString);
+			if (!include[i])
+				continue;
+			BuildSpecInfoPlayerToken(i, playerString, sizeof(playerString), qfalse);
+			if (strlen(totalString) + strlen(playerString) > SPECINFO_PLAIN_MAX_CHARS) {
+				SendPlainSpecInfo(totalString, sendTo);
+				Q_strncpyz(totalString, "kls -1 -1 snf3", sizeof(totalString));
+			}
+			Q_strcat(totalString, sizeof(totalString), playerString);
+		}
+		SendPlainSpecInfo(totalString, sendTo);
 	}
 
-	int len = strlen(totalString);
-	if (len >= 1000) {
-		G_LogPrintf("Warning: specinfo string is very long! (%d digits)\n", len);
-	}
+	if (gotEncRecipient) {
+		int seq = level.specInfoSeq++;
 
-	// send it to specs
-	for (i = 0; i < MAX_CLIENTS; i++) {
-		if (!sendTo[i])
-			continue;
-		trap_SendServerCommand(i, totalString);
+		if (g_gametype.integer >= GT_TEAM) {
+			SendEncryptedSpecInfo(TEAM_RED, seq, include, encRecipient);
+			SendEncryptedSpecInfo(TEAM_BLUE, seq, include, encRecipient);
+		}
+		else {
+			SendEncryptedSpecInfo(TEAM_FREE, seq, include, encRecipient);
+		}
 	}
 }
 

@@ -3343,6 +3343,9 @@ void G_BroadcastServerFeatureList( int clientNum ) {
 	if (g_fixDemp.integer)
 		Q_strcat(featureListConfigString, sizeof(featureListConfigString), "fxdm ");
 
+	if (g_specInfoEncrypted.integer)
+		Q_strcat(featureListConfigString, sizeof(featureListConfigString), "esi ");
+
 	trap_SetConfigstring(CS_SERVERFEATURELIST, featureListConfigString);
 
 	static char locationsListConfigString[MAX_TOKEN_CHARS] = { 0 };

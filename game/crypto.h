@@ -49,6 +49,20 @@ typedef struct secretKey_s {
 #error CRYPTO_HASH_BIN_LEN is too large
 #endif
 
+
+#define CRYPTO_STREAM_KEY_BIN_SIZE		crypto_stream_chacha20_KEYBYTES		// 32
+#define CRYPTO_STREAM_KEY_HEX_SIZE		HexSizeForBin( CRYPTO_STREAM_KEY_BIN_SIZE )
+
+typedef struct streamKey_s {
+	unsigned char	keyBin[CRYPTO_STREAM_KEY_BIN_SIZE];
+	char			keyHex[CRYPTO_STREAM_KEY_HEX_SIZE];
+} streamKey_t;
+
+#define CRYPTO_STREAM_BLOCK_SIZE		64
+
+#define Crypto_PackedSizeForBin( bin )	( ( ( (bin) * 8 ) + 6 ) / 7 )
+#define Crypto_BinSizeForPacked( packed ) ( ( (packed) * 7 ) / 8 )
+
 int Crypto_Init( PrintStream errorStream );
 int Crypto_GenerateKeys( publicKey_t *pk, secretKey_t *sk );
 int Crypto_LoadKeysFromStrings( publicKey_t *pk, const char *pkHex, secretKey_t *sk, const char *skHex );
@@ -57,5 +71,12 @@ int Crypto_SaveKeysToFiles( publicKey_t *pk, const char *pkFilename, secretKey_t
 int Crypto_Encrypt( publicKey_t *pk, const char *inRaw, char *outHex, size_t outHexSize );
 int Crypto_Decrypt( publicKey_t *pk, secretKey_t *sk, const char *inHex, char *outRaw, size_t outRawSize );
 int Crypto_Hash( const char *inRaw, char *outHex, size_t outHexSize );
+
+int Crypto_GenerateStreamKey( streamKey_t *key );
+int Crypto_LoadStreamKeyFromString( streamKey_t *key, const char *keyHex );
+int Crypto_StreamXor( const streamKey_t *key, uint64_t nonce, uint64_t blockCounter,
+	const unsigned char *in, unsigned char *out, size_t len );
+size_t Crypto_Pack7Bit( const unsigned char *in, size_t inSize, char *out, size_t outSize );
+size_t Crypto_Unpack7Bit( const char *in, unsigned char *out, size_t outSize );
 
 #endif // __CRYPTO_H__
