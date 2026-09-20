@@ -308,6 +308,9 @@ void InitSiegeMode(void)
 	if (g_siegeTeamSwitch.integer)
 	{
 		trap_SiegePersGet(&g_siegePersistant);
+//		G_Printf("[RNDDBG] InitSiegeMode: loaded pers data - beatingTime=%i lastTeam=%i lastTime=%i | cvars at init: siege_r1_objscompleted=%i siege_r2_objscompleted=%i CurrentSiegeRound()=%i\n",
+//			g_siegePersistant.beatingTime, g_siegePersistant.lastTeam, g_siegePersistant.lastTime,
+//			trap_Cvar_VariableIntegerValue("siege_r1_objscompleted"), trap_Cvar_VariableIntegerValue("siege_r2_objscompleted"), CurrentSiegeRound());
 		if (g_siegePersistant.beatingTime)
 		{
 			trap_SetConfigstring(CS_SIEGE_TIMEOVERRIDE, va("%i", g_siegePersistant.lastTime));
@@ -1002,12 +1005,15 @@ void SiegeDoTeamAssign(void)
 void SiegeTeamSwitch(int winTeam, int winTime)
 {
 	trap_SiegePersGet(&g_siegePersistant);
+//	G_Printf("[RNDDBG] SiegeTeamSwitch called: winTeam=%i winTime=%i | pers before: beatingTime=%i lastTeam=%i lastTime=%i\n",
+//		winTeam, winTime, g_siegePersistant.beatingTime, g_siegePersistant.lastTeam, g_siegePersistant.lastTime);
 	if (g_siegePersistant.beatingTime)
 	{ //was already in "switched" mode, change back
 		//announce the winning team.
 		//either the first team won again, or the second
 		//team beat the time set by the initial team. In any
 		//case the winTeam here is the overall winning team.
+//		G_Printf("[RNDDBG] SiegeTeamSwitch: already beatingTime -> finalizing match, overall winner=%i, clearing switch data\n", winTeam);
 		SiegeSetCompleteData(winTeam);
 		SiegeClearSwitchData();
 	}
@@ -1018,6 +1024,7 @@ void SiegeTeamSwitch(int winTeam, int winTime)
 		g_siegePersistant.lastTime = winTime;
 
 		trap_SiegePersSet(&g_siegePersistant);
+//		G_Printf("[RNDDBG] SiegeTeamSwitch: entering beatingTime mode -> round2 must beat lastTeam=%i lastTime=%i ms\n", winTeam, winTime);
 	}
 }
 
@@ -2611,6 +2618,10 @@ static void CheckDefenseRecords(int timeInMilliseconds, CombinedObjNumber object
 extern void PrintStatsTo(gentity_t *ent, const char *type);
 void G_SiegeRoundComplete(int winningteam, int winningclient, qboolean completedEntireMap)
 {
+//	G_Printf("[RNDDBG] G_SiegeRoundComplete ENTRY: winningteam=%i winningclient=%i completedEntireMap=%i | siegeStage=%i CurrentSiegeRound()=%i beatingTime=%i siege_r1_objscompleted=%i siege_r2_objscompleted=%i\n",
+//		winningteam, winningclient, completedEntireMap, level.siegeStage, CurrentSiegeRound(), g_siegePersistant.beatingTime,
+//		trap_Cvar_VariableIntegerValue("siege_r1_objscompleted"), trap_Cvar_VariableIntegerValue("siege_r2_objscompleted"));
+
 	ComputeSiegePlayTimes();
 
 	vec3_t nomatter;
@@ -2714,7 +2725,12 @@ void G_SiegeRoundComplete(int winningteam, int winningclient, qboolean completed
 		G_UseTargets2(&g_entities[originalWinningClient], &g_entities[originalWinningClient], teamstr);
 	}
 
+//	G_Printf("[RNDDBG] G_SiegeRoundComplete end-branch check: isLivePug=%i speedRunModeRuined=%i speedrunRoundOneRestart.integer=%i siegeTeamSwitch.integer=%i imperial_time_limit=%i rebel_time_limit=%i\n",
+//		level.isLivePug, level.mapCaptureRecords.speedRunModeRuined, g_speedrunRoundOneRestart.integer,
+//		g_siegeTeamSwitch.integer, imperial_time_limit, rebel_time_limit);
+
 	if (level.isLivePug != ISLIVEPUG_YES && !level.mapCaptureRecords.speedRunModeRuined && g_speedrunRoundOneRestart.integer) {
+//		G_Printf("[RNDDBG] G_SiegeRoundComplete: BRANCH = speedrun-mode restart -> SiegeClearSwitchData() (NOT switching to round 2!)\n");
 		SiegeClearSwitchData(); // if map is completed in speedrun mode, just restart round 1 afterwards and don't switch teams
 	}
 	else if (g_siegeTeamSwitch.integer &&
@@ -2734,10 +2750,12 @@ void G_SiegeRoundComplete(int winningteam, int winningclient, qboolean completed
 		{
 			time = 1;
 		}
+//		G_Printf("[RNDDBG] G_SiegeRoundComplete: BRANCH = team switch -> SiegeTeamSwitch(winningteam=%i, time=%i)\n", winningteam, time);
 		SiegeTeamSwitch(winningteam, time);
 	}
 	else
 	{ //assure it's clear for next round
+//		G_Printf("[RNDDBG] G_SiegeRoundComplete: BRANCH = else -> SiegeClearSwitchData() (not team-switch mode or no time limit set)\n");
 		SiegeClearSwitchData();
 	}
 
@@ -3223,6 +3241,9 @@ void SiegeBeginRound(int entNum)
 	// if round 1, reset both round 1 and round 2 cvars
 	// if round 2, reset only round 2 cvars
 	int i, j, currentRound = CurrentSiegeRound();
+//	G_Printf("[RNDDBG] SiegeBeginRound: currentRound=%i beatingTime=%i lastTime=%i | BEFORE reset: siege_r1_objscompleted=%i siege_r2_objscompleted=%i\n",
+//		currentRound, g_siegePersistant.beatingTime, g_siegePersistant.lastTime,
+//		trap_Cvar_VariableIntegerValue("siege_r1_objscompleted"), trap_Cvar_VariableIntegerValue("siege_r2_objscompleted"));
 	for (i = 2; i >= currentRound; i--) {
 		trap_Cvar_Set(va("siege_r%i_objscompleted", i), "");
 		trap_Cvar_Set(va("siege_r%i_heldformaxat", i), "");
@@ -3252,6 +3273,8 @@ void SiegeBeginRound(int entNum)
 			level.clients[j].pers.fragsSinceObjStart = 0;
 		}
 	}
+//	G_Printf("[RNDDBG] SiegeBeginRound: AFTER reset: siege_r1_objscompleted=%i siege_r2_objscompleted=%i level.wasRestarted=%i\n",
+//		trap_Cvar_VariableIntegerValue("siege_r1_objscompleted"), trap_Cvar_VariableIntegerValue("siege_r2_objscompleted"), level.wasRestarted);
 
 	level.siegeMatchWinner = SIEGEMATCHWINNER_NONE;
 	level.endedWithEndMatchCommand = qfalse; // sanity check; probably not needed
@@ -3399,6 +3422,8 @@ void SiegeCheckTimers(void)
 		{
 			int round = CurrentSiegeRound();
 			trap_Cvar_Set(va("siege_r%i_heldformaxat", round), va("%i", G_FirstIncompleteObjective(round)));
+//			G_Printf("[RNDDBG] SiegeCheckTimers: imperial time limit expired (held for max), round=%i heldformaxat=%i siege_r1_objscompleted=%i siege_r2_objscompleted=%i siege_r1_heldformaxat=%i\n",
+//				round, G_FirstIncompleteObjective(round), siege_r1_objscompleted.integer, siege_r2_objscompleted.integer, siege_r1_heldformaxat.integer);
 			if (round == 2 && siege_r1_heldformaxat.integer) { //round 2 was held for max, and round 1 was previously held for max
 				if (siege_r2_objscompleted.integer > siege_r1_objscompleted.integer)
 					level.siegeMatchWinner = SIEGEMATCHWINNER_ROUND2OFFENSE;
@@ -3406,8 +3431,10 @@ void SiegeCheckTimers(void)
 					level.siegeMatchWinner = SIEGEMATCHWINNER_ROUND1OFFENSE;
 				else
 					level.siegeMatchWinner = SIEGEMATCHWINNER_TIE;
+//				G_Printf("[RNDDBG] SiegeCheckTimers: both rounds held for max -> siegeMatchWinner=%i (1=r1off,2=r2off,3=tie)\n", level.siegeMatchWinner);
 			}
 			PrintObjStat(0, qtrue);
+//			G_Printf("[RNDDBG] SiegeCheckTimers: calling G_SiegeRoundComplete(TEAM2 wins, completedEntireMap=false) due to imperial time limit\n");
 			G_SiegeRoundComplete(SIEGETEAM_TEAM2, ENTITYNUM_NONE, qfalse);
 			imperial_time_limit = 0;
 			return;
@@ -3420,6 +3447,8 @@ void SiegeCheckTimers(void)
 		{
 			int round = CurrentSiegeRound();
 			trap_Cvar_Set(va("siege_r%i_heldformaxat", round), va("%i", G_FirstIncompleteObjective(round)));
+//			G_Printf("[RNDDBG] SiegeCheckTimers: rebel time limit expired (held for max), round=%i heldformaxat=%i siege_r1_objscompleted=%i siege_r2_objscompleted=%i siege_r1_heldformaxat=%i\n",
+//				round, G_FirstIncompleteObjective(round), siege_r1_objscompleted.integer, siege_r2_objscompleted.integer, siege_r1_heldformaxat.integer);
 			if (round == 2 && siege_r1_heldformaxat.integer) { //round 2 was held for max, and round 1 was previously held for max
 				if (siege_r2_objscompleted.integer > siege_r1_objscompleted.integer)
 					level.siegeMatchWinner = SIEGEMATCHWINNER_ROUND2OFFENSE;
@@ -3427,8 +3456,10 @@ void SiegeCheckTimers(void)
 					level.siegeMatchWinner = SIEGEMATCHWINNER_ROUND1OFFENSE;
 				else
 					level.siegeMatchWinner = SIEGEMATCHWINNER_TIE;
+//				G_Printf("[RNDDBG] SiegeCheckTimers: both rounds held for max -> siegeMatchWinner=%i (1=r1off,2=r2off,3=tie)\n", level.siegeMatchWinner);
 			}
 			PrintObjStat(0, qtrue);
+//			G_Printf("[RNDDBG] SiegeCheckTimers: calling G_SiegeRoundComplete(TEAM1 wins, completedEntireMap=false) due to rebel time limit\n");
 			G_SiegeRoundComplete(SIEGETEAM_TEAM1, ENTITYNUM_NONE, qfalse);
 			rebel_time_limit = 0;
 			return;
@@ -3467,6 +3498,9 @@ void SiegeCheckTimers(void)
 				gImperialCountdown = level.siegeRoundStartTime + imperial_time_limit;
 				gRebelCountdown = level.siegeRoundStartTime + rebel_time_limit;
 			}
+//			G_Printf("[RNDDBG] Round start: CurrentSiegeRound()=%i beatingTime=%i lastTime=%i | gImperialCountdown-now=%i gRebelCountdown-now=%i | wasRestarted=%i\n",
+//				CurrentSiegeRound(), g_siegePersistant.beatingTime, g_siegePersistant.lastTime,
+//				gImperialCountdown - level.time, gRebelCountdown - level.time, level.wasRestarted);
 
 			if (level.wasRestarted) {
 				int numRed = 0, numBlue = 0;
@@ -3897,17 +3931,26 @@ void SiegeObjectiveCompleted(int team, int objective, int final, int client) {
 		level.mapCaptureRecords.lastCombinedObjCompleted = topTimesObjNum;
 	}
 
+//	G_Printf("[RNDDBG] SiegeObjectiveCompleted: team=%i objective=%i final=%i client=%i round=%i | goals_completed=%i goals_required=%i | beatingTime=%i tiebreakEnd.integer=%i teamSwitch.integer=%i siege_r1_objscompleted=%i siege_r2_objscompleted=%i\n",
+//		team, objective, final, client, CurrentSiegeRound(), goals_completed, goals_required,
+//		g_siegePersistant.beatingTime, g_siegeTiebreakEnd.integer, g_siegeTeamSwitch.integer,
+//		siege_r1_objscompleted.integer, siege_r2_objscompleted.integer);
+
 	if (final == 1 || goals_completed >= goals_required)
 	{
+//		G_Printf("[RNDDBG] SiegeObjectiveCompleted: DECISION = full map/side complete (final=%i, %i>=%i) -> G_SiegeRoundComplete(completedEntireMap=true)\n", final, goals_completed, goals_required);
 		SiegeBroadcast_OBJECTIVECOMPLETE(team, client, objective);
 		G_SiegeRoundComplete(team, client, qtrue);
 	}
 	else if (g_siegeTiebreakEnd.integer && g_siegePersistant.beatingTime && g_siegeTeamSwitch.integer && siege_r2_objscompleted.integer >= siege_r1_objscompleted.integer) {
+//		G_Printf("[RNDDBG] SiegeObjectiveCompleted: DECISION = TIEBREAK EARLY END fired (siege_r2_objscompleted %i >= siege_r1_objscompleted %i) -> G_SiegeRoundComplete(completedEntireMap=false, winner=team%i)\n",
+//			siege_r2_objscompleted.integer, siege_r1_objscompleted.integer, team);
 		SiegeBroadcast_OBJECTIVECOMPLETE(team, client, objective);
 		G_SiegeRoundComplete(team, client, qfalse);
 	}
 	else
 	{
+//		G_Printf("[RNDDBG] SiegeObjectiveCompleted: DECISION = round continues (no full-complete, no tiebreak)\n");
 		BroadcastObjectiveCompletion(team, objective, final, client);
 	}
 
@@ -4037,7 +4080,10 @@ void siegeTriggerUse(gentity_t *ent, gentity_t *other, gentity_t *activator)
 	level.objectiveJustCompleted = ent->objective;
 	level.objectiveJustCompletedTime = level.time;
 	char *roundCvar = va("siege_r%i_objscompleted", CurrentSiegeRound());
-	trap_Cvar_Set(roundCvar, va("%i", trap_Cvar_VariableIntegerValue(roundCvar) + 1));
+	int roundCvarOldVal = trap_Cvar_VariableIntegerValue(roundCvar);
+	trap_Cvar_Set(roundCvar, va("%i", roundCvarOldVal + 1));
+//	G_Printf("[RNDDBG] siegeTriggerUse: objective=%i side=%i round=%i | %s %i -> %i\n",
+//		ent->objective, ent->side, CurrentSiegeRound(), roundCvar, roundCvarOldVal, roundCvarOldVal + 1);
 
 	if (level.siegeMap == SIEGEMAP_HOTH)
 	{

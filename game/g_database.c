@@ -11,6 +11,7 @@ static void ErrorCallback( void* ctx, int code, const char* msg ) {
 	Com_Printf( "SQL error (code %d): %s\n", code, msg );
 }
 
+/*
 static int TraceCallback( unsigned int type, void* ctx, void* ptr, void* info ) {
 	if ( !ptr || !info ) {
 		return 0;
@@ -43,6 +44,7 @@ static int TraceCallback( unsigned int type, void* ctx, void* ptr, void* info ) 
 
 	return 0;
 }
+*/
 
 void G_DBLoadDatabase( void *serverDbPtr )
 {
@@ -53,9 +55,11 @@ void G_DBLoadDatabase( void *serverDbPtr )
 	dbPtr = serverDbPtr;
 
 	// register trace callback if needed
+	/*
 	if ( g_traceSQL.integer ) {
 		sqlite3_trace_v2( dbPtr, SQLITE_TRACE_STMT | SQLITE_TRACE_PROFILE, TraceCallback, NULL );
 	}
+	*/
 
 	// more db options
 	trap_sqlite3_exec( dbPtr, "PRAGMA foreign_keys = ON;", NULL, NULL, NULL );

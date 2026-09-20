@@ -3240,13 +3240,7 @@ extern vmCvar_t	   g_unlaggedFactor;
 extern vmCvar_t	   g_unlaggedOffset;
 extern vmCvar_t	   g_unlaggedDebug;
 #endif
-/*
-	g_unlaggedFix is declared OUTSIDE the _DEBUG block deliberately -- it is defined and registered
-	unconditionally (g_main.c) and used unconditionally in TimeShiftLerp (g_active.c), so declaring
-	it under _DEBUG broke every release build with "'g_unlaggedFix' undeclared". base_enhanced
-	already has it on this side of the #endif; this line had drifted, most likely in a merge.
-*/
-extern vmCvar_t	   g_unlaggedFix;
+//extern vmCvar_t	   g_unlaggedFix;
 
 #define DAMAGEFIXES_SABERTHROW_GUNNERS		(1 << 0)
 #define DAMAGEFIXES_ROCKET_HP				(1 << 1)
