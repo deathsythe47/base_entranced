@@ -72,9 +72,16 @@ int CurrentSiegeRound(void) {
 }
 
 // returns the first incomplete objective for the specified round
+// korri 2 is Korriban without the green crystal: the map numbers its objectives 1, 2, 4, 5, 6
+qboolean G_IsKorri2(void) {
+	return (qboolean)(level.siegeMap == SIEGEMAP_KORRIBAN && level.isKorri2);
+}
+
 int G_FirstIncompleteObjective(int round) {
 	int i;
 	for (i = 1; i <= MAX_STATS - 1; i++) {
+		if (i == 3 && G_IsKorri2())
+			continue; // no such objective; without this "first incomplete" would sit on 3 forever
 		if (!trap_Cvar_VariableIntegerValue(va("siege_r%i_obj%i", round, i)))
 			return i;
 	}
@@ -3806,7 +3813,8 @@ void SiegeObjectiveCompleted(int team, int objective, int final, int client) {
 			// deliveries for active crystals, silent ones for inactive crystals -- see
 			// G_KorribanSilentCompleteInactiveCrystals), so "the third one" is always
 			// correct regardless of which crystals are actually active.
-			if (level.korribanCrystalCaptureNumber++ < 2) { // first/second one captured
+			// korri 2 has two crystals (objectives 2 and 4; 3 does not exist), so its last one is the second
+			if (level.korribanCrystalCaptureNumber++ < (G_IsKorri2() ? 1 : 2)) { // first/second one captured
 				level.korribanCrystalsAccumTime += ms;
 				topTimesObjNum = 0; // don't run toptimes on this obj
 			}
@@ -5035,6 +5043,16 @@ void SP_misc_siege_item (gentity_t *ent)
 	G_SpawnInt("autorespawn", "1", &ent->genericValue16);
 	G_SpawnInt("respawntime", "20000", &ent->genericValue17);
 	ent->siegeItemCarrierTime = 0;
+
+	// override korriban crystals and scepter return times
+	if (g_fixKorriReturns.integer && level.siegeMap == SIEGEMAP_KORRIBAN && VALIDSTRING(ent->targetname)) {
+		if (!Q_stricmp(ent->targetname, "crystals")) {
+			ent->genericValue17 = 25000;
+		}
+		else if (!Q_stricmp(ent->targetname, "scepter")) {
+			ent->genericValue17 = 30000;
+		}
+	}
 
 	ent->classname = "misc_siege_item";
 

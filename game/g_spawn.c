@@ -1401,6 +1401,10 @@ void SP_worldspawn( void )
 		else if (level.siegeMap == SIEGEMAP_ANSION) {
 			hwLimit[1] = 1;
 		}
+		else if (level.siegeMap == SIEGEMAP_KORRIBAN) {
+			demoLimit[0] = 1;
+			demoLimit[1] = 1;
+		}
 
 		// set the cvars
 		trap_Cvar_Set("oAssaultLimit", va("%i", Com_Clampi(0, MAX_CLIENTS, assaultLimit[0])));

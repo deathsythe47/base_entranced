@@ -3028,6 +3028,11 @@ void SP_func_breakable(gentity_t *self)
 		G_SoundIndex(self->healingsound);
 	}
 
+	// make crystal door death instant
+	if (g_fixKorriDelay.integer && level.siegeMap == SIEGEMAP_KORRIBAN && !Q_stricmp(self->targetname, "cyrstalsinplace")) {
+		self->delay = 0;
+	}
+
 	if (s && s[0])
 	{ //should we play a special death effect?
 		self->genericValue15 = G_EffectIndex(s);

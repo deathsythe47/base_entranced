@@ -185,6 +185,8 @@ vmCvar_t    g_fixRancor;
 vmCvar_t    g_autoKorribanFloatingItems;
 vmCvar_t    g_autoKorribanSpam;
 vmCvar_t    g_korriCrystals;
+vmCvar_t    g_fixKorriDelay;
+vmCvar_t    g_fixKorriReturns;
 vmCvar_t	g_gripRework;
 vmCvar_t	g_forceDTechItems;
 vmCvar_t    g_antiHothCodesLiftLame;
@@ -1189,6 +1191,8 @@ static cvarTable_t		gameCvarTable[] = {
 	{ &g_autoKorribanFloatingItems, "g_autoKorribanFloatingItems", "1", CVAR_ARCHIVE, 0, qtrue },
 	{ &g_autoKorribanSpam, "g_autoKorribanSpam", "1", CVAR_ARCHIVE, 0, qtrue },
 	{ &g_korriCrystals, "g_korriCrystals", "rgb", CVAR_ARCHIVE | CVAR_LATCH, 0, qtrue },
+	{ &g_fixKorriDelay, "g_fixKorriDelay", "1", CVAR_ARCHIVE | CVAR_LATCH, 0, qtrue },
+	{ &g_fixKorriReturns, "g_fixKorriReturns", "1", CVAR_ARCHIVE | CVAR_LATCH, 0, qtrue },
 	{ &g_gripRework, "g_gripRework", "0", CVAR_ARCHIVE | CVAR_LATCH, 0, qtrue },
 	{ &g_forceDTechItems, "g_forceDTechItems", "5", CVAR_ARCHIVE, 0, qtrue },
 	{ &g_antiHothCodesLiftLame, "g_antiHothCodesLiftLame", "1", CVAR_ARCHIVE, 0, qtrue },
@@ -2312,6 +2316,10 @@ static void InitializeMapName(void) {
 		level.numSiegeObjectivesOnMapCombined = 5;
 	} else if (!Q_stricmp(level.mapname, "mp/siege_korriban")) {
 		level.siegeMap = SIEGEMAP_KORRIBAN;
+		level.numSiegeObjectivesOnMapCombined = 4;
+	} else if (stristr(level.mapname, "siege_korriban2")) {
+		level.siegeMap = SIEGEMAP_KORRIBAN;
+		level.isKorri2 = qtrue;
 		level.numSiegeObjectivesOnMapCombined = 4;
 	} else if (!Q_stricmp(level.mapname, "siege_narshaddaa")) {
 		level.siegeMap = SIEGEMAP_NAR;

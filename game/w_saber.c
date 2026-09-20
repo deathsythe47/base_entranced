@@ -5779,6 +5779,14 @@ void thrownSaberTouch (gentity_t *saberent, gentity_t *other, trace_t *trace);
 void saberBackToOwner(gentity_t *saberent);
 void saberFirstThrown(gentity_t *saberent);
 
+// siege_korriban's blast-door props have mines/detpacks routinely stuck flush against them
+// (right on the "lip" around the breakable), and their tiny (LT_SIZE 1.5) hitboxes sit right
+// behind/against the door's much larger solid brush. Both the saber's physical-collision path
+// and the periodic proximity scan's generic MIN_SABER_SLICE_DISTANCE/RETURN_DISTANCE (50/30
+// units) are too tight for a mine stuck flush in a corner, so laserTrap/detpack targets on this
+// map get a wider detection radius (confirmed against real playtest logs).
+#define KORRI_MINE_DETECTION_RADIUS 96.0f
+
 static GAME_INLINE qboolean CheckThrownSaberDamaged(gentity_t *saberent, gentity_t *saberOwner, gentity_t *ent, int dist, int returning, qboolean noDCheck)
 {
 	vec3_t vecsub;
@@ -5971,6 +5979,22 @@ static GAME_INLINE qboolean CheckThrownSaberDamaged(gentity_t *saberent, gentity
 		{
 			VectorSubtract(saberent->r.currentOrigin, ent->r.currentOrigin, vecsub);
 			veclen = VectorLength(vecsub);
+		}
+
+		// laserTrap/detpack targets on siege_korriban
+		// get a wider detection radius than the generic MIN_SABER_SLICE_DISTANCE/RETURN_DISTANCE
+		// (50/30) every other entity in the game uses -- their hitboxes are tiny (LT_SIZE 1.5)
+		// and stuck flush against much larger solid brushes. Only once they've actually settled
+		// (s.pos.trType == TR_STATIONARY, set by G_SetOrigin from laserTrapStick/charge_stick's
+		// landing path) -- a detpack still falling under TR_GRAVITY already has takedamage set
+		// from the moment it's thrown, so that alone isn't enough to exclude an in-flight one.
+		if (level.siegeMap == SIEGEMAP_KORRIBAN && g_gametype.integer == GT_SIEGE &&
+			ent->s.pos.trType == TR_STATIONARY &&
+			VALIDSTRING(ent->classname) &&
+			(!Q_stricmp(ent->classname, "laserTrap") || !Q_stricmp(ent->classname, "detpack")) &&
+			KORRI_MINE_DETECTION_RADIUS > (float)dist)
+		{
+			dist = (int)KORRI_MINE_DETECTION_RADIUS;
 		}
 
 		if (veclen < dist)
@@ -7067,6 +7091,59 @@ void saberBackToOwner(gentity_t *saberent)
 
 void saberFirstThrown(gentity_t *saberent);
 
+// siege_korriban's blast-door props have mines/detpacks routinely stuck flush against
+// them (right on the "lip" around the breakable), and their tiny (LT_SIZE 1.5) hitboxes
+// sit right behind/against the door's much larger solid brush. A thrown saber's physical
+// collision trace almost always reports the door first, so the saber just bounces off it
+// without the mine ever being considered the hit entity. If we just touched something that
+// isn't itself a mine, but a live mine/detpack is essentially co-located with the impact
+// point, treat the mine as what we actually hit instead -- it'll then go through the normal
+// guaranteed-kill (g_combat.c) + keep-going-on-kill (CheckThrownSaberDamaged) logic like any
+// other direct mine hit would.
+static GAME_INLINE gentity_t *G_FindKorriMineNear(vec3_t point)
+{
+	int i;
+	gentity_t *ent;
+	gentity_t *nearest = NULL;
+	float nearestDistSq = KORRI_MINE_DETECTION_RADIUS * KORRI_MINE_DETECTION_RADIUS;
+
+	for (i = MAX_CLIENTS; i < level.num_entities; i++)
+	{
+		vec3_t diff;
+		float distSq;
+
+		ent = &g_entities[i];
+
+		if (!ent->inuse || !ent->takedamage || ent->health <= 0 || !VALIDSTRING(ent->classname))
+		{
+			continue;
+		}
+
+		if (Q_stricmp(ent->classname, "laserTrap") && Q_stricmp(ent->classname, "detpack"))
+		{
+			continue;
+		}
+
+		// only planted/settled mines, not one still flying (a thrown detpack has takedamage
+		// set from the moment it's dropped, well before it sticks to anything)
+		if (ent->s.pos.trType != TR_STATIONARY)
+		{
+			continue;
+		}
+
+		VectorSubtract(ent->r.currentOrigin, point, diff);
+		distSq = VectorLengthSquared(diff);
+
+		if (distSq < nearestDistSq)
+		{
+			nearest = ent;
+			nearestDistSq = distSq;
+		}
+	}
+
+	return nearest;
+}
+
 void thrownSaberTouch (gentity_t *saberent, gentity_t *other, trace_t *trace)
 {
 	gentity_t *hitEnt = other;
@@ -7075,6 +7152,17 @@ void thrownSaberTouch (gentity_t *saberent, gentity_t *other, trace_t *trace)
 	{
 		return;
 	}
+
+	if (trace && level.siegeMap == SIEGEMAP_KORRIBAN && g_gametype.integer == GT_SIEGE &&
+		(!other || !VALIDSTRING(other->classname) || (Q_stricmp(other->classname, "laserTrap") && Q_stricmp(other->classname, "detpack"))))
+	{
+		gentity_t *nearbyMine = G_FindKorriMineNear(trace->endpos);
+		if (nearbyMine)
+		{
+			hitEnt = nearbyMine;
+		}
+	}
+
 	VectorClear(saberent->s.pos.trDelta);
 	saberent->s.pos.trTime = level.time;
 

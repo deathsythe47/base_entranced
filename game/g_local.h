@@ -1551,6 +1551,7 @@ typedef struct {
 
 	//match log
 	qboolean	wasRestarted;
+	qboolean	isKorri2;		// SIEGEMAP_KORRIBAN, but the remake: red and blue crystals only, objective 3 (green) does not exist
 	isLivePug_t	isLivePug;
 	qboolean	pugWasLiveAtSomePoint;
 	qboolean	movedAtStart[MAX_CLIENTS];
@@ -2546,6 +2547,7 @@ void ClientThink			( int clientNum, usercmd_t *ucmd );
 void ClientEndFrame			( gentity_t *ent );
 void G_RunClient			( gentity_t *ent );
 void G_SiegePassiveHealTick	( gentity_t *ent );
+qboolean G_IsKorri2(void);
 
 typedef enum {
 	NMTAUNT_ANGER1 = 100, //gloat
@@ -3122,6 +3124,8 @@ extern vmCvar_t    g_fixRancor;
 extern vmCvar_t    g_autoKorribanFloatingItems;
 extern vmCvar_t    g_autoKorribanSpam;
 extern vmCvar_t    g_korriCrystals;
+extern vmCvar_t    g_fixKorriDelay;
+extern vmCvar_t    g_fixKorriReturns;
 extern vmCvar_t    g_forceDTechItems;
 // 0 = stock grip. 1 = ported base_enhanced g_gripRework tier-2 behavior (no grip wars,
 // grab velocity cap on levels 1-2, 0fp grace period, grip blocks victim's own
