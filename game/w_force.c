@@ -865,9 +865,14 @@ qboolean WP_ForcePowerAvailable( gentity_t *self, forcePowers_t forcePower, int 
 	{
 		return qtrue;
 	}
-	if ((forcePower == FP_DRAIN || forcePower == FP_LIGHTNING) &&
+	if (forcePower == FP_DRAIN &&
 		self->client->ps.fd.forcePower >= 25)
-	{ //it's ok then, drain/lightning are actually duration
+	{ //it's ok then, drain is actually duration
+		return qtrue;
+	}
+	if (forcePower == FP_LIGHTNING &&
+		self->client->ps.fd.forcePower >= 1)
+	{ //lightning can be channeled down to 1fp, draining as it goes
 		return qtrue;
 	}
 	if ( self->client->ps.fd.forcePower < drain )
@@ -1936,7 +1941,7 @@ void ForceLightning( gentity_t *self )
 	if (self->client->ps.fd.forceGripBeingGripped > level.time && g_gripRework.integer) {
 		return; // being actively gripped blocks starting a new lightning cast
 	}
-	if ( self->client->ps.fd.forcePower < 25 || !WP_ForcePowerUsable( self, FP_LIGHTNING ) )
+	if ( self->client->ps.fd.forcePower < 1 || !WP_ForcePowerUsable( self, FP_LIGHTNING ) )
 	{
 		return;
 	}
@@ -1996,8 +2001,22 @@ void ForceLightningDamage( gentity_t *self, gentity_t *traceEnt, vec3_t dir, vec
 			}
 			if (ForcePowerUsableOn(self, traceEnt, FP_LIGHTNING))
 			{
-				int	dmg = Q_irand(1,2);
-				
+				// deterministic, tick-rate-independent damage: was Q_irand(1,2) per connecting
+				// frame, which made total DPS scale with sv_fps (twice the tick rate meant
+				// twice the DPS for the same 1-2 damage roll). Flat 45 dps (chosen to match
+				// this codebase's previous average of ~1.5 dmg/frame at its default 30 sv_fps)
+				// via a fractional accumulator instead.
+				static double lightningDamageAccumulator[MAX_GENTITIES] = { 0.0 };
+				int fps = g_svfps.integer > 0 ? g_svfps.integer : 20;
+				lightningDamageAccumulator[self - g_entities] += 45.0 / (double)fps;
+				int	dmg = (int)lightningDamageAccumulator[self - g_entities];
+				if (dmg >= 1)
+				{
+					lightningDamageAccumulator[self - g_entities] -= dmg;
+					if (lightningDamageAccumulator[self - g_entities] < 0)
+						lightningDamageAccumulator[self - g_entities] = 0;
+				}
+
 				int modPowerLevel = -1;
 				
 				if (traceEnt->client)
@@ -2061,7 +2080,7 @@ void ForceLightningDamage( gentity_t *self, gentity_t *traceEnt, vec3_t dir, vec
 void ForceShootLightning( gentity_t *self )
 {
 	trace_t	tr;
-	vec3_t	end, forward;
+	vec3_t	end, forward, start;
 	gentity_t	*traceEnt;
 
 	if ( self->health <= 0 )
@@ -2071,6 +2090,11 @@ void ForceShootLightning( gentity_t *self )
 	AngleVectors( self->client->ps.viewangles, forward, NULL, NULL );
 	VectorNormalize( forward );
 
+	// trace from eye height, not the waist/foot origin -- avoids clipping into
+	// floors/slopes at close range or while crouched.
+	VectorCopy( self->client->ps.origin, start );
+	start[2] += self->client->ps.viewheight;
+
 	if ( self->client->ps.fd.forcePowerLevel[FP_LIGHTNING] > FORCE_LEVEL_2 )
 	{//arc
 		vec3_t	center, mins, maxs, dir, ent_org, size, v;
@@ -2079,7 +2103,7 @@ void ForceShootLightning( gentity_t *self )
 		int			iEntityList[MAX_GENTITIES];
 		int		e, numListedEntities, i;
 
-		VectorCopy( self->client->ps.origin, center );
+		VectorCopy( start, center );
 		for ( i = 0 ; i < 3 ; i++ ) 
 		{
 			mins[i] = center[i] - radius;
@@ -2141,19 +2165,19 @@ void ForceShootLightning( gentity_t *self )
 
 			//must be close enough
 			dist = VectorLength( v );
-			if ( dist >= radius ) 
+			if ( dist >= radius )
 			{
 				continue;
 			}
-		
+
 			//in PVS?
-			if ( !traceEnt->r.bmodel && !trap_InPVS( ent_org, self->client->ps.origin ) )
+			if ( !traceEnt->r.bmodel && !trap_InPVS( ent_org, start ) )
 			{//must be in PVS
 				continue;
 			}
 
 			//Now check and see if we can actually hit it
-			trap_Trace( &tr, self->client->ps.origin, vec3_origin, vec3_origin, ent_org, self->s.number, MASK_SHOT );
+			trap_Trace( &tr, start, vec3_origin, vec3_origin, ent_org, self->s.number, MASK_SHOT );
 			if ( tr.fraction < 1.0f && tr.entityNum != traceEnt->s.number )
 			{//must have clear LOS
 				continue;
@@ -2165,13 +2189,13 @@ void ForceShootLightning( gentity_t *self )
 	}
 	else
 	{//trace-line
-		VectorMA( self->client->ps.origin, 2048, forward, end );
-		
+		VectorMA( start, 2048, forward, end );
+
 		qboolean compensate = self->client->sess.unlagged;
 		if (g_unlagged.integer && compensate)
 			G_TimeShiftAllClients(trap_Milliseconds() - (level.time - self->client->pers.cmd.serverTime), self, qfalse);
 
-		trap_Trace( &tr, self->client->ps.origin, vec3_origin, vec3_origin, end, self->s.number, MASK_SHOT );
+		trap_Trace( &tr, start, vec3_origin, vec3_origin, end, self->s.number, MASK_SHOT );
 
 		if (g_unlagged.integer && compensate)
 			G_UnTimeShiftAllClients(self, qfalse);
@@ -4774,7 +4798,7 @@ static void WP_ForcePowerRun( gentity_t *self, forcePowers_t forcePower, usercmd
 		}
 		// OVERRIDEFIXME
 		if ( !WP_ForcePowerAvailable( self, forcePower, 0 ) || self->client->ps.fd.forcePowerDuration[FP_LIGHTNING] < level.time ||
-			self->client->ps.fd.forcePower < 25)
+			self->client->ps.fd.forcePower < 1)
 		{
 			WP_ForcePowerStop( self, forcePower );
 		}
