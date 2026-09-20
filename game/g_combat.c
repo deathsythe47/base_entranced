@@ -5611,9 +5611,17 @@ int G_Damage(gentity_t *targ, gentity_t *inflictor, gentity_t *attacker,
 	}
 
 	// guarantee sabers oneshot mines/detpacks (fix stupid low damage bug)
+	qboolean saberVsOwnTeamPlacedCharge = qfalse;
 	if (mod == MOD_SABER && targ && VALIDSTRING(targ->classname) && (!strcmp(targ->classname, "laserTrap") || !strcmp(targ->classname, "detpack"))
 		&& attacker && attacker->client && attacker - g_entities < MAX_CLIENTS) {
 		damage = 999;
+
+		// let people destroy their own team's *placed* charges with saber too, same as they already can with gunfire;
+		// in-flight detpacks stay protected by the freak-teamkill guard below (touch == charge_stick)
+		if (targ->projectileTeam && attacker->client->sess.sessionTeam == targ->projectileTeam &&
+			targ->touch != charge_stick && !(dflags & DAMAGE_RADIUS)) {
+			saberVsOwnTeamPlacedCharge = qtrue;
+		}
 	}
 
 	// reduce damage by the attacker's handicap value
@@ -6050,7 +6058,7 @@ int G_Damage(gentity_t *targ, gentity_t *inflictor, gentity_t *attacker,
 		// if the attacker was on the same team
 		if ( targ != attacker)
 		{
-			if (!(inflictor && targ && inflictor->projectileTeam && inflictor->projectileTeam == targ->projectileTeam) && (OnSameTeam (targ, attacker) ||
+			if (!saberVsOwnTeamPlacedCharge && !(inflictor && targ && inflictor->projectileTeam && inflictor->projectileTeam == targ->projectileTeam) && (OnSameTeam (targ, attacker) ||
 				(inflictor && inflictor->projectileTeam && g_gametype.integer == GT_SIEGE && targ && targ->client && targ->client->sess.sessionTeam == inflictor->projectileTeam) ||
 				(inflictor && inflictor->projectileTeam && g_gametype.integer == GT_SIEGE && targ && targ->teamnodmg && targ->teamnodmg == inflictor->projectileTeam) ||
 				(targ && targ->projectileTeam && attacker && attacker->client && attacker->client->sess.sessionTeam == targ->projectileTeam) ||
