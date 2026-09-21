@@ -129,6 +129,16 @@ extern char gSharedBuffer[MAX_G_SHARED_BUFFER_SIZE];
 #define CLASSTYPE_HW		15
 
 // movers are things like doors, plats, buttons, etc
+// func_door spawnflags
+#define MOVER_START_ON		1
+#define MOVER_FORCE_ACTIVATE	2
+#define MOVER_CRUSHER		4
+#define MOVER_TOGGLE		8
+#define MOVER_LOCKED		16
+#define MOVER_GOODIE		32
+#define MOVER_PLAYER_USE	64
+#define MOVER_INACTIVE		128
+
 typedef enum {
 	MOVER_POS1,
 	MOVER_POS2,
@@ -237,7 +247,6 @@ struct gentity_s {
 	int			healingDebounce; //debounce for generic object healing shiz
 	int			healingteam;
 	int			specialIconTreatment;
-	qboolean	thisDoorWasFoundAlreadyByClient[32];
 	int			forcedClass;
 	int			forcedClassTime;
 	int			funnyClassNumber; //terrible, I know. there seems to be a weird disparity between the numbering of classes as laid out in *classTitles[SPC_MAX] and playerClass...this should account for that.
@@ -354,7 +363,6 @@ struct gentity_s {
 	int			splashRadius;
 	int			methodOfDeath;
 	int			splashMethodOfDeath;
-	//int			closedDoorWeWereFiredAt;
 
 	int			locationDamage[HL_MAX];		// Damage accumulated on different body locations
 
@@ -2063,6 +2071,42 @@ qboolean G_IsPlayer( gentity_t* ent );
 
 qboolean G_ClientCanBeSeenByClient(gentity_t *seen, gentity_t *seer);
 
+//
+// g_antispam.c
+//
+#define SPAM_DISTANCE_BOWCASTER			4096
+#define SPAM_DISTANCE_BLOB				4096
+#define SPAM_DISTANCE_GOLAN				4096
+#define SPAM_DISTANCE_ROCKET			4096
+#define SPAM_DISTANCE_CONC				4096
+#define SPAM_DISTANCE_THERMAL			4096
+#define SPAM_DISTANCE_MINES				800
+#define SPAM_DISTANCE_PRIMARY_MINES		64
+
+typedef enum {
+	ANTISPAM_DOOR,
+	ANTISPAM_MINE
+} antiSpamKind_t;
+
+typedef struct {
+	gentity_t		*ent;
+	antiSpamKind_t	kind;
+	weapon_t		weapon;
+	qboolean		altFire;
+	float			range;		// how far away a victim can be
+	vec3_t			forward;	// aim direction
+} antiSpamShot_t;
+
+qboolean G_AntiSpam_BlockShot(gentity_t *ent, antiSpamKind_t kind, weapon_t weapon, qboolean altFire, float range, const vec3_t forward);
+qboolean G_AntiSpam_IsSpam(const antiSpamShot_t *shot, const char **reason);
+qboolean G_AntiSpam_ProjectileInHothLiftShaft(const gentity_t *projectile);
+
+//
+// g_antispam_legacy.c
+//
+qboolean G_AntiSpamShadow_Verdict(const antiSpamShot_t *shot, qboolean newVerdict);
+void G_AntiSpamShadow_Fuzz(void);
+
 void UpdateGlobalCenterPrint( const int levelTime );
 void G_GlobalTickedCenterPrint( const char *msg, int milliseconds, qboolean prioritized );
 void G_UniqueTickedCenterPrint(const void *msgs, size_t msgSize, int milliseconds, qboolean prioritized);
@@ -3145,6 +3189,8 @@ extern vmCvar_t    g_fixHothDoorSounds;
 extern vmCvar_t    iLikeToDoorSpam;
 extern vmCvar_t    iLikeToMineSpam;
 extern vmCvar_t    iLikeToShieldSpam;
+extern vmCvar_t    g_antiSpamDebug;
+extern vmCvar_t    g_antiSpamShadow;
 extern vmCvar_t    autocfg_map;
 extern vmCvar_t    autocfg_unknown;
 extern vmCvar_t    g_swoopKillPoints;

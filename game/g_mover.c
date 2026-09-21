@@ -23,15 +23,6 @@ typedef struct {
 } pushed_t;
 pushed_t	pushed[MAX_GENTITIES], *pushed_p;
 
-#define MOVER_START_ON		1
-#define MOVER_FORCE_ACTIVATE	2
-#define MOVER_CRUSHER		4
-#define MOVER_TOGGLE		8
-#define MOVER_LOCKED		16
-#define MOVER_GOODIE		32
-#define MOVER_PLAYER_USE	64
-#define MOVER_INACTIVE		128
-
 int	BMS_START = 0;
 int	BMS_MID = 1;
 int	BMS_END = 2;

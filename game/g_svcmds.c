@@ -4324,6 +4324,11 @@ qboolean	ConsoleCommand( void ) {
 	}
 #endif
 
+	if (!Q_stricmp(cmd, "antispamfuzz")) {
+		G_AntiSpamShadow_Fuzz();
+		return qtrue;
+	}
+
 	if (!Q_stricmp(cmd, "notlive")) {
 		Svcmd_NotLive_f();
 		return qtrue;

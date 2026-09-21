@@ -43,7 +43,7 @@ TARGET =    ../Final/jampgamei386.so
 # Object Files
 FILES =     ai_main.o               ai_util.o               ai_wpnav.o              AnimalNPC.o             bg_g2_utils.o           bg_misc.o \
             bg_panimate.o           bg_pmove.o              bg_saber.o              bg_saberLoad.o          bg_saga.o               bg_slidemove.o \
-            bg_vehicleLoad.o        bg_weapons.o            crypto.o                FighterNPC.o            g_active.o              g_arenas.o \
+            bg_vehicleLoad.o        bg_weapons.o            crypto.o                FighterNPC.o            g_active.o              g_antispam.o            g_antispam_legacy.o     g_arenas.o \
             g_bot.o                 g_client.o              g_cmds.o                g_combat.o              g_exphysics.o           g_ICARUScb.o \
             g_items.o               g_log.o                 g_main.o                g_mem.o                 g_misc.o                g_missile.o  \
             g_mover.o               g_nav.o                 g_navnew.o              g_object.o              g_saga.o                g_session.o \

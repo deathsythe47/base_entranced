@@ -201,6 +201,8 @@ vmCvar_t	g_botJumping;
 vmCvar_t	g_fixHothDoorSounds;
 vmCvar_t	iLikeToDoorSpam;
 vmCvar_t	iLikeToMineSpam;
+vmCvar_t	g_antiSpamDebug;
+vmCvar_t	g_antiSpamShadow;
 vmCvar_t	iLikeToShieldSpam;
 vmCvar_t	autocfg_map;
 vmCvar_t	autocfg_unknown;
@@ -1207,6 +1209,8 @@ static cvarTable_t		gameCvarTable[] = {
 	{ &g_fixHothDoorSounds, "g_fixHothDoorSounds", "1", CVAR_ARCHIVE, 0, qtrue },
 	{ &iLikeToDoorSpam, "iLikeToDoorSpam", "0", CVAR_ARCHIVE, 0, qtrue },
 	{ &iLikeToMineSpam, "iLikeToMineSpam", "0", CVAR_ARCHIVE, 0, qtrue },
+	{ &g_antiSpamDebug, "g_antiSpamDebug", "0", 0, 0, qfalse },
+	{ &g_antiSpamShadow, "g_antiSpamShadow", "0", 0, 0, qfalse },
 	{ &iLikeToShieldSpam, "iLikeToShieldSpam", "0", CVAR_ARCHIVE, 0, qtrue },
 	{ &autocfg_map, "autocfg_map", "0", CVAR_ARCHIVE, 0, qtrue },
 	{ &autocfg_unknown, "autocfg_unknown", "0", CVAR_ARCHIVE, 0, qtrue },
