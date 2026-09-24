@@ -4007,7 +4007,7 @@ void ForceThrow( gentity_t *self, qboolean pull )
 							{ //only break the grip if our push/pull level is >= their grip level
 								WP_ForcePowerStop(push_list[x], FP_GRIP);
 								self->client->ps.fd.forceGripBeingGripped = 0;
-								push_list[x]->client->ps.fd.forceGripUseTime = level.time + 500; //since we just broke out of it.. (intentionally 500, stock is 1000)
+								push_list[x]->client->ps.fd.forceGripUseTime = level.time + 1000; //since we just broke out of it..
 							}
 						}
 					}
@@ -4200,7 +4200,7 @@ void WP_ForcePowerStop( gentity_t *self, forcePowers_t forcePower )
 		}
 		break;
 	case FP_GRIP:
-		self->client->ps.fd.forceGripUseTime = level.time + 500; // intentionally 500, stock is 3000
+		self->client->ps.fd.forceGripUseTime = level.time + 3000;
 		if (self->client->ps.fd.forcePowerLevel[FP_GRIP] > FORCE_LEVEL_1 &&
 			g_entities[self->client->ps.fd.forceGripEntityNum].client &&
 			g_entities[self->client->ps.fd.forceGripEntityNum].health > 0 &&
