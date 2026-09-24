@@ -2759,6 +2759,7 @@ int getGlobalTime();
 
 // g_siege.c
 void InitSiegeMode(void);
+void G_SetMatchInfo(void);
 void G_KorribanSetupCrystals(void);
 void G_SiegeClientExData(gentity_t *msgTarg);
 #ifdef NEWMOD_SUPPORT
@@ -3051,6 +3052,7 @@ extern vmCvar_t		g_traceSQL;
 extern vmCvar_t     g_hackLog;
 
 extern vmCvar_t     g_fixPitKills;
+extern vmCvar_t     g_fixForceRegenTime;
 extern vmCvar_t     g_fixGripKills;
 extern vmCvar_t     g_creditAirKills;
 
@@ -3188,9 +3190,9 @@ extern vmCvar_t    g_botJumping;
 extern vmCvar_t    g_fixHothDoorSounds;
 extern vmCvar_t    iLikeToDoorSpam;
 extern vmCvar_t    iLikeToMineSpam;
-extern vmCvar_t    iLikeToShieldSpam;
 extern vmCvar_t    g_antiSpamDebug;
 extern vmCvar_t    g_antiSpamShadow;
+extern vmCvar_t    iLikeToShieldSpam;
 extern vmCvar_t    autocfg_map;
 extern vmCvar_t    autocfg_unknown;
 extern vmCvar_t    g_swoopKillPoints;

@@ -650,6 +650,7 @@ vmCvar_t	g_maxIPConnected;
 vmCvar_t	g_protectCallvoteHack;
 vmCvar_t    g_minimumVotesCount;
 vmCvar_t    g_fixPitKills;
+vmCvar_t    g_fixForceRegenTime;
 vmCvar_t	g_fixGripKills;
 vmCvar_t	g_creditAirKills;
 
@@ -1057,6 +1058,7 @@ static cvarTable_t		gameCvarTable[] = {
 
 
 	{ &g_fixPitKills,	"g_fixPitKills"	, "1"	, CVAR_ARCHIVE, 0, qtrue },
+	{ &g_fixForceRegenTime,	"g_fixForceRegenTime"	, "0"	, CVAR_ARCHIVE, 0, qtrue },
 	{ &g_fixGripKills,	"g_fixGripKills", "1"	, CVAR_ARCHIVE, 0, qtrue },
 	{ &g_creditAirKills,	"g_creditAirKills", "1"	, CVAR_ARCHIVE, 0, qtrue },
 
@@ -2038,8 +2040,8 @@ static isLivePug_t CheckLivePug(char **reasonOut) {
 		return ISLIVEPUG_NO;
 	}
 #endif
-	if (g_speed.integer != 250 || g_forceRegenTime.integer != 200 || !pmove_float.integer || g_saberDamageScale.value != 1.0f || g_gravity.integer != 760 || (level.siegeMap == SIEGEMAP_KORRIBAN && !(g_knockback.integer == 1000 || !g_knockback.integer)) || g_knockback.integer != 1000) {
-		*reasonOut = "non-standard speed, force regen time, pmove_float, saber damage scale, gravity, or knockback";
+	if (g_speed.integer != 250 || !g_fixForceRegenTime.integer || g_forceRegenTime.integer == 1 || !pmove_float.integer || g_saberDamageScale.value != 1.0f || g_gravity.integer != 760 || (level.siegeMap == SIEGEMAP_KORRIBAN && !(g_knockback.integer == 1000 || !g_knockback.integer)) || g_knockback.integer != 1000) {
+		*reasonOut = "non-standard speed, force regen fix, pmove_float, saber damage scale, gravity, or knockback";
 		return ISLIVEPUG_NO;
 	}
 
@@ -2648,6 +2650,8 @@ void G_InitGame( int levelTime, int randomSeed, int restart, void *serverDbPtr )
 
 	// clean intermission configstring flag
 	trap_SetConfigstring( CS_INTERMISSION, "0" );
+
+	G_SetMatchInfo();
 
 	// make sure we have flags for CTF, etc
 	if( g_gametype.integer >= GT_TEAM ) {
@@ -7449,7 +7453,7 @@ void G_RunFrame( int levelTime ) {
 		} else if ( g_saberDamageScale.value != 1.0f) {
 			G_Printf( S_COLOR_YELLOW"Saber damage scale is not standard. Capture records won't be tracked during this map.\n" );
 			level.mapCaptureRecords.readonly = qtrue;
-		} else if ( g_forceRegenTime.value != 200 ) {
+		} else if ( !g_fixForceRegenTime.integer || g_forceRegenTime.integer == 1 ) {
 			G_Printf( S_COLOR_YELLOW"Force regen is not standard. Capture records won't be tracked during this map.\n" );
 			level.mapCaptureRecords.readonly = qtrue;
 		} else if ((g_redTeam.string[0] && Q_stricmp(g_redTeam.string, "none") && Q_stricmp(g_redTeam.string, "0")) ||

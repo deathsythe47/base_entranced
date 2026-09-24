@@ -71,6 +71,21 @@ int CurrentSiegeRound(void) {
 	return 1;
 }
 
+// stamps the wall-clock start of the round into a configstring so that recordings carry it
+// round 2 also says how round 1 went: its time (r1t) and how many objectives were completed (r1o)
+void G_SetMatchInfo(void) {
+	int round = g_gametype.integer == GT_SIEGE ? CurrentSiegeRound() : 1;
+	if (round == 2) {
+		char objs[16];
+		trap_Cvar_VariableStringBuffer("siege_r1_objscompleted", objs, sizeof(objs));
+		// an unset count is left out rather than sent as zero
+		trap_SetConfigstring(CS_MATCHINFO, va("\\rst\\%d\\rnd\\%d\\r1t\\%d%s%s", (int)time(NULL), round,
+			trap_Cvar_VariableIntegerValue("siege_r1_total"), objs[0] ? "\\r1o\\" : "", objs));
+		return;
+	}
+	trap_SetConfigstring(CS_MATCHINFO, va("\\rst\\%d\\rnd\\%d", (int)time(NULL), round));
+}
+
 // returns the first incomplete objective for the specified round
 // korri 2 is Korriban without the green crystal: the map numbers its objectives 1, 2, 4, 5, 6
 qboolean G_IsKorri2(void) {
@@ -3486,6 +3501,7 @@ void SiegeCheckTimers(void)
 		else if (gSiegeBeginTime < level.time)
 		{ //mark the round as having begun
 			level.siegeRoundStartTime = /*gSiegeBeginTime*/level.time;
+			G_SetMatchInfo();
 
 			// moved here
 			if (g_siegeTeamSwitch.integer && g_siegePersistant.beatingTime)
