@@ -3501,7 +3501,6 @@ void SiegeCheckTimers(void)
 		else if (gSiegeBeginTime < level.time)
 		{ //mark the round as having begun
 			level.siegeRoundStartTime = /*gSiegeBeginTime*/level.time;
-			G_SetMatchInfo();
 
 			// moved here
 			if (g_siegeTeamSwitch.integer && g_siegePersistant.beatingTime)

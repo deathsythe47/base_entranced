@@ -2360,6 +2360,44 @@ static void InitializeMapName(void) {
 	}
 }
 
+// after the map has fully finished loading/spawning, automatically use everything
+// with a targetname listed (comma-separated) in the per-map cvar g_autouse_<mapname>
+static void G_DoMapAutouse(void) {
+	char autouseList[MAX_TOKEN_CHARS];
+	char token[MAX_QPATH];
+	int i, j;
+
+	trap_Cvar_VariableStringBuffer(va("g_autouse_%s", level.mapname), autouseList, sizeof(autouseList));
+
+	if (!VALIDSTRING(autouseList)) {
+		return;
+	}
+
+	i = 0;
+	while (autouseList[i]) {
+		if (autouseList[i] == ',' || autouseList[i] == ' ' || autouseList[i] == '\t') {
+			i++;
+			continue;
+		}
+
+		j = 0;
+		while (autouseList[i] && autouseList[i] != ',' && j < sizeof(token) - 1) {
+			token[j++] = autouseList[i++];
+		}
+		while (autouseList[i] && autouseList[i] != ',') { // drop anything that didn't fit in token
+			i++;
+		}
+		while (j > 0 && (token[j - 1] == ' ' || token[j - 1] == '\t')) {
+			j--;
+		}
+		token[j] = 0;
+
+		if (token[0]) {
+			G_UseTargets2(&g_entities[ENTITYNUM_WORLD], &g_entities[ENTITYNUM_WORLD], token);
+		}
+	}
+}
+
 char gSharedBuffer[MAX_G_SHARED_BUFFER_SIZE];
 
 #include "namespace_begin.h"
@@ -2744,6 +2782,8 @@ void G_InitGame( int levelTime, int randomSeed, int restart, void *serverDbPtr )
 	Com_Printf("Build date: %s %s\n", __DATE__, __TIME__);
 #endif
 	G_InitVchats();
+
+	G_DoMapAutouse();
 }
 
 
