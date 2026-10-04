@@ -4776,6 +4776,7 @@ void SiegeItemTouch( gentity_t *self, gentity_t *other, trace_t *trace )
 
 			//I hope you weren't stuck in the ceiling.
 			G_SetOrigin(self, escapePos);
+			trap_LinkEntity(self); // relink so players can touch it at its new position
 		}
 		return;
 	}
