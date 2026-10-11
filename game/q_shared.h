@@ -3348,6 +3348,7 @@ typedef struct
 	float		lifesteal;		// HP regenerated per HP of damage dealt to enemies, 0 = disabled
 	int			forceWithItem;		// bitmask (1<<FP_*) of force powers usable despite carrying a forcelimit siege item
 	float		forceRegen;		// force power regen speed multiplier, 1 = normal, 5 = old CFL_FASTFORCEREGEN speed
+	float		drainRegen;		// multiplier on HP regenerated from force drain, 1 = normal
 	qboolean	touchGiveAmmo;		// can use the ammo dispenser action on a teammate without holding HI_AMMODISP (and thus without the ability to toss ammo canisters)
 	qboolean	saberBlock;		// qfalse = cannot block anything with saber (melee or thrown), and thrown sabers ignore this class's blade entirely; default qtrue
 	qboolean	knockdudesOver;		// qfalse = force push/pull level 3 never triggers the hard knockdown on enemies this class hits; default qtrue

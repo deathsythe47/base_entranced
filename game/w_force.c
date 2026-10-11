@@ -2355,7 +2355,15 @@ void ForceDrainDamage( gentity_t *self, gentity_t *traceEnt, vec3_t dir, vec3_t 
 				if (self->client->ps.stats[STAT_HEALTH] < self->client->ps.stats[STAT_MAX_HEALTH] &&
 					self->health > 0 && self->client->ps.stats[STAT_HEALTH] > 0)
 				{
-					self->health += dmg;
+					int heal = dmg;
+					if (g_gametype.integer == GT_SIEGE && self->client->siegeClass != -1 &&
+						bgSiegeClasses[self->client->siegeClass].drainRegen != 1.0f)
+					{ //siege drainregen: bank fractional HP, apply whole points once they accumulate
+						self->client->drainRegenAccum += (float)dmg * bgSiegeClasses[self->client->siegeClass].drainRegen;
+						heal = (int)self->client->drainRegenAccum;
+						self->client->drainRegenAccum -= heal;
+					}
+					self->health += heal;
 					if (self->health > self->client->ps.stats[STAT_MAX_HEALTH])
 					{
 						self->health = self->client->ps.stats[STAT_MAX_HEALTH];

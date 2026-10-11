@@ -5103,6 +5103,7 @@ void ClientSpawn(gentity_t *ent, qboolean forceUpdateInfo) {
 	ent->client->lastDamageTakenTime = level.time;
 	ent->client->passiveHealDebounceTime = 0;
 	ent->client->lifestealAccum = 0.0f;
+	ent->client->drainRegenAccum = 0.0f;
 
 	// run the presend to set anything else, follow spectators wait
 	// until all clients have been reconnected after map_restart

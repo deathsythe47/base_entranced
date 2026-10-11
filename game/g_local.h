@@ -1157,6 +1157,7 @@ struct gclient_s {
 	int			lastDamageTakenTime;	// level.time this client last lost health/armor from any source (siege passiveheal)
 	int			passiveHealDebounceTime;	// level.time of the next allowed passiveheal tick
 	float		lifestealAccum;	// fractional HP banked from siege lifesteal, applied once it reaches a whole point
+	float		drainRegenAccum;	// fractional HP banked from siege drainregen, applied once it reaches a whole point
 
 	int			idleTime;		//keep track of when to play an idle anim on the client.
 

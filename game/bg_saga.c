@@ -1302,6 +1302,18 @@ void BG_SiegeParseClassFile(const char *filename, siegeClassDesc_t *descBuffer)
 		scl->lifesteal = 0;
 	}
 
+	//parse drainregen
+	if (BG_SiegeGetPairedValue(classInfo, "drainregen", parseBuf))
+	{
+		scl->drainRegen = atof(parseBuf);
+		if (scl->drainRegen < 0.0f)
+			scl->drainRegen = 0.0f;
+	}
+	else
+	{ //it's alright, just default to normal then.
+		scl->drainRegen = 1.0f;
+	}
+
 	//parse touchgiveammo
 	if (BG_SiegeGetPairedValue(classInfo, "touchgiveammo", parseBuf))
 	{

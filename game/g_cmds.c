@@ -8249,6 +8249,8 @@ static char *GenerateSiegeClassDescription(siegeClass_t *scl) {
 		AddDesc(va(", ^3Passive Heal (1 HP/%.1fs)^7", scl->passiveHeal));
 	if (scl->lifesteal > 0.0f)
 		AddDesc(va(", ^3Lifesteal (%.2f HP/HP dealt)^7", scl->lifesteal));
+	if (scl->drainRegen != 1.0f)
+		AddDesc(va(", ^3Drain Regen x%.2f^7", scl->drainRegen));
 	if (scl->forceWithItem)
 		AddDesc(", ^3Force Usable While Holding Item^7");
 	if (scl->forceRegen != 1.0f)
