@@ -321,6 +321,8 @@ struct gentity_s {
 	char		*targetShaderName;
 	char		*targetShaderNewName;
 	gentity_t	*target_ent;
+	qboolean	placeStuff;		// func_usable "placestuff": mines and detpacks stick to it like world
+	gentity_t	*placedOn;		// placestuff entity this mine/detpack is stuck to
 
 	char		*closetarget;
 	char		*opentarget;
@@ -1157,6 +1159,8 @@ struct gclient_s {
 	int			lastDamageTakenTime;	// level.time this client last lost health/armor from any source (siege passiveheal)
 	int			passiveHealDebounceTime;	// level.time of the next allowed passiveheal tick
 	float		lifestealAccum;	// fractional HP banked from siege lifesteal, applied once it reaches a whole point
+	int			lightningTickTime;	// level.time of the next lightning tick (20 fps base rate)
+	int			drainTickTime;	// level.time of the next drain tick (ticks run at the 20 fps base rate)
 	float		drainRegenAccum;	// fractional HP banked from siege drainregen, applied once it reaches a whole point
 
 	int			idleTime;		//keep track of when to play an idle anim on the client.
@@ -3230,6 +3234,7 @@ extern vmCvar_t		g_fixHothHangarTurrets;
 extern vmCvar_t		g_removeHothHangarTurrets;
 extern vmCvar_t		g_fixLiftkillTraps;
 extern vmCvar_t		g_fixDempSaberThrow;
+extern vmCvar_t		g_fixDrain2;
 extern vmCvar_t		g_fixHackSaberThrow;
 extern vmCvar_t		g_fixDodge;
 extern vmCvar_t		g_joinMenuHack;

@@ -3346,6 +3346,7 @@ typedef struct
 	int			detKillDelay;
 	float		passiveHeal;		// seconds between passive +1 HP ticks, 0 = disabled
 	float		lifesteal;		// HP regenerated per HP of damage dealt to enemies, 0 = disabled
+	float		swingDmg;		// multiplier on handheld saber damage (not saber throw), 1 = normal
 	int			forceWithItem;		// bitmask (1<<FP_*) of force powers usable despite carrying a forcelimit siege item
 	float		forceRegen;		// force power regen speed multiplier, 1 = normal, 5 = old CFL_FASTFORCEREGEN speed
 	float		drainRegen;		// multiplier on HP regenerated from force drain, 1 = normal

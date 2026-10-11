@@ -8249,6 +8249,8 @@ static char *GenerateSiegeClassDescription(siegeClass_t *scl) {
 		AddDesc(va(", ^3Passive Heal (1 HP/%.1fs)^7", scl->passiveHeal));
 	if (scl->lifesteal > 0.0f)
 		AddDesc(va(", ^3Lifesteal (%.2f HP/HP dealt)^7", scl->lifesteal));
+	if (scl->swingDmg != 1.0f)
+		AddDesc(va(", ^3%.3gx Swing Damage^7", scl->swingDmg));
 	if (scl->drainRegen != 1.0f)
 		AddDesc(va(", ^3Drain Regen x%.2f^7", scl->drainRegen));
 	if (scl->forceWithItem)
@@ -10694,6 +10696,7 @@ void Cmd_ServerStatus2_f(gentity_t *ent)
 	PrintCvar(g_siegeTiebreakEnd);
 	PrintCvar(g_fixCorpseSniping);
 	PrintCvar(g_fixDempSaberThrow);
+	PrintCvar(g_fixDrain2);
 	PrintCvar(g_fixDodge);
 	PrintCvar(g_fixEweb);
 	PrintCvar(g_fixFallingSounds);

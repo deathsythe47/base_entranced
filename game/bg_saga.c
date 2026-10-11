@@ -1302,6 +1302,18 @@ void BG_SiegeParseClassFile(const char *filename, siegeClassDesc_t *descBuffer)
 		scl->lifesteal = 0;
 	}
 
+	//parse swingdmg
+	if (BG_SiegeGetPairedValue(classInfo, "swingdmg", parseBuf))
+	{
+		scl->swingDmg = atof(parseBuf);
+		if (scl->swingDmg < 0.0f)
+			scl->swingDmg = 0.0f;
+	}
+	else
+	{ //it's alright, just default to normal then.
+		scl->swingDmg = 1.0f;
+	}
+
 	//parse drainregen
 	if (BG_SiegeGetPairedValue(classInfo, "drainregen", parseBuf))
 	{

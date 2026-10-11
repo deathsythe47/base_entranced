@@ -3318,6 +3318,7 @@ void SP_func_glass(gentity_t *ent) {
 }
 
 void func_usable_use(gentity_t *self, gentity_t *other, gentity_t *activator);
+void G_DetonatePlacedOn(gentity_t *surface);
 
 extern gentity_t	*G_TestEntityPosition(gentity_t *ent);
 void func_wait_return_solid(gentity_t *self)
@@ -3419,6 +3420,11 @@ void func_usable_use(gentity_t *self, gentity_t *other, gentity_t *activator)
 		self->s.eFlags |= EF_NODRAW;
 		self->count = 0;
 
+		if (self->placeStuff)
+		{
+			G_DetonatePlacedOn(self);
+		}
+
 		if (self->target && self->target[0])
 		{
 			G_UseTargets(self, activator);
@@ -3462,6 +3468,8 @@ teamuser - if 1, team 2 can't use this. If 2, team 1 can't use this.
 
 void SP_func_usable(gentity_t *self)
 {
+	int i;
+
 	trap_SetBrushModel(self, self->model);
 	InitMover(self);
 	VectorCopy(self->s.origin, self->s.pos.trBase);
@@ -3492,6 +3500,9 @@ void SP_func_usable(gentity_t *self)
 		self->s.eFlags |= EF_NODRAW;
 		self->count = 0;
 	}
+
+	G_SpawnInt("placestuff", "0", &i);
+	self->placeStuff = i ? qtrue : qfalse;
 
 	self->use = func_usable_use;
 

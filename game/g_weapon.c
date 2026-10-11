@@ -3122,7 +3122,18 @@ void laserTrapDelayedExplode( gentity_t *self, gentity_t *inflictor, gentity_t *
 
 void touchLaserTrap( gentity_t *ent, gentity_t *other, trace_t *trace )
 {
-	if (other && other->s.number < ENTITYNUM_WORLD)
+	if (other && other->placeStuff)
+	{ //placestuff surface: stick to it like world
+		if (ent->placedOn == other)
+		{ //already stuck here
+			return;
+		}
+		ent->touch = 0;
+		ent->enemy = other;
+		ent->placedOn = other;
+		laserTrapStick(ent, trace->endpos, trace->plane.normal);
+	}
+	else if (other && other->s.number < ENTITYNUM_WORLD)
 	{ //just explode if we hit any entity. This way we don't have things happening like tripmines floating
 	  //in the air after getting stuck to a moving door
 		if ( ent->activator != other )
@@ -3510,7 +3521,11 @@ void charge_stick (gentity_t *self, gentity_t *other, trace_t *trace)
 	{//a perfectly still breakable brush, let us attach directly to it!
 		self->target_ent = other;//remember them when we blow up
 	}
-	else if ( other 
+	else if (other && other->placeStuff)
+	{ //placestuff surface: stick to it like world
+		self->placedOn = other;
+	}
+	else if ( other
 		&& other->s.number < ENTITYNUM_WORLD
 		&& other->s.eType == ET_MOVER
 		&& trace->plane.normal[2] > 0 )
@@ -3649,6 +3664,32 @@ void DetPackBlow(gentity_t *self)
 
 	self->think = G_FreeEntity;
 	self->nextthink = level.time;
+}
+
+// blow up mines and detpacks stuck to a placestuff surface that is going away
+void G_DetonatePlacedOn(gentity_t *surface)
+{
+	int i;
+
+	for (i = MAX_CLIENTS; i < level.num_entities; i++)
+	{
+		gentity_t *ent = &g_entities[i];
+
+		if (!ent->inuse || ent->placedOn != surface || !ent->classname)
+			continue;
+
+		if (!strcmp(ent->classname, "laserTrap"))
+			ent->think = laserTrapExplode;
+		else if (!strcmp(ent->classname, "detpack"))
+			ent->think = DetPackBlow;
+		else
+			continue;
+
+		ent->touch = 0;
+		ent->takedamage = qfalse;
+		ent->placedOn = NULL;
+		ent->nextthink = level.time;
+	}
 }
 
 void DetPackPain(gentity_t *self, gentity_t *attacker, int damage)

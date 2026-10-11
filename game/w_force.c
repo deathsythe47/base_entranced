@@ -866,8 +866,8 @@ qboolean WP_ForcePowerAvailable( gentity_t *self, forcePowers_t forcePower, int 
 		return qtrue;
 	}
 	if (forcePower == FP_DRAIN &&
-		self->client->ps.fd.forcePower >= 25)
-	{ //it's ok then, drain is actually duration
+		self->client->ps.fd.forcePower >= 1)
+	{ //drain can be channeled down to 1fp, draining as it goes
 		return qtrue;
 	}
 	if (forcePower == FP_LIGHTNING &&
@@ -1270,7 +1270,9 @@ void WP_ForcePowerStart( gentity_t *self, forcePowers_t forcePower, int override
 	case FP_LIGHTNING:
 		hearable = qtrue;
 		hearDist = 512;
-		duration = overrideAmt;
+		// same pad as drain
+		duration = overrideAmt + FORCEREGEN_BASE_FRAMETIME - 1;
+		self->client->lightningTickTime = level.time;
 		overrideAmt = 0;
 		self->client->ps.fd.forcePowersActive |= ( 1 << forcePower );
 		self->client->ps.activeForcePass = self->client->ps.fd.forcePowerLevel[FP_LIGHTNING];
@@ -1323,7 +1325,9 @@ void WP_ForcePowerStart( gentity_t *self, forcePowers_t forcePower, int override
 	case FP_DRAIN:
 		hearable = qtrue;
 		hearDist = 256;
-		duration = overrideAmt;
+		// the pad keeps the last 20 fps tick of the one-shot reachable on frames that don't land on 50ms
+		duration = overrideAmt + FORCEREGEN_BASE_FRAMETIME - 1;
+		self->client->drainTickTime = level.time;
 		overrideAmt = 0;
 		self->client->ps.fd.forcePowersActive |= ( 1 << forcePower );
 		break;
@@ -2039,14 +2043,10 @@ void ForceLightningDamage( gentity_t *self, gentity_t *traceEnt, vec3_t dir, vec
 			}
 			if (ForcePowerUsableOn(self, traceEnt, FP_LIGHTNING))
 			{
-				// deterministic, tick-rate-independent damage: was Q_irand(1,2) per connecting
-				// frame, which made total DPS scale with sv_fps (twice the tick rate meant
-				// twice the DPS for the same 1-2 damage roll). Flat 45 dps (chosen to match
-				// this codebase's previous average of ~1.5 dmg/frame at its default 30 sv_fps)
-				// via a fractional accumulator instead.
+				// deterministic damage: was Q_irand(1,2) per tick, now the same 1.5 average as a
+				// fractional accumulator (1,2,1,2...). ticks run at the 20 fps base rate, so 30 dps
 				static double lightningDamageAccumulator[MAX_GENTITIES] = { 0.0 };
-				int fps = g_svfps.integer > 0 ? g_svfps.integer : 20;
-				lightningDamageAccumulator[self - g_entities] += 45.0 / (double)fps;
+				lightningDamageAccumulator[self - g_entities] += 1.5;
 				int	dmg = (int)lightningDamageAccumulator[self - g_entities];
 				if (dmg >= 1)
 				{
@@ -2269,7 +2269,7 @@ void ForceDrain( gentity_t *self )
 		return;
 	}
 
-	if ( self->client->ps.fd.forcePower < 25 || !WP_ForcePowerUsable( self, FP_DRAIN ) )
+	if ( self->client->ps.fd.forcePower < 1 || !WP_ForcePowerUsable( self, FP_DRAIN ) )
 	{
 		return;
 	}
@@ -2384,6 +2384,29 @@ void ForceDrainDamage( gentity_t *self, gentity_t *traceEnt, vec3_t dir, vec3_t 
 			}
 		}
 	}
+}
+
+/*
+drain and lightning do their work once per tick, and the game shipped at 20 fps, so ticks are held to that
+rate on any sv_fps: a deadline moves forward 50ms per tick and a tick runs on the first frame at or past it,
+so the remainder of a frame carries into the next tick (30 fps comes out as 66/33ms steps, 20 per second).
+below 20 fps a frame can owe more than one tick. a deadline left further behind than one frame is dropped
+*/
+static int ForceTicksDue( int *tickTime )
+{
+	int frameTime = 1000 / Com_Clampi( 1, 1000, g_svfps.integer );
+	int ticks = 0;
+
+	if ( *tickTime < level.time - frameTime )
+	{
+		*tickTime = level.time;
+	}
+	while ( *tickTime <= level.time )
+	{
+		*tickTime += FORCEREGEN_BASE_FRAMETIME;
+		ticks++;
+	}
+	return ticks;
 }
 
 int ForceShootDrain( gentity_t *self )
@@ -2506,12 +2529,17 @@ int ForceShootDrain( gentity_t *self )
 			G_UnTimeShiftAllClients(self, qfalse);
 		if ( tr.entityNum == ENTITYNUM_NONE || tr.fraction == 1.0 || tr.allsolid || tr.startsolid || !g_entities[tr.entityNum].client || !g_entities[tr.entityNum].inuse )
 		{
-			return 0;
+			if ( !g_fixDrain2.integer || self->client->ps.fd.forcePowerLevel[FP_DRAIN] != FORCE_LEVEL_2 )
+			{
+				return 0;
+			}
 		}
-		
-		traceEnt = &g_entities[tr.entityNum];
-		ForceDrainDamage( self, traceEnt, forward, tr.endpos );
-		gotOneOrMore = 1;
+		else
+		{
+			traceEnt = &g_entities[tr.entityNum];
+			ForceDrainDamage( self, traceEnt, forward, tr.endpos );
+			gotOneOrMore = 1;
+		}
 	}
 
 	self->client->ps.activeForcePass = self->client->ps.fd.forcePowerLevel[FP_DRAIN] + FORCE_LEVEL_3;
@@ -4818,13 +4846,16 @@ static void WP_ForcePowerRun( gentity_t *self, forcePowers_t forcePower, usercmd
 		}
 		// OVERRIDEFIXME
 		if ( !WP_ForcePowerAvailable( self, forcePower, 0 ) || self->client->ps.fd.forcePowerDuration[FP_DRAIN] < level.time ||
-			self->client->ps.fd.forcePower < 25)
+			self->client->ps.fd.forcePower < 1)
 		{
 			WP_ForcePowerStop( self, forcePower );
 		}
 		else
 		{
-			ForceShootDrain( self );
+			for ( int n = ForceTicksDue( &self->client->drainTickTime ); n > 0; n-- )
+			{
+				ForceShootDrain( self );
+			}
 		}
 		break;
 	case FP_LIGHTNING:
@@ -4849,8 +4880,11 @@ static void WP_ForcePowerRun( gentity_t *self, forcePowers_t forcePower, usercmd
 		}
 		else
 		{
-			ForceShootLightning( self );
-			BG_ForcePowerDrain( &self->client->ps, forcePower, 0 );
+			for ( int n = ForceTicksDue( &self->client->lightningTickTime ); n > 0; n-- )
+			{
+				ForceShootLightning( self );
+				BG_ForcePowerDrain( &self->client->ps, forcePower, 0 );
+			}
 		}
 		break;
 	case FP_TELEPATHY:

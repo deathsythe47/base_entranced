@@ -4369,6 +4369,13 @@ static GAME_INLINE qboolean CheckSaberDamage(gentity_t *self, int rSaberNum, int
 		dmg *= 2;
 	}
 
+	if (g_gametype.integer == GT_SIEGE && self->client->siegeClass != -1 &&
+		bgSiegeClasses[self->client->siegeClass].swingDmg != 1.0f &&
+		!(self->client->ps.saberInFlight && rSaberNum == 0))
+	{ //class swingdmg multiplier, everything but the thrown saber
+		dmg = (int)(dmg * bgSiegeClasses[self->client->siegeClass].swingDmg + 0.5f);
+	}
+
 	if (g_gametype.integer == GT_POWERDUEL &&
 		self->client->sess.duelTeam == DUELTEAM_LONE)
 	{ //always x2 when we're powerdueling alone... er, so, we apparently no longer want this?  So they say.

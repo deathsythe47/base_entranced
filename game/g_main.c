@@ -239,6 +239,7 @@ vmCvar_t	g_fixHothHangarTurrets;
 vmCvar_t	g_removeHothHangarTurrets;
 vmCvar_t	g_fixLiftkillTraps;
 vmCvar_t	g_fixDempSaberThrow;
+vmCvar_t	g_fixDrain2;
 vmCvar_t	g_fixHackSaberThrow;
 vmCvar_t	g_fixDodge;
 vmCvar_t	g_joinMenuHack;
@@ -1231,6 +1232,7 @@ static cvarTable_t		gameCvarTable[] = {
 	{ &g_fixHothHangarTurrets, "g_fixHothHangarTurrets", "1", CVAR_ARCHIVE | CVAR_LATCH, 0, qtrue },
 	{ &g_removeHothHangarTurrets, "g_removeHothHangarTurrets", "1", CVAR_ARCHIVE | CVAR_LATCH, 0, qtrue },
 	{ &g_fixDempSaberThrow, "g_fixDempSaberThrow", "1", CVAR_ARCHIVE, 0, qtrue },
+	{ &g_fixDrain2, "g_fixDrain2", "1", CVAR_ARCHIVE, 0, qtrue },
 	{ &g_fixHackSaberThrow, "g_fixHackSaberThrow", "1", CVAR_ARCHIVE, 0, qtrue },
 	{ &g_fixDodge, "g_fixDodge", "1", CVAR_ARCHIVE, 0, qtrue },
 	{ &g_joinMenuHack, "g_joinMenuHack", "1", CVAR_ARCHIVE, 0, qtrue },
