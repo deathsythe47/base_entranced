@@ -6839,6 +6839,15 @@ static void BuildSpecInfoHudToken( gentity_t *ent, gclient_t *cl, char *playerSt
 			}
 		}
 	}
+
+	// a hack in progress: k=<level time it completes>,<duration>
+	if ( cl->isHacking && cl->ps.hackingTime > level.time ) {
+		list[0] = '\0';
+		SpecInfoAppendHex( list, sizeof( list ), qtrue, qtrue, cl->ps.hackingTime );
+		SpecInfoAppendHex( list, sizeof( list ), qfalse, qtrue, cl->ps.hackingBaseTime );
+		Q_strcat( playerString, playerStringSize, " k=" );
+		Q_strcat( playerString, playerStringSize, list );
+	}
 }
 
 /*
