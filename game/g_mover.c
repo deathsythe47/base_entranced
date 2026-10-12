@@ -3020,7 +3020,7 @@ void SP_func_breakable(gentity_t *self)
 	}
 
 	// make crystal door death instant
-	if (g_fixKorriDelay.integer && level.siegeMap == SIEGEMAP_KORRIBAN && !Q_stricmp(self->targetname, "cyrstalsinplace")) {
+	if (g_fixKorriDelay.integer && level.siegeMap == SIEGEMAP_KORRIBAN && !G_IsKorri2() && !Q_stricmp(self->targetname, "cyrstalsinplace")) {
 		self->delay = 0;
 	}
 
