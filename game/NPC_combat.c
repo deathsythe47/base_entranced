@@ -324,6 +324,11 @@ void G_SetEnemy( gentity_t *self, gentity_t *enemy )
 		return;
 	}
 
+	if ( G_RancorIgnoresTarget( self, enemy ) )
+	{
+		return;
+	}
+
 	//Don't take the enemy if in notarget
 	if ( enemy->flags & FL_NOTARGET )
 		return;
@@ -1081,6 +1086,9 @@ qboolean ValidEnemy(gentity_t *ent)
 		return qfalse;
 
 	if ( ent == NPC )
+		return qfalse;
+
+	if ( G_RancorIgnoresTarget( NPC, ent ) )
 		return qfalse;
 
 	if ( !(ent->flags & FL_NOTARGET) )

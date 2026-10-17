@@ -4948,6 +4948,20 @@ qboolean SaberThrowInFOV(gentity_t *ent, gentity_t *from, int hFOV, int vFOV, ge
 
 extern void charge_stick(gentity_t *self, gentity_t *other, trace_t *trace);
 
+// siege "rancornotarget" class key: rancors never pick this player as a target
+qboolean G_RancorIgnoresTarget( gentity_t *npc, gentity_t *ent )
+{
+	return (qboolean)( g_gametype.integer == GT_SIEGE && npc && npc->client && npc->client->NPC_class == CLASS_RANCOR &&
+		ent && ent->client && ent - g_entities < MAX_CLIENTS && ent->client->siegeClass != -1 &&
+		bgSiegeClasses[ent->client->siegeClass].rancorNoTarget );
+}
+
+// g_korriRancorGod: the korriban/korri2 rancor is invulnerable
+qboolean G_IsKorriRancorGod(gentity_t *ent) {
+	return (qboolean)(g_korriRancorGod.integer && level.siegeMap == SIEGEMAP_KORRIBAN && ent && ent->client &&
+		ent->s.eType == ET_NPC && ent->client->NPC_class == CLASS_RANCOR);
+}
+
 int G_Damage(gentity_t *targ, gentity_t *inflictor, gentity_t *attacker,
 	vec3_t dir, vec3_t point, int damage, int dflags, int mod) {
 	gclient_t	*client;
@@ -4965,6 +4979,27 @@ int G_Damage(gentity_t *targ, gentity_t *inflictor, gentity_t *attacker,
 	{
 		G_Damage(&g_entities[targ->damageRedirectTo], inflictor, attacker, dir, point, damage, dflags, mod);
 		return 0;
+	}
+
+	if (G_IsKorriRancorGod(targ)) {
+		// no damage, but still let the hit draw his attention like it would in stock
+		if (targ->pain && attacker && attacker != targ && attacker->inuse && attacker->client)
+			targ->pain(targ, attacker, 0);
+		return 0;
+	}
+
+	// nobody held by a monster deals saber damage or hurts themselves
+	if (attacker && attacker->client && (attacker->client->ps.eFlags2 & EF2_HELD_BY_MONSTER) &&
+		(mod == MOD_SABER || attacker == targ))
+		return 0;
+
+	// fullchargepistoloneshot: a fully charged pistol shot hits an enemy player for at least his current health.
+	// hit location can't shrink it, but protect, rage, armor and class damage reductions still apply normally
+	if (inflictor && inflictor->fullChargeOneShot && targ && targ->client && targ - g_entities < MAX_CLIENTS &&
+		attacker && attacker->client && attacker != targ && !OnSameTeam(targ, attacker)) {
+		dflags |= DAMAGE_NO_HIT_LOC;
+		if (damage < targ->health)
+			damage = targ->health;
 	}
 
 	if (mod == MOD_DEMP2 && targ && targ->s.eType && targ->s.eType == ET_NPC && targ->NPC && targ->NPC->stats.nodmgfrom && (targ->NPC->stats.nodmgfrom & FLAG_VEHICLE_FREEZE || targ->NPC->stats.nodmgfrom == -1))

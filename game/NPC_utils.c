@@ -999,6 +999,9 @@ qboolean NPC_ValidEnemy( gentity_t *ent )
 	if ( ent->flags & FL_NOTARGET )
 		return qfalse;
 
+	if ( G_RancorIgnoresTarget( NPC, ent ) )
+		return qfalse;
+
 	//Must be an NPC
 	if ( ent->client == NULL )
 	{

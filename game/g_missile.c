@@ -736,7 +736,7 @@ void G_MissileImpact( gentity_t *ent, trace_t *trace ) {
 	{ //only block one projectile per 200ms (to prevent giant swarms of projectiles being blocked)
 		vec3_t fwd;
 		gentity_t *te;
-		int otherDefLevel = other->client->ps.fd.forcePowerLevel[FP_SABER_DEFENSE];
+		int otherDefLevel = G_ShotDefenseLevel(other);
 
 		te = G_TempEntity( ent->r.currentOrigin, EV_SABER_BLOCK );
 		VectorCopy(ent->r.currentOrigin, te->s.origin);
@@ -801,15 +801,11 @@ void G_MissileImpact( gentity_t *ent, trace_t *trace ) {
 			ent->methodOfDeath != MOD_REPEATER_ALT &&
 			ent->methodOfDeath != MOD_FLECHETTE_ALT_SPLASH &&
 			ent->methodOfDeath != MOD_CONC &&
-			ent->methodOfDeath != MOD_CONC_ALT &&
-			// siege "saberblock" class key: this class's blade never deflects anything --
-			// treat it as if their saber isn't even up, so this falls through to a normal hit.
-			!(g_gametype.integer == GT_SIEGE && otherOwner->client->siegeClass != -1 &&
-				!bgSiegeClasses[otherOwner->client->siegeClass].saberBlock) )
+			ent->methodOfDeath != MOD_CONC_ALT )
 		{ //for now still deflect even if saberBlockTime >= level.time because it hit the actual saber
 			vec3_t fwd;
 			gentity_t *te;
-			int otherDefLevel = otherOwner->client->ps.fd.forcePowerLevel[FP_SABER_DEFENSE];
+			int otherDefLevel = G_ShotDefenseLevel(otherOwner);
 
 			//in this case, deflect it even if we can't actually block it because it hit our saber
 			if (otherOwner->client && otherOwner->client->ps.weaponTime <= 0)

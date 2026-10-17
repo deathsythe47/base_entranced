@@ -820,7 +820,7 @@ void Cmd_Kill_f( gentity_t *ent ) {
 	if (ent->health <= 0) {
 		return;
 	}
-	if (g_fixRancor.integer && (ent->client->ps.eFlags2 & EF2_HELD_BY_MONSTER)) {
+	if (ent->client->ps.eFlags2 & EF2_HELD_BY_MONSTER) {
 		return;
 	}
 
@@ -8253,14 +8253,24 @@ static char *GenerateSiegeClassDescription(siegeClass_t *scl) {
 		AddDesc(va(", ^3%.3gx Swing Damage^7", scl->swingDmg));
 	if (scl->drainRegen != 1.0f)
 		AddDesc(va(", ^3Drain Regen x%.2f^7", scl->drainRegen));
+	if (scl->drainAbsorbRegen != 1.0f)
+		AddDesc(va(", ^3Drain Absorb Regen x%.2f^7", scl->drainAbsorbRegen));
+	if (scl->fullChargePistolOneShot)
+		AddDesc(", ^3Full Charge Pistol One-Shots^7");
+	if (scl->rancorNoTarget)
+		AddDesc(", ^3Ignored By Rancor^7");
 	if (scl->forceWithItem)
 		AddDesc(", ^3Force Usable While Holding Item^7");
 	if (scl->forceRegen != 1.0f)
 		AddDesc(va(", ^3%.2gx Force Regen^7", scl->forceRegen));
+	if (scl->alwaysResistPushPull)
+		AddDesc(", ^3Resists Push/Pull Without Force^7");
 	if (scl->touchGiveAmmo)
 		AddDesc(", ^3Can Resupply Teammates By Touch^7");
 	if (!scl->saberBlock)
-		AddDesc(", ^3Cannot Block With Saber^7");
+		AddDesc(", ^3Cannot Block Sabers^7");
+	if (scl->saberDefShotsOnly >= 0)
+		AddDesc(va(", ^3Saber Defense %d vs Shots^7", scl->saberDefShotsOnly));
 
 	if (scl->ammoblaster)
 		AddDesc(va(", ^8%d Blaster Ammo^7", scl->ammoblaster));

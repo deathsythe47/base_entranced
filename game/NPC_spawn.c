@@ -1033,6 +1033,9 @@ void NPC_Begin (gentity_t *ent)
 		client->ps.stats[STAT_HEALTH] = ent->health;
 	}
 
+	if (G_IsKorriRancorGod(ent))
+		ent->s.shouldtarget = qfalse; // invulnerable, so no health bar
+
 	if (ent->s.shouldtarget)
 	{
 		ent->maxHealth = ent->health;

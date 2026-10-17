@@ -9368,24 +9368,38 @@ void WP_SaberBlock( gentity_t *playerent, vec3_t hitloc, qboolean missileBlock )
 }
 
 // alpha: added an "other" parameter, which is the entity responsible for triggering the block (allows for more sophisticated checks)
+// saber defense level used when blocking projectiles
+int G_ShotDefenseLevel(gentity_t *ent)
+{
+	if (g_gametype.integer == GT_SIEGE && ent->client->siegeClass != -1 &&
+		bgSiegeClasses[ent->client->siegeClass].saberDefShotsOnly >= 0)
+	{
+		return bgSiegeClasses[ent->client->siegeClass].saberDefShotsOnly;
+	}
+	return ent->client->ps.fd.forcePowerLevel[FP_SABER_DEFENSE];
+}
+
 int WP_SaberCanBlock(gentity_t *self, gentity_t* other, vec3_t point, int dflags, int mod, qboolean projectile, int attackStr, vec_t *overrideAngleCalculationSpot)
 {
 	qboolean thrownSaber = qfalse;
 	float blockFactor = 0;
+	int defLevel;
 
 	if (!self || !self->client || !point)
 	{
 		return 0;
 	}
 
+	// siege "saberdefshotsonly": projectiles use that level, everything else the real saber defense
+	defLevel = projectile ? G_ShotDefenseLevel(self) : self->client->ps.fd.forcePowerLevel[FP_SABER_DEFENSE];
+
 	if (g_gametype.integer == GT_SIEGE && self->client->ps.weapon == WP_MELEE && self->client->siegeClass != -1 && bgSiegeClasses[self->client->siegeClass].classflags & (1 << CFL_WONDERWOMAN)) {
 		return 1;
 	}
 
-	// siege "saberblock" class key: this class can never block anything with a saber,
-	// melee or thrown -- covers every caller of this function (melee blockStuff,
-	// thrown-saber-vs-held-saber, and the missile-deflection path in g_missile.c).
-	if (g_gametype.integer == GT_SIEGE && self->client->siegeClass != -1 && !bgSiegeClasses[self->client->siegeClass].saberBlock) {
+	// siege "saberblock" class key: this class can never block sabers, melee or thrown.
+	// projectiles and disruptor shots (projectile == qtrue) are still blocked normally.
+	if (!projectile && g_gametype.integer == GT_SIEGE && self->client->siegeClass != -1 && !bgSiegeClasses[self->client->siegeClass].saberBlock) {
 		return 0;
 	}
 
@@ -9479,7 +9493,7 @@ int WP_SaberCanBlock(gentity_t *self, gentity_t* other, vec3_t point, int dflags
 
 	if ( mod == MOD_DISRUPTOR || mod == MOD_DISRUPTOR_SNIPER ) {
 		// saber def 3 check moved here from g_weapon.c for both disruptor main/alt so that it can be cvar'd
-		if ( !g_fixSaberDefense.integer && self->client->ps.fd.forcePowerLevel[FP_SABER_DEFENSE] < FORCE_LEVEL_3 ) {
+		if ( !g_fixSaberDefense.integer && defLevel < FORCE_LEVEL_3 ) {
 			return 0;
 		}
 
@@ -9488,7 +9502,7 @@ int WP_SaberCanBlock(gentity_t *self, gentity_t* other, vec3_t point, int dflags
 			// (if enabled, the base method below remains unchanged)
 
 			float maxAngle;
-			switch ( self->client->ps.fd.forcePowerLevel[FP_SABER_DEFENSE] ) {
+			switch ( defLevel ) {
 				case FORCE_LEVEL_1:	maxAngle = g_saberDefense1Angle.value; break;
 				case FORCE_LEVEL_2: maxAngle = g_saberDefense2Angle.value; break;
 				case FORCE_LEVEL_3: maxAngle = g_saberDefense3Angle.value; break;
@@ -9562,7 +9576,7 @@ int WP_SaberCanBlock(gentity_t *self, gentity_t* other, vec3_t point, int dflags
 		}
 	}
 
-	if (self->client->ps.fd.forcePowerLevel[FP_SABER_DEFENSE] == FORCE_LEVEL_3)
+	if (defLevel == FORCE_LEVEL_3)
 	{
 		if (d_saberGhoul2Collision.integer)
 		{
@@ -9573,11 +9587,11 @@ int WP_SaberCanBlock(gentity_t *self, gentity_t* other, vec3_t point, int dflags
 			blockFactor = 0.05f;
 		}
 	}
-	else if (self->client->ps.fd.forcePowerLevel[FP_SABER_DEFENSE] == FORCE_LEVEL_2)
+	else if (defLevel == FORCE_LEVEL_2)
 	{
 		blockFactor = 0.6f;
 	}
-	else if (self->client->ps.fd.forcePowerLevel[FP_SABER_DEFENSE] == FORCE_LEVEL_1)
+	else if (defLevel == FORCE_LEVEL_1)
 	{
 		blockFactor = 0.9f;
 	}

@@ -707,6 +707,14 @@ G_ClearLOS
 -------------------------
 */
 
+// the shield around the ragnos coffin is see-through to the rancor
+static qboolean G_RancorSeesThrough( gentity_t *self, gentity_t *hit )
+{
+	return (self && self->client && self->client->NPC_class == CLASS_RANCOR &&
+		hit->classname && hit->targetname &&
+		!strcmp(hit->classname, "func_usable") && !strcmp(hit->targetname, "coffinguard_shield")) ? qtrue : qfalse;
+}
+
 // Position to position
 qboolean G_ClearLOS( gentity_t *self, const vec3_t start, const vec3_t end )
 {
@@ -719,7 +727,7 @@ qboolean G_ClearLOS( gentity_t *self, const vec3_t start, const vec3_t end )
 	{//can see through 3 panes of glass
 		if ( tr.entityNum < ENTITYNUM_WORLD )
 		{
-			if ( &g_entities[tr.entityNum] != NULL && (g_entities[tr.entityNum].r.svFlags&SVF_GLASS_BRUSH) )
+			if ( &g_entities[tr.entityNum] != NULL && ((g_entities[tr.entityNum].r.svFlags&SVF_GLASS_BRUSH) || G_RancorSeesThrough( self, &g_entities[tr.entityNum] )) )
 			{//can see through glass, trace again, ignoring me
 				trap_Trace ( &tr, tr.endpos, NULL, NULL, end, tr.entityNum, MASK_OPAQUE );
 				traceCount++;

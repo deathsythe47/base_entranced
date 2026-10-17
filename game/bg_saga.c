@@ -1326,6 +1326,30 @@ void BG_SiegeParseClassFile(const char *filename, siegeClassDesc_t *descBuffer)
 		scl->drainRegen = 1.0f;
 	}
 
+	//parse drainabsorbregen
+	if (BG_SiegeGetPairedValue(classInfo, "drainabsorbregen", parseBuf))
+	{
+		scl->drainAbsorbRegen = atof(parseBuf);
+		if (scl->drainAbsorbRegen < 0.0f)
+			scl->drainAbsorbRegen = 0.0f;
+	}
+	else
+	{ //it's alright, just default to normal then.
+		scl->drainAbsorbRegen = 1.0f;
+	}
+
+	//parse fullchargepistoloneshot
+	if (BG_SiegeGetPairedValue(classInfo, "fullchargepistoloneshot", parseBuf))
+		scl->fullChargePistolOneShot = atoi(parseBuf) ? qtrue : qfalse;
+	else
+		scl->fullChargePistolOneShot = qfalse;
+
+	//parse rancornotarget
+	if (BG_SiegeGetPairedValue(classInfo, "rancornotarget", parseBuf))
+		scl->rancorNoTarget = atoi(parseBuf) ? qtrue : qfalse;
+	else
+		scl->rancorNoTarget = qfalse;
+
 	//parse touchgiveammo
 	if (BG_SiegeGetPairedValue(classInfo, "touchgiveammo", parseBuf))
 	{
@@ -1344,6 +1368,30 @@ void BG_SiegeParseClassFile(const char *filename, siegeClassDesc_t *descBuffer)
 	else
 	{
 		scl->saberBlock = qtrue;
+	}
+
+	//parse alwaysresistpushpull -- default 0
+	if (BG_SiegeGetPairedValue(classInfo, "alwaysresistpushpull", parseBuf))
+	{
+		scl->alwaysResistPushPull = atoi(parseBuf) ? qtrue : qfalse;
+	}
+	else
+	{
+		scl->alwaysResistPushPull = qfalse;
+	}
+
+	//parse saberdefshotsonly -- default -1 (unspecified, use the class's real saber defense)
+	if (BG_SiegeGetPairedValue(classInfo, "saberdefshotsonly", parseBuf))
+	{
+		scl->saberDefShotsOnly = atoi(parseBuf);
+		if (scl->saberDefShotsOnly < 0)
+			scl->saberDefShotsOnly = 0;
+		if (scl->saberDefShotsOnly > 3)
+			scl->saberDefShotsOnly = 3;
+	}
+	else
+	{
+		scl->saberDefShotsOnly = -1;
 	}
 
 	//parse knockdudesover -- default 1 (normal, stock behavior)

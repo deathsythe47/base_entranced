@@ -2453,10 +2453,43 @@ void G_HeldByMonster( gentity_t *ent, usercmd_t **ucmd )
 			trap_LinkEntity( ent );//redundant?
 		}
 	}
+	else if ( ent && ent->client && ent->client->heldByRancor > 0 && ent->client->heldByRancorSlot > 0 )
+	{// extra victim from a multi-grab: no lookTarget (clients would draw everyone on the same spot), so place them beside the hand ourselves
+		gentity_t *monster = &g_entities[ent->client->heldByRancor - 1];
+		if ( monster->inuse && monster->client && monster->s.NPC_class == CLASS_RANCOR && monster->ghoul2 )
+		{
+			vec3_t right, yawAngles;
+			int slot = ent->client->heldByRancorSlot;
+			float side = 28.0f * ((slot + 1) / 2) * ((slot & 1) ? 1.0f : -1.0f);
+			ent->waypoint = monster->waypoint;
+			BG_AttachToRancor( monster->ghoul2,
+				monster->r.currentAngles[YAW],
+				monster->r.currentOrigin,
+				level.time,
+				NULL,
+				monster->modelScale,
+				(monster->client->ps.eFlags2&EF2_GENERIC_NPC_FLAG),
+				ent->client->ps.origin,
+				ent->client->ps.viewangles,
+				NULL );
+			VectorSet( yawAngles, 0, monster->r.currentAngles[YAW], 0 );
+			AngleVectors( yawAngles, NULL, right, NULL );
+			VectorMA( ent->client->ps.origin, side, right, ent->client->ps.origin );
+			VectorClear( ent->client->ps.velocity );
+			G_SetOrigin( ent, ent->client->ps.origin );
+			SetClientViewAngle( ent, ent->client->ps.viewangles );
+			G_SetAngles( ent, ent->client->ps.viewangles );
+			trap_LinkEntity( ent );
+		}
+	}
 	// don't allow movement, weapon switching, and most kinds of button presses
 	(*ucmd)->forwardmove = 0;
 	(*ucmd)->rightmove = 0;
 	(*ucmd)->upmove = 0;
+	// no firing anything (guns, saber swings, saber throws) while held
+	(*ucmd)->buttons &= ~(BUTTON_ATTACK|BUTTON_ALT_ATTACK);
+	if ( ent && ent->client && ent->client->ps.weaponTime < 100 )
+		ent->client->ps.weaponTime = 100;
 }
 
 void G_SetTauntAnim( gentity_t *ent, int taunt )
@@ -5647,6 +5680,8 @@ void ClientEndFrame( gentity_t *ent ) {
 			ent->client->ps.fd.forceGripStarted += time_delta;
 		if (ent->client->ps.fd.forceGripUseTime)
 			ent->client->ps.fd.forceGripUseTime += time_delta;
+		if (ent->client->grippedAnAbsorberTime)
+			ent->client->grippedAnAbsorberTime += time_delta;
 		if (ent->client->ps.forceGripMoveInterval)
 			ent->client->ps.forceGripMoveInterval += time_delta;
 		if (ent->client->noLightningTime)

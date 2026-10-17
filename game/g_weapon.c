@@ -281,6 +281,10 @@ static void WP_FireBryarPistol( gentity_t *ent, qboolean altFire )
 
 		missile->s.generic1 = count; // The missile will then render according to the charge level.
 
+		if (count == 5 && g_gametype.integer == GT_SIEGE && ent->client->ps.weapon == WP_BRYAR_PISTOL &&
+			ent->client->siegeClass != -1 && bgSiegeClasses[ent->client->siegeClass].fullChargePistolOneShot)
+			missile->fullChargeOneShot = qtrue;
+
 		boxSize = BRYAR_ALT_SIZE*(count*0.5);
 
 		VectorSet( missile->r.maxs, boxSize, boxSize, boxSize );

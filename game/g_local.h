@@ -372,6 +372,16 @@ struct gentity_s {
 	int			bounceCount;
 	qboolean	alt_fire;
 	qboolean	rancorHasBitten;	// on the rancor NPC itself: has it already done its one quick bite on the current held victim?
+	qboolean	rancorSwipeGrab;	// on the rancor NPC itself: g_fixRancor, the one grab-or-smack roll for the current swipe
+	int			rancorExtraVictims[MAX_CLIENTS];	// on the rancor: others grabbed in the same swipe as activator
+	int			numRancorExtraVictims;
+	float		rancorStockYawSpeed;	// on the rancor: yaw speed and sight range from its .npc file, 0 until first think
+	float		rancorStockVisrange;
+	int			rancorStockRunSpeed;
+	int			rancorStockWalkSpeed;
+	int			rancorEnemySeenTime;	// on the rancor: last time it had line of sight to rancorEnemySeenNum
+	int			rancorEnemySeenNum;
+	qboolean	fullChargeOneShot;	// on a missile: fully charged pistol shot from a fullchargepistoloneshot class
 
 	gentity_t	*chain;
 	gentity_t	*enemy;
@@ -1162,6 +1172,7 @@ struct gclient_s {
 	int			lightningTickTime;	// level.time of the next lightning tick (20 fps base rate)
 	int			drainTickTime;	// level.time of the next drain tick (ticks run at the 20 fps base rate)
 	float		drainRegenAccum;	// fractional HP banked from siege drainregen, applied once it reaches a whole point
+	float		drainAbsorbAccum;	// fractional FP banked on an absorber from a drainer's drainabsorbregen
 
 	int			idleTime;		//keep track of when to play an idle anim on the client.
 
@@ -1243,6 +1254,9 @@ struct gclient_s {
 	int			solidHack;
 
 	int			noLightningTime;
+	int			grippedAnAbsorberTime;
+	int			heldByRancor;		// rancor entity number + 1 while held by it, 0 = not held
+	int			heldByRancorSlot;	// 0 = the rancor's main victim (lookTarget), 1+ = extra victims beside him
 
 	unsigned	mGameFlags;
 
@@ -2597,6 +2611,8 @@ void ClientEndFrame			( gentity_t *ent );
 void G_RunClient			( gentity_t *ent );
 void G_SiegePassiveHealTick	( gentity_t *ent );
 qboolean G_IsKorri2(void);
+qboolean G_IsKorriRancorGod(gentity_t *ent);
+qboolean G_RancorIgnoresTarget(gentity_t *npc, gentity_t *ent);
 
 typedef enum {
 	NMTAUNT_ANGER1 = 100, //gloat
@@ -2726,6 +2742,7 @@ qboolean HasSetSaberOnly(void);
 void WP_ForcePowerStop( gentity_t *self, forcePowers_t forcePower );
 void WP_ForcePowerStart( gentity_t *self, forcePowers_t forcePower, int overrideAmt );
 void WP_SaberPositionUpdate( gentity_t *self, usercmd_t *ucmd );
+int G_ShotDefenseLevel(gentity_t *ent);
 int WP_SaberCanBlock(gentity_t *self, gentity_t* other, vec3_t point, int dflags, int mod, qboolean projectile, int attackStr, vec_t *overrideAngleCalculationSpot);
 void WP_SaberInitBladeData( gentity_t *ent );
 void WP_InitForcePowers( gentity_t *ent );
@@ -3176,6 +3193,8 @@ extern vmCvar_t    g_autoKorribanFloatingItems;
 extern vmCvar_t    g_autoKorribanSpam;
 extern vmCvar_t    g_korriCrystals;
 extern vmCvar_t    g_fixKorriDelay;
+// 1 = the rancor on korriban/korri2 takes no damage and shows no health bar
+extern vmCvar_t    g_korriRancorGod;
 extern vmCvar_t    g_fixKorriReturns;
 extern vmCvar_t    g_forceDTechItems;
 // 0 = stock grip. 1 = ported base_enhanced g_gripRework tier-2 behavior (no grip wars,
@@ -3183,6 +3202,9 @@ extern vmCvar_t    g_forceDTechItems;
 // lightning/drain), MINUS the tier's force-cost changes -- grip still costs stock
 // 30/30/60 to activate at every level.
 extern vmCvar_t    g_gripRework;
+// 1 = trying to grip someone who is absorbing costs the gripper 30fp and gives the absorber a flat
+// 30fp, at most once every 3 seconds per gripper. 0 = stock (free, unlimited attempts).
+extern vmCvar_t    g_gripAbsorbFix;
 extern vmCvar_t    g_antiHothCodesLiftLame;
 extern vmCvar_t    g_antiHothHangarLiftLame;
 extern vmCvar_t    g_antiHothInfirmaryLiftLame;

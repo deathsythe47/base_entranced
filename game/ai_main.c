@@ -6362,7 +6362,7 @@ void StandardBotAI(bot_state_t *bs, float thinktime)
 	if (useTheForce && forceHostile)
 	{
 		if (bs->currentEnemy && bs->currentEnemy->client &&
-			!ForcePowerUsableOn(&g_entities[bs->client], bs->currentEnemy, level.clients[bs->client].ps.fd.forcePowerSelected))
+			ForcePowerUsableOn(&g_entities[bs->client], bs->currentEnemy, level.clients[bs->client].ps.fd.forcePowerSelected) <= 0)
 		{
 			useTheForce = 0;
 			forceHostile = 0;

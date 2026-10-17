@@ -3350,8 +3350,13 @@ typedef struct
 	int			forceWithItem;		// bitmask (1<<FP_*) of force powers usable despite carrying a forcelimit siege item
 	float		forceRegen;		// force power regen speed multiplier, 1 = normal, 5 = old CFL_FASTFORCEREGEN speed
 	float		drainRegen;		// multiplier on HP regenerated from force drain, 1 = normal
+	float		drainAbsorbRegen;	// multiplier on FP an absorbing target gains from this class's drain, 1 = normal
+	qboolean	fullChargePistolOneShot;	// fully charged bryar pistol shots kill any enemy player they damage
+	qboolean	rancorNoTarget;		// rancors never choose this class as a target (they can still grab or hit it by accident)
+	qboolean	alwaysResistPushPull;	// can counter push/pull even without the force points to use them
 	qboolean	touchGiveAmmo;		// can use the ammo dispenser action on a teammate without holding HI_AMMODISP (and thus without the ability to toss ammo canisters)
-	qboolean	saberBlock;		// qfalse = cannot block anything with saber (melee or thrown), and thrown sabers ignore this class's blade entirely; default qtrue
+	qboolean	saberBlock;		// qfalse = cannot block sabers (melee or thrown), and thrown sabers ignore this class's blade entirely; projectiles are still blocked; default qtrue
+	int			saberDefShotsOnly;	// -1 = unspecified; 0-3 = saber defense level this class uses when blocking projectiles only
 	qboolean	knockdudesOver;		// qfalse = force push/pull level 3 never triggers the hard knockdown on enemies this class hits; default qtrue
 	specialDamageParam_t	incomingDamageParam[MAX_SPECIALDAMAGEPARAMETERS];
 	specialDamageParam_t	outgoingDamageParam[MAX_SPECIALDAMAGEPARAMETERS];

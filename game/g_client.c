@@ -5104,6 +5104,7 @@ void ClientSpawn(gentity_t *ent, qboolean forceUpdateInfo) {
 	ent->client->passiveHealDebounceTime = 0;
 	ent->client->lifestealAccum = 0.0f;
 	ent->client->drainRegenAccum = 0.0f;
+	ent->client->drainAbsorbAccum = 0.0f;
 	ent->client->drainTickTime = 0;
 	ent->client->lightningTickTime = 0;
 

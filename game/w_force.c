@@ -42,6 +42,8 @@ static qboolean G_SiegeForceAllowedWithItem( gentity_t *self, int forcePower )
 
 #define FORCE_VELOCITY_DAMAGE 0
 
+#define GRIP_DEBOUNCE_TIME (3000)
+
 int ForceShootDrain( gentity_t *self );
 
 gentity_t *G_PreDefSound(vec3_t org, int pdSound)
@@ -778,13 +780,13 @@ int ForcePowerUsableOn(gentity_t *attacker, gentity_t *other, forcePowers_t forc
 			(other->client->ps.fd.forcePowersActive & (1<<FP_ABSORB)))
 		{ //don't allow gripping to begin with if they are absorbing
 			//play sound indicating that attack was absorbed
-			if (other->client->forcePowerSoundDebounce < level.time)
+			if (!g_gripAbsorbFix.integer && other->client->forcePowerSoundDebounce < level.time)
 			{
 				gentity_t *abSound = G_PreDefSound(other->client->ps.origin, PDSOUND_ABSORBHIT);
 				abSound->s.trickedentindex = other->s.number;
 				other->client->forcePowerSoundDebounce = level.time + 400;
 			}
-			return 0;
+			return g_gripAbsorbFix.integer ? -1 : 0; // -1 so grip knows it failed because of absorb
 		}
 		else if (other && other->client &&
 			other->client->ps.weapon == WP_SABER &&
@@ -1025,11 +1027,39 @@ qboolean WP_ForcePowerUsable( gentity_t *self, forcePowers_t forcePower )
 	return WP_ForcePowerAvailable( self, forcePower, 0 );	// OVERRIDEFIXME
 }
 
+// gives an absorber force points from an attack, plays the absorb sound and counts the stats
+static void WP_AbsorbGiveForce(gentity_t *attacked, gentity_t *attacker, int addTot)
+{
+	gentity_t *abSound;
+
+	// we will definitely absorb, add to attacker and attacked stats if they are on different teams
+	if ( attacked && attacked->client && attacker && attacker->client
+		&& attacker->client->sess.sessionTeam != attacked->client->sess.sessionTeam ) {
+		int absorbed = attacked->client->ps.fd.forcePower + addTot > 100 ? 100 - attacked->client->ps.fd.forcePower : addTot;
+		attacked->client->pers.absorbed += absorbed;
+		attacker->client->pers.energizedEnemy += absorbed;
+	}
+
+	attacked->client->ps.fd.forcePower += addTot;
+	if (attacked->client->ps.fd.forcePower > 100)
+	{
+		attacked->client->ps.fd.forcePower = 100;
+	}
+
+	//play sound indicating that attack was absorbed
+	if (attacked->client->forcePowerSoundDebounce < level.time)
+	{
+		abSound = G_PreDefSound(attacked->client->ps.origin, PDSOUND_ABSORBHIT);
+		abSound->s.trickedentindex = attacked->s.number;
+
+		attacked->client->forcePowerSoundDebounce = level.time + 400;
+	}
+}
+
 int WP_AbsorbConversion(gentity_t *attacked, int atdAbsLevel, gentity_t *attacker, int atPower, int atPowerLevel, int atForceSpent)
 {
 	int getLevel = 0;
 	int addTot = 0;
-	gentity_t *abSound;
 
 	if (atPower != FP_LIGHTNING &&
 		atPower != FP_DRAIN &&
@@ -1067,28 +1097,16 @@ int WP_AbsorbConversion(gentity_t *attacked, int atdAbsLevel, gentity_t *attacke
 		addTot = 1;
 	}
 
-	// we will definitely absorb, add to attacker and attacked stats if they are on different teams
-	if ( attacked && attacked->client && attacker && attacker->client
-		&& attacker->client->sess.sessionTeam != attacked->client->sess.sessionTeam ) {
-		int absorbed = attacked->client->ps.fd.forcePower + addTot > 100 ? 100 - attacked->client->ps.fd.forcePower : addTot;
-		attacked->client->pers.absorbed += absorbed;
-		attacker->client->pers.energizedEnemy += absorbed;
+	if (atPower == FP_DRAIN && g_gametype.integer == GT_SIEGE && attacker && attacker->client &&
+		attacker->client->siegeClass != -1 && bgSiegeClasses[attacker->client->siegeClass].drainAbsorbRegen != 1.0f)
+	{ //siege drainabsorbregen: bank fractional FP on the absorber, give whole points once they accumulate
+		attacked->client->drainAbsorbAccum += (float)addTot * bgSiegeClasses[attacker->client->siegeClass].drainAbsorbRegen;
+		addTot = (int)attacked->client->drainAbsorbAccum;
+		attacked->client->drainAbsorbAccum -= addTot;
 	}
 
-	attacked->client->ps.fd.forcePower += addTot;
-	if (attacked->client->ps.fd.forcePower > 100)
-	{
-		attacked->client->ps.fd.forcePower = 100;
-	}
-
-	//play sound indicating that attack was absorbed
-	if (attacked->client->forcePowerSoundDebounce < level.time)
-	{
-		abSound = G_PreDefSound(attacked->client->ps.origin, PDSOUND_ABSORBHIT);
-		abSound->s.trickedentindex = attacked->s.number;
-
-		attacked->client->forcePowerSoundDebounce = level.time + 400;
-	}
+	if (addTot > 0)
+		WP_AbsorbGiveForce(attacked, attacker, addTot);
 
 	return getLevel;
 }
@@ -1741,6 +1759,7 @@ void ForceGrip( gentity_t *self )
 	if (g_unlagged.integer && compensate)
 		G_UnTimeShiftAllClients(self, qfalse);
 
+	int usable = 0;
 	if ( tr.fraction != 1.0 &&
 		tr.entityNum != ENTITYNUM_NONE &&
 		g_entities[tr.entityNum].client &&
@@ -1748,7 +1767,7 @@ void ForceGrip( gentity_t *self )
 			g_entities[tr.entityNum].client->ps.fd.forceGripBeingGripped < level.time :
 			(!g_entities[tr.entityNum].client->ps.fd.forceGripCripple &&
 				g_entities[tr.entityNum].client->ps.fd.forceGripBeingGripped < level.time)) &&
-		ForcePowerUsableOn(self, &g_entities[tr.entityNum], FP_GRIP) &&
+		(usable = ForcePowerUsableOn(self, &g_entities[tr.entityNum], FP_GRIP)) > 0 &&
 		(g_friendlyFire.integer || !OnSameTeam(self, &g_entities[tr.entityNum])) &&
 		Distance(self->client->ps.origin, g_entities[tr.entityNum].client->ps.origin) <= MAX_GRIP_DISTANCE) //don't grip someone who's still crippled
 	{
@@ -1788,6 +1807,15 @@ void ForceGrip( gentity_t *self )
 	else
 	{
 		self->client->ps.fd.forceGripEntityNum = ENTITYNUM_NONE;
+
+		if (usable == -1 && g_gripAbsorbFix.integer &&
+			(g_friendlyFire.integer || !OnSameTeam(self, &g_entities[tr.entityNum])) &&
+			(!self->client->grippedAnAbsorberTime || level.time - self->client->grippedAnAbsorberTime >= GRIP_DEBOUNCE_TIME))
+		{ // tried to grip an absorber: they absorb a flat 30fp and we pay for the grip, at most once per cooldown
+			self->client->grippedAnAbsorberTime = level.time;
+			WP_AbsorbGiveForce(&g_entities[tr.entityNum], self, GRIP_DRAIN_AMOUNT);
+			BG_ForcePowerDrain(&self->client->ps, FP_GRIP, GRIP_DRAIN_AMOUNT);
+		}
 		return;
 	}
 }
@@ -2023,6 +2051,12 @@ void ForceLightningDamage( gentity_t *self, gentity_t *traceEnt, vec3_t dir, vec
 
 	if ( traceEnt && traceEnt->takedamage )
 	{
+		if (!traceEnt->client && VALIDSTRING(traceEnt->classname) &&
+			(!strcmp(traceEnt->classname, "laserTrap") || !strcmp(traceEnt->classname, "detpack")))
+		{ //lightning sets off mines and detpacks, under the same rules as shooting them
+			G_Damage( traceEnt, self, self, dir, impactPoint, 999, 0, MOD_FORCE_DARK );
+			return;
+		}
 		if (!traceEnt->client && traceEnt->s.eType == ET_NPC)
 		{ //g2animent
 			if (traceEnt->s.genericenemyindex < level.time)
@@ -2132,6 +2166,45 @@ void ForceShootLightning( gentity_t *self )
 	// floors/slopes at close range or while crouched.
 	VectorCopy( self->client->ps.origin, start );
 	start[2] += self->client->ps.viewheight;
+
+	{//mines and detpacks are tiny and often wall-mounted: forgiving aim for them at every lightning level
+		int			mineList[MAX_GENTITIES];
+		int			numMines, m, k;
+		vec3_t		boxMins, boxMaxs;
+
+		for ( k = 0; k < 3; k++ )
+		{
+			boxMins[k] = start[k] - 2048;
+			boxMaxs[k] = start[k] + 2048;
+		}
+		numMines = trap_EntitiesInBox( boxMins, boxMaxs, mineList, MAX_GENTITIES );
+		for ( m = 0; m < numMines; m++ )
+		{
+			gentity_t	*mine = &g_entities[mineList[m]];
+			gentity_t	*mineOwner;
+			vec3_t		toMine, closest;
+			trace_t		mtr;
+			float		along;
+
+			if ( !mine->inuse || mine->client || !mine->takedamage || mine->health <= 0 || !VALIDSTRING(mine->classname) ||
+				(strcmp(mine->classname, "laserTrap") && strcmp(mine->classname, "detpack")) )
+				continue;
+			mineOwner = &g_entities[mine->r.ownerNum];
+			if ( !g_friendlyFire.integer && mineOwner->client && OnSameTeam(self, mineOwner) )
+				continue;
+			VectorSubtract( mine->r.currentOrigin, start, toMine );
+			along = DotProduct( toMine, forward );
+			if ( along < 0 || along > 2048 )
+				continue;
+			VectorMA( start, along, forward, closest );
+			if ( Distance( closest, mine->r.currentOrigin ) > 24 )
+				continue;
+			trap_Trace( &mtr, start, NULL, NULL, mine->r.currentOrigin, self->s.number, MASK_SHOT );
+			if ( mtr.fraction < 1.0f && mtr.entityNum != mine->s.number && Distance( mtr.endpos, mine->r.currentOrigin ) > 8 )
+				continue;//something is in the way (a wall-mounted mine ends the trace right at its surface)
+			G_Damage( mine, self, self, forward, mine->r.currentOrigin, 999, 0, MOD_FORCE_DARK );
+		}
+	}
 
 	if ( self->client->ps.fd.forcePowerLevel[FP_LIGHTNING] > FORCE_LEVEL_2 )
 	{//arc
@@ -3030,6 +3103,10 @@ void ForceTelepathy(gentity_t *self)
 		if (self->client->pers.cmd.buttons & BUTTON_WALKING) {
 			soundIndex = FootstepIndexFromMaterial(tr.surfaceFlags & MATERIAL_MASK);
 		}
+		else if (level.siegeMap == SIEGEMAP_KORRIBAN) {
+			// korriban classes are all saberists, but some use gunner icons (e.g. "infantry") and would fake gunfire
+			soundIndex = self->client->saber[0].soundOn;
+		}
 		else if (self->client->pers.cmd.buttons & BUTTON_USE || !self->client->ps.saberHolstered) {
 			int classes = 0;
 			for (siegeClassFlags_t scl = SPC_INFANTRY; scl < SPC_MAX; scl++) {
@@ -3299,9 +3376,22 @@ qboolean CanCounterThrow(gentity_t *self, gentity_t *thrower, qboolean pull)
 		powerUse = FP_PUSH;
 	}
 
-	if ( !WP_ForcePowerUsable( self, powerUse ) )
 	{
-		return 0;
+		// siege "alwaysresistpushpull": the force point check passes regardless of current force; every other check still applies
+		const int savedForce = self->client->ps.fd.forcePower;
+		qboolean usable;
+
+		if (g_gametype.integer == GT_SIEGE && self->client->siegeClass != -1 &&
+			bgSiegeClasses[self->client->siegeClass].alwaysResistPushPull)
+		{
+			self->client->ps.fd.forcePower = 100;
+		}
+		usable = WP_ForcePowerUsable( self, powerUse );
+		self->client->ps.fd.forcePower = savedForce;
+		if ( !usable )
+		{
+			return 0;
+		}
 	}
 
 	if (self->client->ps.groundEntityNum == ENTITYNUM_NONE)
@@ -4339,8 +4429,16 @@ void DoGripAction(gentity_t *self, forcePowers_t forcePower)
 
 	gripEnt = &g_entities[self->client->ps.fd.forceGripEntityNum];
 
-	if (!gripEnt || !gripEnt->client || !gripEnt->inuse || gripEnt->health < 1 || !ForcePowerUsableOn(self, gripEnt, FP_GRIP))
+	int usable = (gripEnt && gripEnt->client && gripEnt->inuse && gripEnt->health >= 1) ? ForcePowerUsableOn(self, gripEnt, FP_GRIP) : 0;
+	if (!gripEnt || !gripEnt->client || !gripEnt->inuse || gripEnt->health < 1 || usable <= 0)
 	{
+		if (usable == -1 && g_gripAbsorbFix.integer)
+		{ // victim started absorbing mid-grip: no force exchanged, but start the cooldown so ForceGrip doesn't absorb right away
+			gentity_t *abSound = G_PreDefSound(gripEnt->client->ps.origin, PDSOUND_ABSORBHIT);
+			abSound->s.trickedentindex = gripEnt->s.number;
+			gripEnt->client->forcePowerSoundDebounce = level.time + 400;
+			self->client->grippedAnAbsorberTime = level.time;
+		}
 		WP_ForcePowerStop(self, forcePower);
 		self->client->ps.fd.forceGripEntityNum = ENTITYNUM_NONE;
 
