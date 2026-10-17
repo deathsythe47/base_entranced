@@ -2612,6 +2612,13 @@ void G_RunClient			( gentity_t *ent );
 void G_SiegePassiveHealTick	( gentity_t *ent );
 qboolean G_IsKorri2(void);
 qboolean G_IsKorriRancorGod(gentity_t *ent);
+qboolean G_RancorBoxActive(gentity_t *ent);
+qboolean G_RancorBoxContainsXY(const vec3_t origin);
+float G_RancorBoxDist(const vec3_t origin);
+qboolean G_RancorBoxEnemyAllowed(const vec3_t origin);
+void G_RancorBoxClamp(const vec3_t in, float inset, vec3_t out);
+void G_RancorBoxLimits(float *mins, float *maxs);
+void G_MakeUrbanWitnessVulnerable(gentity_t *ent);
 qboolean G_RancorIgnoresTarget(gentity_t *npc, gentity_t *ent);
 
 typedef enum {
@@ -3195,6 +3202,8 @@ extern vmCvar_t    g_korriCrystals;
 extern vmCvar_t    g_fixKorriDelay;
 // 1 = the rancor on korriban/korri2 takes no damage and shows no health bar
 extern vmCvar_t    g_korriRancorGod;
+// 1 = the rancor on korriban/korri2 never moves outside its box and forgets enemies more than 128 units from it
+extern vmCvar_t    g_korriRancorBox;
 extern vmCvar_t    g_fixKorriReturns;
 extern vmCvar_t    g_forceDTechItems;
 // 0 = stock grip. 1 = ported base_enhanced g_gripRework tier-2 behavior (no grip wars,

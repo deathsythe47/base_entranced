@@ -329,6 +329,11 @@ void G_SetEnemy( gentity_t *self, gentity_t *enemy )
 		return;
 	}
 
+	if ( G_RancorBoxActive( self ) && !G_RancorBoxEnemyAllowed( enemy->r.currentOrigin ) )
+	{
+		return;
+	}
+
 	//Don't take the enemy if in notarget
 	if ( enemy->flags & FL_NOTARGET )
 		return;

@@ -1033,6 +1033,8 @@ void NPC_Begin (gentity_t *ent)
 		client->ps.stats[STAT_HEALTH] = ent->health;
 	}
 
+	G_MakeUrbanWitnessVulnerable(ent);
+
 	if (G_IsKorriRancorGod(ent))
 		ent->s.shouldtarget = qfalse; // invulnerable, so no health bar
 
