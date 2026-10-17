@@ -187,6 +187,7 @@ vmCvar_t    g_autoKorribanSpam;
 vmCvar_t    g_korriCrystals;
 vmCvar_t    g_fixKorriDelay;
 vmCvar_t    g_korriRancorGod;
+vmCvar_t    g_korriRancorBox;
 vmCvar_t    g_fixKorriReturns;
 vmCvar_t	g_gripRework;
 vmCvar_t	g_gripAbsorbFix;
@@ -1200,6 +1201,7 @@ static cvarTable_t		gameCvarTable[] = {
 	{ &g_korriCrystals, "g_korriCrystals", "rgb", CVAR_ARCHIVE | CVAR_LATCH, 0, qtrue },
 	{ &g_fixKorriDelay, "g_fixKorriDelay", "1", CVAR_ARCHIVE | CVAR_LATCH, 0, qtrue },
 	{ &g_korriRancorGod, "g_korriRancorGod", "1", CVAR_ARCHIVE | CVAR_LATCH, 0, qtrue },
+	{ &g_korriRancorBox, "g_korriRancorBox", "1", CVAR_ARCHIVE | CVAR_LATCH, 0, qtrue },
 	{ &g_fixKorriReturns, "g_fixKorriReturns", "1", CVAR_ARCHIVE | CVAR_LATCH, 0, qtrue },
 	{ &g_gripRework, "g_gripRework", "0", CVAR_ARCHIVE | CVAR_LATCH, 0, qtrue },
 	{ &g_gripAbsorbFix, "g_gripAbsorbFix", "1", CVAR_ARCHIVE, 0, qtrue },

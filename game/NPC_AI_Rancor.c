@@ -118,6 +118,8 @@ static gentity_t *Rancor_PickTarget( void )
 			continue;
 		if ( (ent->s.eFlags & EF_NODRAW) || ent->client->tempSpectate >= level.time )
 			continue;
+		if ( G_RancorBoxActive( NPC ) && !G_RancorBoxEnemyAllowed( ent->r.currentOrigin ) )
+			continue;
 		distSq = DistanceSquared( ent->r.currentOrigin, NPC->r.currentOrigin );
 		if ( distSq > rangeSq )
 			continue;
@@ -161,6 +163,40 @@ static qboolean Rancor_RememberingHiddenEnemy( void )
 		level.time - NPC->rancorEnemySeenTime <= RANCOR_ENEMY_MEMORY_MS && !NPC_ClearLOS4( NPC->enemy ) );
 }
 
+// g_korriRancorBox: every goal is clamped into the box so pathing never takes it out, and at the edge it just
+// turns to face the goal
+#define RANCORBOX_GOAL_INSET	16.0f
+
+static qboolean Rancor_MoveToGoal( qboolean tryStraight )
+{
+	vec3_t clamped;
+
+	if ( !G_RancorBoxActive( NPC ) || !NPCInfo->goalEntity )
+		return NPC_MoveToGoal( tryStraight );
+
+	G_RancorBoxClamp( NPCInfo->goalEntity->r.currentOrigin, RANCORBOX_GOAL_INSET, clamped );
+	if ( clamped[0] == NPCInfo->goalEntity->r.currentOrigin[0] && clamped[1] == NPCInfo->goalEntity->r.currentOrigin[1] )
+		return NPC_MoveToGoal( tryStraight );
+
+	if ( sqrt( (clamped[0] - NPC->r.currentOrigin[0]) * (clamped[0] - NPC->r.currentOrigin[0]) + (clamped[1] - NPC->r.currentOrigin[1]) * (clamped[1] - NPC->r.currentOrigin[1]) ) < 24.0f )
+	{//already at the edge nearest the goal: stand and face it
+		vec3_t dir, angles;
+		VectorSubtract( NPCInfo->goalEntity->r.currentOrigin, NPC->r.currentOrigin, dir );
+		dir[2] = 0;
+		if ( VectorNormalize( dir ) >= 1.0f )
+		{
+			vectoangles( dir, angles );
+			NPCInfo->desiredPitch = 0.0f;
+			NPCInfo->desiredYaw = AngleNormalize360( angles[YAW] );
+		}
+		ucmd.forwardmove = ucmd.rightmove = 0;
+		return qtrue;
+	}
+
+	NPC_SetMoveGoal( NPC, clamped, 16, qtrue, -1, NULL );
+	return NPC_MoveToGoal( tryStraight );
+}
+
 /*
 -------------------------
 Rancor_Patrol
@@ -174,7 +210,7 @@ void Rancor_Patrol( void )
 	if ( UpdateGoal() )
 	{
 		ucmd.buttons &= ~BUTTON_WALKING;
-		NPC_MoveToGoal( qtrue );
+		Rancor_MoveToGoal( qtrue );
 	}
 	else
 	{
@@ -213,11 +249,14 @@ Rancor_Move
 // walk straight at the enemy instead and let collision slide it along walls
 static void Rancor_MoveStraight( void )
 {
-	vec3_t dir, angles;
+	vec3_t dir, angles, goal;
 
-	VectorSubtract( NPC->enemy->r.currentOrigin, NPC->r.currentOrigin, dir );
+	VectorCopy( NPC->enemy->r.currentOrigin, goal );
+	if ( G_RancorBoxActive( NPC ) )
+		G_RancorBoxClamp( NPC->enemy->r.currentOrigin, RANCORBOX_GOAL_INSET, goal );
+	VectorSubtract( goal, NPC->r.currentOrigin, dir );
 	dir[2] = 0;
-	if ( VectorNormalize( dir ) < 1.0f )
+	if ( VectorNormalize( dir ) < (G_RancorBoxActive( NPC ) ? 24.0f : 1.0f) )
 		return;
 	vectoangles( dir, angles );
 	NPCInfo->desiredPitch = 0.0f;
@@ -232,7 +271,7 @@ void Rancor_Move( qboolean visible )
 	if ( NPCInfo->localState != LSTATE_WAITING )
 	{
 		NPCInfo->goalEntity = NPC->enemy;
-		if ( !NPC_MoveToGoal( qtrue ) )
+		if ( !Rancor_MoveToGoal( qtrue ) )
 		{
 			NPCInfo->consecutiveBlockedMoves++;
 			if ( g_fixRancor.integer )
@@ -832,7 +871,7 @@ void Rancor_Combat( void )
 		NPCInfo->goalEntity = NPC->enemy;
 		NPCInfo->goalRadius = MIN_DISTANCE;
 
-		if ( !NPC_MoveToGoal( qtrue ) )
+		if ( !Rancor_MoveToGoal( qtrue ) )
 		{//couldn't go after him?  Look for a new one
 			TIMER_Set( NPC, "lookForNewEnemy", 0 );
 			NPCInfo->consecutiveBlockedMoves++;
@@ -1014,7 +1053,7 @@ void Rancor_Crush(void)
 NPC_BSRancor_Default
 -------------------------
 */
-void NPC_BSRancor_Default( void )
+static void Rancor_Think( void )
 {
 	// g_fixRancor: twice the sight range and turn speed, and 10% more move speed, than its .npc stats
 	if ( !NPC->rancorStockYawSpeed )
@@ -1161,4 +1200,93 @@ void NPC_BSRancor_Default( void )
 	}
 
 	NPC_UpdateAngles( qtrue, qtrue );
+}
+
+// g_korriRancorBox: out of the box (spawned there, teleported, pushed), nothing else matters: run straight back in
+static void Rancor_ReturnToBox( void )
+{
+	vec3_t goal, dir, angles;
+
+	G_RancorBoxClamp( NPC->r.currentOrigin, RANCORBOX_GOAL_INSET, goal );
+	NPC->client->ps.speed = NPCInfo->stats.runSpeed;
+	ucmd.buttons &= ~BUTTON_WALKING;
+	NPC_SetMoveGoal( NPC, goal, 16, qtrue, -1, NULL );
+	if ( !NPC_MoveToGoal( qtrue ) )
+	{//no route, go straight and let collision slide it
+		VectorSubtract( goal, NPC->r.currentOrigin, dir );
+		dir[2] = 0;
+		if ( VectorNormalize( dir ) >= 1.0f )
+		{
+			vectoangles( dir, angles );
+			NPCInfo->desiredPitch = 0.0f;
+			NPCInfo->desiredYaw = AngleNormalize360( angles[YAW] );
+			ucmd.forwardmove = 127;
+		}
+	}
+	NPC_UpdateAngles( qtrue, qtrue );
+}
+
+// last line of defense, whatever chose the move: if this frame's move (or its momentum) would take it past an edge,
+// drop that part of it. moving back toward the box is always allowed
+static void Rancor_BoxBackstop( void )
+{
+	vec3_t	mins, maxs, fwd, right, angles, w;
+	float	speed, step, f, r;
+	int		a;
+
+	G_RancorBoxLimits( mins, maxs );
+	speed = NPC->client->ps.speed;
+	if ( VectorLength( NPC->client->ps.velocity ) > speed )
+		speed = VectorLength( NPC->client->ps.velocity );
+	step = speed * 0.1f;//this think plus the extra no-think frame
+
+	VectorSet( angles, 0, SHORT2ANGLE( ucmd.angles[YAW] + NPC->client->ps.delta_angles[YAW] ), 0 );
+	AngleVectors( angles, fwd, right, NULL );
+	VectorClear( w );
+	VectorMA( w, ucmd.forwardmove / 127.0f, fwd, w );
+	VectorMA( w, ucmd.rightmove / 127.0f, right, w );
+
+	for ( a = 0; a < 2; a++ )
+	{
+		float o = NPC->r.currentOrigin[a];
+		if ( w[a] > 0 && o + w[a] * step > maxs[a] )
+			w[a] = 0;
+		else if ( w[a] < 0 && o + w[a] * step < mins[a] )
+			w[a] = 0;
+
+		if ( NPC->client->ps.velocity[a] > 0 && o + NPC->client->ps.velocity[a] * 0.1f > maxs[a] )
+			NPC->client->ps.velocity[a] = 0;
+		else if ( NPC->client->ps.velocity[a] < 0 && o + NPC->client->ps.velocity[a] * 0.1f < mins[a] )
+			NPC->client->ps.velocity[a] = 0;
+	}
+
+	f = DotProduct( w, fwd ) * 127.0f;
+	r = DotProduct( w, right ) * 127.0f;
+	ucmd.forwardmove = (signed char)Com_Clampi( -127, 127, (int)f );
+	ucmd.rightmove = (signed char)Com_Clampi( -127, 127, (int)r );
+}
+
+void NPC_BSRancor_Default( void )
+{
+	if ( !G_RancorBoxActive( NPC ) )
+	{
+		Rancor_Think();
+		return;
+	}
+
+	if ( !G_RancorBoxContainsXY( NPC->r.currentOrigin ) )
+	{
+		Rancor_ReturnToBox();
+	}
+	else
+	{
+		if ( NPC->enemy && !NPC->count && !G_RancorBoxEnemyAllowed( NPC->enemy->r.currentOrigin ) )
+		{//too far outside the box: forget him
+			NPC->lastEnemy = NPC->enemy;
+			NPC->enemy = NULL;
+			NPC_ClearGoal();
+		}
+		Rancor_Think();
+	}
+	Rancor_BoxBackstop();
 }

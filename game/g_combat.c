@@ -4962,6 +4962,61 @@ qboolean G_IsKorriRancorGod(gentity_t *ent) {
 		ent->s.eType == ET_NPC && ent->client->NPC_class == CLASS_RANCOR);
 }
 
+// g_korriRancorBox: the korriban rancor never moves outside this region (no lower z bound; the top only matters
+// for judging enemies) and forgets enemies more than RANCORBOX_ENEMY_MARGIN units from it
+#define RANCORBOX_MINX	-2001.0f
+#define RANCORBOX_MAXX	17.0f
+#define RANCORBOX_MINY	12623.0f
+#define RANCORBOX_MAXY	13809.0f
+#define RANCORBOX_MAXZ	165.0f
+#define RANCORBOX_ENEMY_MARGIN	128.0f
+
+qboolean G_RancorBoxActive(gentity_t *ent) {
+	return (qboolean)(g_korriRancorBox.integer && level.siegeMap == SIEGEMAP_KORRIBAN && ent && ent->client &&
+		ent->s.eType == ET_NPC && ent->client->NPC_class == CLASS_RANCOR);
+}
+
+void G_RancorBoxLimits(float *mins, float *maxs) {
+	mins[0] = RANCORBOX_MINX; mins[1] = RANCORBOX_MINY;
+	maxs[0] = RANCORBOX_MAXX; maxs[1] = RANCORBOX_MAXY;
+}
+
+qboolean G_RancorBoxContainsXY(const vec3_t origin) {
+	return (qboolean)(origin[0] >= RANCORBOX_MINX && origin[0] <= RANCORBOX_MAXX &&
+		origin[1] >= RANCORBOX_MINY && origin[1] <= RANCORBOX_MAXY);
+}
+
+// nearest point of the box (shrunk by inset) in x/y; z is left alone
+void G_RancorBoxClamp(const vec3_t in, float inset, vec3_t out) {
+	VectorCopy(in, out);
+	if (out[0] < RANCORBOX_MINX + inset) out[0] = RANCORBOX_MINX + inset;
+	if (out[0] > RANCORBOX_MAXX - inset) out[0] = RANCORBOX_MAXX - inset;
+	if (out[1] < RANCORBOX_MINY + inset) out[1] = RANCORBOX_MINY + inset;
+	if (out[1] > RANCORBOX_MAXY - inset) out[1] = RANCORBOX_MAXY - inset;
+}
+
+// distance to the box, which is open at the bottom and capped at RANCORBOX_MAXZ
+float G_RancorBoxDist(const vec3_t origin) {
+	vec3_t nearest;
+	G_RancorBoxClamp(origin, 0.0f, nearest);
+	if (nearest[2] > RANCORBOX_MAXZ)
+		nearest[2] = RANCORBOX_MAXZ;
+	return Distance(origin, nearest);
+}
+
+qboolean G_RancorBoxEnemyAllowed(const vec3_t origin) {
+	return (qboolean)(G_RancorBoxDist(origin) <= RANCORBOX_ENEMY_MARGIN);
+}
+
+// urban witnesses (the lando npcs) must always be damageable
+void G_MakeUrbanWitnessVulnerable(gentity_t *ent) {
+	if (level.siegeMap == SIEGEMAP_URBAN && ent && ent->s.eType == ET_NPC && ent->health > 0 &&
+		VALIDSTRING(ent->NPC_type) && tolower(*ent->NPC_type) == 'w') {
+		ent->flags &= ~(FL_UNDYING | FL_GODMODE);
+		ent->takedamage = qtrue;
+	}
+}
+
 int G_Damage(gentity_t *targ, gentity_t *inflictor, gentity_t *attacker,
 	vec3_t dir, vec3_t point, int damage, int dflags, int mod) {
 	gclient_t	*client;
@@ -4987,6 +5042,8 @@ int G_Damage(gentity_t *targ, gentity_t *inflictor, gentity_t *attacker,
 			targ->pain(targ, attacker, 0);
 		return 0;
 	}
+
+	G_MakeUrbanWitnessVulnerable(targ);
 
 	// nobody held by a monster deals saber damage or hurts themselves
 	if (attacker && attacker->client && (attacker->client->ps.eFlags2 & EF2_HELD_BY_MONSTER) &&
