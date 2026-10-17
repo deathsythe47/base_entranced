@@ -3104,8 +3104,8 @@ void ForceTelepathy(gentity_t *self)
 			soundIndex = FootstepIndexFromMaterial(tr.surfaceFlags & MATERIAL_MASK);
 		}
 		else if (level.siegeMap == SIEGEMAP_KORRIBAN) {
-			// korriban classes are all saberists, but some use gunner icons (e.g. "infantry") and would fake gunfire
-			soundIndex = self->client->saber[0].soundOn;
+			// korriban scouts fake a charging pistol
+			soundIndex = G_SoundIndex("sound/weapons/bryar/altcharge.mp3");
 		}
 		else if (self->client->pers.cmd.buttons & BUTTON_USE || !self->client->ps.saberHolstered) {
 			int classes = 0;
