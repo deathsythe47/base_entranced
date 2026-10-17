@@ -4964,7 +4964,7 @@ qboolean G_IsKorriRancorGod(gentity_t *ent) {
 
 // the ragnos coffin is untouchable until the scepter is delivered and the shield drops: no damage to it, and
 // detpacks or players within COFFIN_GUARD_RADIUS of it are blown up / killed
-#define COFFIN_GUARD_RADIUS	64.0f
+#define COFFIN_GUARD_RADIUS	2.0f
 
 static qboolean G_IsKorriCoffin(gentity_t *ent) {
 	if (!ent || !ent->inuse || !VALIDSTRING(ent->classname) || !VALIDSTRING(ent->targetname))
