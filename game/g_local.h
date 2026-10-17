@@ -1578,6 +1578,7 @@ typedef struct {
 
 	//match log
 	qboolean	wasRestarted;
+	qboolean	korriCoffinShieldDown; // korriban: the scepter was delivered and the coffin shield is down
 	qboolean	isKorri2;		// SIEGEMAP_KORRIBAN, but the remake: red and blue crystals only, objective 3 (green) does not exist
 	isLivePug_t	isLivePug;
 	qboolean	pugWasLiveAtSomePoint;
@@ -2619,6 +2620,8 @@ qboolean G_RancorBoxEnemyAllowed(const vec3_t origin);
 void G_RancorBoxClamp(const vec3_t in, float inset, vec3_t out);
 void G_RancorBoxLimits(float *mins, float *maxs);
 void G_MakeUrbanWitnessVulnerable(gentity_t *ent);
+void G_KorriCoffinGuard(void);
+void DetPackBlow(gentity_t *self);
 qboolean G_RancorIgnoresTarget(gentity_t *npc, gentity_t *ent);
 
 typedef enum {

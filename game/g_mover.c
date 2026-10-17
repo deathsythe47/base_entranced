@@ -3420,6 +3420,9 @@ void func_usable_use(gentity_t *self, gentity_t *other, gentity_t *activator)
 		self->s.eFlags |= EF_NODRAW;
 		self->count = 0;
 
+		if (level.siegeMap == SIEGEMAP_KORRIBAN && VALIDSTRING(self->targetname) && !Q_stricmp(self->targetname, "coffinguard_shield"))
+			level.korriCoffinShieldDown = qtrue;
+
 		if (self->placeStuff)
 		{
 			G_DetonatePlacedOn(self);

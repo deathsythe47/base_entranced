@@ -7232,6 +7232,8 @@ void G_RunFrame( int levelTime ) {
 #endif
 	static int lastMsgTime = 0;
 
+	G_KorriCoffinGuard();
+
 	if (g_ownMineDetpackCollision.integer) {
 		for (int i = MAX_CLIENTS; i < MAX_GENTITIES; i++) {
 			gentity_t *ent = &g_entities[i];

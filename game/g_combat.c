@@ -4962,6 +4962,80 @@ qboolean G_IsKorriRancorGod(gentity_t *ent) {
 		ent->s.eType == ET_NPC && ent->client->NPC_class == CLASS_RANCOR);
 }
 
+// the ragnos coffin is untouchable until the scepter is delivered and the shield drops: no damage to it, and
+// detpacks or players within COFFIN_GUARD_RADIUS of it are blown up / killed
+#define COFFIN_GUARD_RADIUS	64.0f
+
+static qboolean G_IsKorriCoffin(gentity_t *ent) {
+	if (!ent || !ent->inuse || !VALIDSTRING(ent->classname) || !VALIDSTRING(ent->targetname))
+		return qfalse;
+	return (qboolean)((!strcmp(ent->classname, "misc_siege_item") && !Q_stricmp(ent->targetname, "ragnos_coffin")) ||
+		(!strcmp(ent->classname, "func_breakable") && !Q_stricmp(ent->targetname, "coffin")));
+}
+
+static qboolean G_KorriCoffinProtected(gentity_t *ent) {
+	return (qboolean)(level.siegeMap == SIEGEMAP_KORRIBAN && g_gametype.integer == GT_SIEGE &&
+		!level.korriCoffinShieldDown && G_IsKorriCoffin(ent));
+}
+
+// is the bbox of ent within COFFIN_GUARD_RADIUS of the coffin's bbox (overlap counts)
+static qboolean G_NearKorriCoffin(gentity_t *ent, gentity_t *coffin) {
+	float distSq = 0;
+	int i;
+
+	for (i = 0; i < 3; i++) {
+		float gap = ent->r.absmin[i] - coffin->r.absmax[i];
+		const float gap2 = coffin->r.absmin[i] - ent->r.absmax[i];
+		if (gap2 > gap)
+			gap = gap2;
+		if (gap > 0)
+			distSq += gap * gap;
+	}
+	return (qboolean)(distSq <= COFFIN_GUARD_RADIUS * COFFIN_GUARD_RADIUS);
+}
+
+void G_KorriCoffinGuard(void) {
+	gentity_t *coffins[4];
+	int numCoffins = 0, i, c;
+
+	if (level.siegeMap != SIEGEMAP_KORRIBAN || g_gametype.integer != GT_SIEGE || level.korriCoffinShieldDown)
+		return;
+
+	for (i = MAX_CLIENTS; i < level.num_entities && numCoffins < 4; i++) {
+		if (G_IsKorriCoffin(&g_entities[i]))
+			coffins[numCoffins++] = &g_entities[i];
+	}
+	if (!numCoffins)
+		return;
+
+	for (i = 0; i < level.num_entities; i++) {
+		gentity_t *ent = &g_entities[i];
+
+		if (!ent->inuse)
+			continue;
+
+		if (i < MAX_CLIENTS) {
+			if (!ent->client || ent->client->pers.connected != CON_CONNECTED || ent->health <= 0 ||
+				ent->client->sess.sessionTeam == TEAM_SPECTATOR || ent->client->ps.pm_type == PM_SPECTATOR)
+				continue;
+			for (c = 0; c < numCoffins; c++) {
+				if (G_NearKorriCoffin(ent, coffins[c])) {
+					G_Damage(ent, &g_entities[ENTITYNUM_WORLD], &g_entities[ENTITYNUM_WORLD], NULL, NULL, 99999,
+						DAMAGE_NO_PROTECTION, MOD_TRIGGER_HURT);
+					break;
+				}
+			}
+		} else if (i >= MAX_CLIENTS && VALIDSTRING(ent->classname) && !strcmp(ent->classname, "detpack") && ent->think != G_FreeEntity) {
+			for (c = 0; c < numCoffins; c++) {
+				if (G_NearKorriCoffin(ent, coffins[c])) {
+					DetPackBlow(ent); // coffin damage is blocked in G_Damage
+					break;
+				}
+			}
+		}
+	}
+}
+
 // g_korriRancorBox: the korriban rancor never moves outside this region (no lower z bound; the top only matters
 // for judging enemies) and forgets enemies more than RANCORBOX_ENEMY_MARGIN units from it
 #define RANCORBOX_MINX	-2001.0f
@@ -5029,6 +5103,9 @@ int G_Damage(gentity_t *targ, gentity_t *inflictor, gentity_t *attacker,
 	float		hamt = 0;
 	float		shieldAbsorbed = 0;
 	int			rng;
+
+	if (G_KorriCoffinProtected(targ))
+		return 0;
 
 	if (targ && targ->damageRedirect)
 	{
