@@ -1423,6 +1423,9 @@ void G_SiegePassiveHealTick( gentity_t *ent ) {
 	if ( ent->health <= 0 )
 		return;
 
+	if ( client->tempSpectate >= level.time ) // dead siege ghost (health 1)
+		return;
+
 	maxHealth = bgSiegeClasses[client->siegeClass].maxhealth;
 	if ( ent->health >= maxHealth )
 		return;
