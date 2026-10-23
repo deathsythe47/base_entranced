@@ -58,7 +58,9 @@ FILES =     ai_main.o               ai_util.o               ai_wpnav.o          
             sha1.o                  SpeederNPC.o            tri_coll_test.o         WalkerNPC.o             w_force.o               w_saber.o  \
             jp_engine.o             jp_enginehelper.o       g_crash.o               sqlite3.o               g_database.o            g_database_upgrade.o  \
             collections.o           xxhash.o                g_accounts.o            cJSON.o					g_generators.o			g_transfers.o \
-			g_table.o				sha3.o
+			g_table.o				sha3.o \
+			g_tick.o \
+			g_ticktest.o
 			
 
 # "make"
@@ -73,5 +75,11 @@ $(TARGET):  $(FILES)
 # "make clean"
 clean:
 	rm -f $(FILES) $(TARGET)
+
+# "make tick-test": host unit test for g_tick, built natively
+tick-test:
+	gcc -std=c99 -Wall -I. -o tests/test_tick tests/test_tick.c g_tick.c -lm && ./tests/test_tick
+
+.PHONY: tick-test
 
 jp_engine.o: OPTIONS += -masm=intel

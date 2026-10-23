@@ -3498,7 +3498,7 @@ void SiegeCheckTimers(void)
 			else
 				level.siegeStage = SIEGESTAGE_PREROUND2;
 		}
-		else if (gSiegeBeginTime < level.time)
+		else if (TICKFIX(Siege) ? gSiegeBeginTime <= level.time : gSiegeBeginTime < level.time)
 		{ //mark the round as having begun
 			level.siegeRoundStartTime = /*gSiegeBeginTime*/level.time;
 
@@ -3577,8 +3577,14 @@ void SiegeCheckTimers(void)
 		{
 			if (level.wasRestarted) {
 				static int ticksCountedDown = 0;
+				qboolean countedDown;
 				ticksCountedDown++;
-				if (ticksCountedDown >= g_svfps.integer * 4) {
+				// with the fix, 4 s of this countdown (what 80 frames came to at 20 Hz)
+				if (TICKFIX(Siege))
+					countedDown = level.time - (gSiegeBeginTime - SIEGE_ROUND_BEGIN_TIME) >= 4000 ? qtrue : qfalse;
+				else
+					countedDown = ticksCountedDown >= g_svfps.integer * 4 ? qtrue : qfalse;
+				if (countedDown) {
 					int numRed = 0, numBlue = 0;
 					GetPlayerCounts(qtrue, qtrue, &numRed, &numBlue, NULL, NULL);
 					if (numRed && numBlue) {
@@ -4569,11 +4575,31 @@ void SiegeItemThink(gentity_t *ent)
 {
 	gentity_t *carrier = NULL;
 
-	if (ent->genericValue12)
+	if (ent->genericValue12 && TICKFIX(Siege))
+	{
+		// carried on the think's own schedule, so it keeps the 20 Hz grid however late the frame runs the think
+		if (ent->health > 0 && ent->health < ent->maxHealth)
+		{
+			int n = Tick_Due(&ent->genericValue14, ent->tickDeadline, G_TickIncl(FRAMETIME / 2), G_TickStrict(ent->genericValue13));
+
+			for (; n > 0; n--)
+			{
+				TICKPROBE("siegeitem_recharge", ent->s.number, Com_Clampi(0, ent->maxHealth - ent->health, ent->genericValue12));
+				ent->health += ent->genericValue12;
+				if (ent->health >= ent->maxHealth)
+				{
+					ent->health = ent->maxHealth;
+					break;
+				}
+			}
+		}
+	}
+	else if (ent->genericValue12)
 	{ //recharge health
 		if (ent->health > 0 && ent->health < ent->maxHealth && ent->genericValue14 < level.time)
 		{
             ent->genericValue14 = level.time + ent->genericValue13;
+			TICKPROBE("siegeitem_recharge", ent->s.number, Com_Clampi(0, ent->maxHealth - ent->health, ent->genericValue12));
 			ent->health += ent->genericValue12;
 			if (ent->health > ent->maxHealth)
 			{
@@ -4759,7 +4785,10 @@ void SiegeItemThink(gentity_t *ent)
 			level.siegeHelpMessageTime = -SIEGE_HELP_INTERVAL;
 	}
 
-	ent->nextthink = level.time + FRAMETIME/2;
+	if (TICKFIX(Siege))
+		ent->nextthink = G_TickRearmThink(ent, G_TickIncl(FRAMETIME / 2));
+	else
+		ent->nextthink = level.time + FRAMETIME/2;
 }
 
 void SiegeItemTouch( gentity_t *self, gentity_t *other, trace_t *trace )

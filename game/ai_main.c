@@ -7584,7 +7584,15 @@ int BotAIStartFrame(int time) {
 			botstates[i]->botthink_residual -= thinktime;
 
 			if (g_entities[i].client->pers.connected == CON_CONNECTED) {
-				BotAI(i, (float) thinktime / 1000);
+				if (level.tickTest.active && TickTest_IsBot(i)) {
+					// scripted by ticktest: only drain server commands so the reliable buffer never overflows
+					char buf[1024];
+					while (trap_BotGetServerCommand(i, buf, sizeof(buf)))
+						;
+				}
+				else {
+					BotAI(i, (float) thinktime / 1000);
+				}
 			}
 		}
 	}
@@ -7599,6 +7607,8 @@ int BotAIStartFrame(int time) {
 		}
 
 		BotUpdateInput(botstates[i], time, elapsed_time);
+		if (level.tickTest.active)
+			TickTest_BotCmd(i, &botstates[i]->lastucmd);
 		trap_BotUserCommand(botstates[i]->client, &botstates[i]->lastucmd);
 	}
 

@@ -34,6 +34,7 @@ gentity_t		*NPC;
 gNPC_t			*NPCInfo;
 gclient_t		*client;
 usercmd_t		ucmd;
+int				NPCThinkDt;		// under the fix, the pmove step of the coming ClientThink of a live NPC_Think, else 0
 visibility_t	enemyVisibility;
 
 void NPC_SetAnim(gentity_t	*ent,int type,int anim,int priority);
@@ -110,15 +111,17 @@ Determines when it's ok to ditch the corpse
 
 void NPC_RemoveBody( gentity_t *self )
 {
+	int thinkNow = TICKFIX(NPC) ? NPC_ThinkTime(self) : level.time;
+
 	CorpsePhysics( self );
 
-	self->nextthink = level.time + FRAMETIME;
+	self->nextthink = TICKFIX(NPC) ? G_TickRearmThink(self, FRAMETIME) : level.time + FRAMETIME;
 
-	if ( self->NPC->nextBStateThink <= level.time )
+	if ( self->NPC->nextBStateThink <= thinkNow )
 	{
 		trap_ICARUS_MaintainTaskManager(self->s.number);
 	}
-	self->NPC->nextBStateThink = level.time + FRAMETIME;
+	self->NPC->nextBStateThink = thinkNow + FRAMETIME;
 
 	if ( self->message )
 	{//I still have a key
@@ -168,7 +171,7 @@ void NPC_RemoveBody( gentity_t *self )
 		// Only do all of this nonsense for Scav boys ( and girls )
 		if( self->client->playerTeam == NPCTEAM_ENEMY || self->client->NPC_class == CLASS_PROTOCOL )
 		{
-			self->nextthink = level.time + FRAMETIME; // try back in a second
+			self->nextthink = TICKFIX(NPC) ? G_TickRearmThink(self, FRAMETIME) : level.time + FRAMETIME; // try back in a second
 			}
 
 		//FIXME: there are some conditions - such as heavy combat - in which we want
@@ -495,12 +498,14 @@ void SetNPCGlobals( gentity_t *ent )
 	NPCInfo = ent->NPC;
 	client = ent->client;
 	memset( &ucmd, 0, sizeof( usercmd_t ) );
+	NPCThinkDt = 0;
 }
 
 gentity_t	*_saved_NPC;
 gNPC_t		*_saved_NPCInfo;
 gclient_t	*_saved_client;
 usercmd_t	_saved_ucmd;
+int			_saved_NPCThinkDt;
 
 void SaveNPCGlobals(void) 
 {
@@ -508,6 +513,7 @@ void SaveNPCGlobals(void)
 	_saved_NPCInfo = NPCInfo;
 	_saved_client = client;
 	memcpy( &_saved_ucmd, &ucmd, sizeof( usercmd_t ) );
+	_saved_NPCThinkDt = NPCThinkDt;
 }
 
 void RestoreNPCGlobals(void) 
@@ -516,6 +522,7 @@ void RestoreNPCGlobals(void)
 	NPCInfo = _saved_NPCInfo;
 	client = _saved_client;
 	memcpy( &ucmd, &_saved_ucmd, sizeof( usercmd_t ) );
+	NPCThinkDt = _saved_NPCThinkDt;
 }
 
 //We MUST do this, other funcs were using NPC illegally when "self" wasn't the global NPC
@@ -524,6 +531,7 @@ void ClearNPCGlobals( void )
 	NPC = NULL;
 	NPCInfo = NULL;
 	client = NULL;
+	NPCThinkDt = 0;
 }
 //===============
 
@@ -1458,7 +1466,7 @@ void NPC_ExecuteBState ( gentity_t *self)//, int msec )
 
 	// run the bot through the server like it was a real client
 //=== Save the ucmd for the second no-think Pmove ============================
-	ucmd.serverTime = level.time - 50;
+	ucmd.serverTime = TICKFIX(NPC) ? NPC_CmdServerTime(NPC) : level.time - 50;
 	memcpy( &NPCInfo->last_ucmd, &ucmd, sizeof( usercmd_t ) );
 	if ( !NPCInfo->attackHoldTime )
 	{
@@ -1537,11 +1545,28 @@ void G_DroidSounds( gentity_t *self )
 	}
 }
 
+// under the fix NPC_Think runs on a carried grid; this is the think's scheduled time, as at 20 Hz
+int NPC_ThinkTime(gentity_t *ent) {
+	return ent->tickDeadline >= level.time - G_FrameMsec() ? ent->tickDeadline : level.time;
+}
+
+/*
+stock's level.time - 50 on the think grid. a command time more than 200 ms behind is moved up rather than
+fast-forwarded through pmove
+*/
+int NPC_CmdServerTime(gentity_t *ent) {
+	int t = NPC_ThinkTime(ent) - 50;
+
+	if (t - ent->client->ps.commandTime > 200)
+		ent->client->ps.commandTime = t - 200;
+	return t;
+}
+
 /*
 ===============
 NPC_Think
 
-Main NPC AI - called once per frame
+Main NPC AI - under g_tickFixNPC: every 50 ms, every 100 ms when dead or frozen
 ===============
 */
 #if	AI_TIMERS
@@ -1552,8 +1577,10 @@ void NPC_Think ( gentity_t *self)//, int msec )
 	vec3_t	oldMoveDir;
 	int i = 0;
 	gentity_t *player;
+	int thinkNow = TICKFIX(NPC) ? NPC_ThinkTime(self) : level.time;
 
-	self->nextthink = level.time + FRAMETIME;
+	// dead and frozen NPCs think every 100 ms, live ones every 50
+	self->nextthink = TICKFIX(NPC) ? G_TickRearmThink(self, FRAMETIME) : level.time + FRAMETIME;
 
 	SetNPCGlobals( self );
 
@@ -1575,7 +1602,7 @@ void NPC_Think ( gentity_t *self)//, int msec )
 	if ( self->health <= 0 ) 
 	{
 		DeadThink();
-		if ( NPCInfo->nextBStateThink <= level.time )
+		if ( NPCInfo->nextBStateThink <= thinkNow )
 		{
 			trap_ICARUS_MaintainTaskManager(self->s.number);
 		}
@@ -1592,7 +1619,10 @@ void NPC_Think ( gentity_t *self)//, int msec )
 		return;
 	}
 
-	self->nextthink = level.time + FRAMETIME/2;
+	self->nextthink = TICKFIX(NPC) ? G_TickRearmThink(self, FRAMETIME/2) : level.time + FRAMETIME/2;
+	// the pmove msec this think's usercmd will cover; vehicles keep stock's 50 (empty ones pmove every other think)
+	if (TICKFIX(NPC) && self->s.NPC_class != CLASS_VEHICLE)
+		NPCThinkDt = Com_Clampi(0, 200, thinkNow - 50 - self->client->ps.commandTime);
 
 
 	while (i < MAX_CLIENTS)
@@ -1608,7 +1638,7 @@ void NPC_Think ( gentity_t *self)//, int msec )
 				G_DroidSounds( self );
 				//FIXME: might want to at least make sounds or something?
 				//Which ucmd should we send?  Does it matter, since it gets overridden anyway?
-				NPCInfo->last_ucmd.serverTime = level.time - 50;
+				NPCInfo->last_ucmd.serverTime = TICKFIX(NPC) ? NPC_CmdServerTime(NPC) : level.time - 50;
 				ClientThink( NPC->s.number, &ucmd );
 				VectorCopy(self->r.currentOrigin, self->client->ps.origin);
 				return;
@@ -1640,7 +1670,8 @@ void NPC_Think ( gentity_t *self)//, int msec )
 		G_DroidSounds( self );
 	}
 
-	if ( NPCInfo->nextBStateThink <= level.time 
+	// under the fix thinkNow is on the carried 50 ms think grid, so the 100 ms bstate carries too
+	if ( NPCInfo->nextBStateThink <= thinkNow 
 		&& !NPC->s.m_iVehicleNum )//NPCs sitting in Vehicles do NOTHING
 	{
 #if	AI_TIMERS
@@ -1650,14 +1681,15 @@ void NPC_Think ( gentity_t *self)//, int msec )
 		{//Something drastic happened in our script
 			return;
 		}
+		TICKPROBE("npc_bstate", NPC->s.number, 1);
 
 		if ( NPC->s.weapon == WP_SABER && g_spskill.integer >= 2 && NPCInfo->rank > RANK_LT_JG )
 		{//Jedi think faster on hard difficulty, except low-rank (reborn)
-			NPCInfo->nextBStateThink = level.time + FRAMETIME/2;
+			NPCInfo->nextBStateThink = thinkNow + FRAMETIME/2;
 		}
 		else
 		{//Maybe even 200 ms?
-			NPCInfo->nextBStateThink = level.time + FRAMETIME;
+			NPCInfo->nextBStateThink = thinkNow + FRAMETIME;
 		}
 
 		//nextthink is set before this so something in here can override it
@@ -1680,7 +1712,7 @@ void NPC_Think ( gentity_t *self)//, int msec )
 	{
 		VectorCopy( oldMoveDir, self->client->ps.moveDir );
 		//or use client->pers.lastCommand?
-		NPCInfo->last_ucmd.serverTime = level.time - 50;
+		NPCInfo->last_ucmd.serverTime = TICKFIX(NPC) ? NPC_CmdServerTime(NPC) : level.time - 50;
 		if ( !NPC->next_roff_time || NPC->next_roff_time < level.time )
 		{//If we were following a roff, we don't do normal pmoves.
 			//FIXME: firing angles (no aim offset) or regular angles?

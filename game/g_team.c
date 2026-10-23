@@ -1562,7 +1562,8 @@ void CheckTeamStatus(void) {
 		return; // don't spam teamoverlay updates during intermission
 
 	int updateRate = Com_Clampi(1, 1000, g_teamOverlayUpdateRate.integer);
-	if (level.time - level.lastTeamLocationTime > updateRate) {
+	// strict: at 20 Hz the overlay went out on the first tick past updateRate
+	if (TICKFIX(Siege) ? G_TickDue(&level.teamOverlayDeadline, G_TickStrict(updateRate)) > 0 : level.time - level.lastTeamLocationTime > updateRate) {
 
 		level.lastTeamLocationTime = level.time;
 

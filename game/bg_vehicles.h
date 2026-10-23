@@ -534,6 +534,10 @@ typedef struct Vehicle_s
 	// This is how long to wait before being able to fire a specific muzzle again. This is based on the firing rate
 	// so that a firing rate of 10 rounds/sec would make this value initially 100 miliseconds. 
 	int m_iMuzzleWait[MAX_VEHICLE_MUZZLES];
+	// last check of each weapon's and turret's muzzle wait, and for turrets the one before it (game only)
+	int weaponTickLastEval[MAX_VEHICLE_WEAPONS];
+	int turretTickLastEval[MAX_VEHICLE_TURRETS];
+	int turretTickPrevEval[MAX_VEHICLE_TURRETS];
 
 	// The user commands structure.
 	usercmd_t m_ucmd;

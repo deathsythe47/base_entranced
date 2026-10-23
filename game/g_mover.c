@@ -172,7 +172,8 @@ qboolean	G_TryPushingEntity(gentity_t *check, gentity_t *pusher, vec3_t move, ve
 		&& (pusher->spawnflags & 16) //IMPACT
 		&& Q_stricmp("func_rotating", pusher->classname) == 0)
 	{//just blow the fuck out of them
-		G_Damage(check, pusher, pusher, NULL, NULL, pusher->damage, DAMAGE_NO_KNOCKBACK, MOD_CRUSH);
+		if (!TICKFIX(Movers) || G_TickFrameGate(pusher, NULL)) // once per 50 ms tick
+			G_Damage(check, pusher, pusher, NULL, NULL, pusher->damage, DAMAGE_NO_KNOCKBACK, MOD_CRUSH);
 		return qtrue;
 	}
 
@@ -377,7 +378,8 @@ qboolean G_MoverPush(gentity_t *pusher, vec3_t move, vec3_t amove, gentity_t **o
 
 		if (pusher->damage && check->client && (pusher->spawnflags & 32))
 		{
-			G_Damage(check, pusher, pusher, NULL, NULL, pusher->damage, 0, MOD_CRUSH);
+			if (!TICKFIX(Movers) || G_TickFrameGate(pusher, NULL)) // once per 50 ms tick
+				G_Damage(check, pusher, pusher, NULL, NULL, pusher->damage, 0, MOD_CRUSH);
 			continue;
 		}
 
@@ -453,6 +455,15 @@ qboolean G_MoverPush(gentity_t *pusher, vec3_t move, vec3_t amove, gentity_t **o
 
 
 /*
+with g_tickFixMovers, when a 20 Hz server noticed the end of the current leg: the first 50 ms tick at or past it,
+counted from the leg's start, or from where a reversal re-anchored it mid-move
+*/
+static int Mover_EndNoticed(gentity_t *ent) {
+	int from = ent->tickMoverAnchor > ent->s.pos.trTime ? ent->tickMoverAnchor : ent->s.pos.trTime;
+	return from + G_TickIncl(ent->s.pos.trTime + ent->s.pos.trDuration - from);
+}
+
+/*
 =================
 G_MoverTeam
 =================
@@ -486,6 +497,8 @@ void G_MoverTeam(gentity_t *ent) {
 		for (part = ent; part; part = part->teamchain) {
 			part->s.pos.trTime += level.time - level.previousTime;
 			part->s.apos.trTime += level.time - level.previousTime;
+			if (part->tickMoverAnchor)
+				part->tickMoverAnchor += level.time - level.previousTime;
 			BG_EvaluateTrajectory(&part->s.pos, level.time, part->r.currentOrigin);
 			BG_EvaluateTrajectory(&part->s.apos, level.time, part->r.currentAngles);
 			trap_LinkEntity(part);
@@ -503,7 +516,8 @@ void G_MoverTeam(gentity_t *ent) {
 		// call the reached function if time is at or past end point
 		if (part->s.pos.trType == TR_LINEAR_STOP ||
 			part->s.pos.trType == TR_NONLINEAR_STOP) {
-			if (level.time >= part->s.pos.trTime + part->s.pos.trDuration) {
+			// with g_tickFixMovers on the 20 Hz tick at or past the end, as a 20 Hz server noticed it
+			if (level.time >= (TICKFIX(Movers) ? Mover_EndNoticed(part) : part->s.pos.trTime + part->s.pos.trDuration)) {
 				if (part->reached) {
 					part->reached(part);
 				}
@@ -531,7 +545,11 @@ void G_RunMover(gentity_t *ent) {
 		if (level.pause.state == PAUSE_NONE)
 			G_MoverTeam(ent);
 		else
+		{
 			ent->s.pos.trTime += level.time - level.previousTime;
+			if (ent->tickMoverAnchor)
+				ent->tickMoverAnchor += level.time - level.previousTime;
+		}
 	}
 
 	// check think function
@@ -650,6 +668,42 @@ void MatchTeam(gentity_t *teamLeader, int moverState, int time) {
 }
 
 
+/*
+with g_tickFixMovers a mover's next leg or wait starts when a 20 Hz server noticed the last leg end (the first 50 ms
+tick at or past it), not at the frame that noticed here. call from a reached function, before the trajectory changes
+*/
+static int Mover_ArrivalTime(gentity_t *ent) {
+	int t = Mover_EndNoticed(ent);
+
+	if (!TICKFIX(Movers) || t > level.time || t < level.time - G_FrameMsec())
+		return level.time;
+	return t;
+}
+
+// a leg re-anchored mid-move ends on the 20 Hz tick counted from now
+static void Mover_Reanchor(gentity_t *teamLeader) {
+	gentity_t *part;
+
+	for (part = teamLeader; part; part = part->teamchain)
+		part->tickMoverAnchor = level.time;
+}
+
+/*
+a leg started in the past (from the arrival or the think's scheduled time) puts the mover partway along at once.
+with g_tickFixMovers put it back at the leg start, so the next G_MoverTeam pushes through the whole of it
+*/
+static void Mover_BackToLegStart(gentity_t *ent, qboolean team) {
+	gentity_t *part;
+
+	if (!TICKFIX(Movers))
+		return;
+	for (part = ent; part; part = team ? part->teamchain : NULL) {
+		if (part->s.pos.trTime >= level.time)
+			continue;
+		BG_EvaluateTrajectory(&part->s.pos, part->s.pos.trTime, part->r.currentOrigin);
+		trap_LinkEntity(part);
+	}
+}
 
 /*
 ================
@@ -661,7 +715,8 @@ void ReturnToPos1(gentity_t *ent) {
 	ent->nextthink = 0;
 	ent->s.time = level.time;
 
-	MatchTeam(ent, MOVER_2TO1, level.time);
+	MatchTeam(ent, MOVER_2TO1, TICKFIX(Movers) ? G_TickThinkTime(ent) : level.time);
+	Mover_BackToLegStart(ent, qtrue);
 
 	// starting sound
 	G_PlayDoorLoopSound(ent);
@@ -677,6 +732,10 @@ Reached_BinaryMover
 
 void Reached_BinaryMover(gentity_t *ent)
 {
+	int arrived = Mover_ArrivalTime(ent);
+
+	TICKPROBE("mover_arrive", ent->s.number, arrived - ent->s.pos.trTime);
+
 	// stop the looping sound
 	ent->s.loopSound = 0;
 	ent->s.loopIsSoundset = qfalse;
@@ -686,7 +745,7 @@ void Reached_BinaryMover(gentity_t *ent)
 		vec3_t	doorcenter;
 
 		// reached pos2
-		SetMoverState(ent, MOVER_POS2, level.time);
+		SetMoverState(ent, MOVER_POS2, arrived);
 
 		CalcTeamDoorCenter(ent, doorcenter);
 
@@ -709,7 +768,7 @@ void Reached_BinaryMover(gentity_t *ent)
 			}
 			else
 			{
-				ent->nextthink = level.time + ent->wait;
+				ent->nextthink = TICKFIX(Movers) ? arrived + G_TickIncl(ent->wait) : level.time + ent->wait;
 			}
 		}
 
@@ -725,7 +784,7 @@ void Reached_BinaryMover(gentity_t *ent)
 		vec3_t	doorcenter;
 
 		// reached pos1
-		SetMoverState(ent, MOVER_POS1, level.time);
+		SetMoverState(ent, MOVER_POS1, arrived);
 
 		CalcTeamDoorCenter(ent, doorcenter);
 
@@ -792,7 +851,7 @@ void Use_BinaryMover_Go(gentity_t *ent)
 		}
 		else
 		{
-			ent->nextthink = level.time + ent->wait;
+			ent->nextthink = TICKFIX(Movers) ? level.time + G_TickIncl(ent->wait) : level.time + ent->wait;
 		}
 		G_UseTargets2(ent, ent->activator, ent->target2);
 		return;
@@ -828,6 +887,7 @@ void Use_BinaryMover_Go(gentity_t *ent)
 		ent->s.pos.trTime = level.time - (total - partial);
 
 		MatchTeam(ent, MOVER_1TO2, ent->s.pos.trTime);
+		Mover_Reanchor(ent);
 
 		G_PlayDoorSound(ent, BMS_START);
 
@@ -863,6 +923,7 @@ void Use_BinaryMover_Go(gentity_t *ent)
 
 		ent->s.pos.trTime = level.time - (total - partial);
 		MatchTeam(ent, MOVER_2TO1, ent->s.pos.trTime);
+		Mover_Reanchor(ent);
 
 		G_PlayDoorSound(ent, BMS_START);
 
@@ -1107,7 +1168,8 @@ void Blocked_Door(gentity_t *ent, gentity_t *other, gentity_t *blockedBy)
 		G_Damage(blockedBy, ent, ent, NULL, NULL, 999999, 0, MOD_CRUSH);
 	}
 	else {
-		if (ent->damage) {
+		if (ent->damage && (!TICKFIX(Movers) || G_TickFrameGate(ent, NULL))) { // once per 50 ms tick
+			TICKPROBE("crusher_dmg", other->s.number, ent->damage);
 			// duo: properly credit liftkills
 			if (blockedBy && other && other - g_entities < MAX_CLIENTS) {
 				if (blockedBy - g_entities < MAX_CLIENTS)
@@ -1978,7 +2040,7 @@ The wait time at a corner has completed, so start moving again
 void Think_BeginMoving(gentity_t *ent) {
 	G_PlayDoorSound(ent, BMS_START);
 	G_PlayDoorLoopSound(ent);
-	ent->s.pos.trTime = level.time;
+	ent->s.pos.trTime = TICKFIX(Movers) ? G_TickThinkTime(ent) : level.time;
 	ent->s.pos.trType = TR_LINEAR_STOP;
 }
 
@@ -1992,6 +2054,10 @@ void Reached_Train(gentity_t *ent) {
 	float			speed;
 	vec3_t			move;
 	float			length;
+	int				arrived = Mover_ArrivalTime(ent);
+
+	if (ent->s.pos.trType != TR_STATIONARY)
+		TICKPROBE("mover_arrive", ent->s.number, arrived - ent->s.pos.trTime);
 
 	// copy the apropriate values
 	next = ent->nextTrain;
@@ -2026,7 +2092,8 @@ void Reached_Train(gentity_t *ent) {
 	ent->s.pos.trDuration = length * 1000 / speed;
 
 	// start it going
-	SetMoverState(ent, MOVER_1TO2, level.time);
+	SetMoverState(ent, MOVER_1TO2, arrived);
+	Mover_BackToLegStart(ent, qfalse);
 
 	G_PlayDoorSound(ent, BMS_END);
 
@@ -2034,7 +2101,7 @@ void Reached_Train(gentity_t *ent) {
 	if (next->wait) {
 		ent->s.loopSound = 0;
 		ent->s.loopIsSoundset = qfalse;
-		ent->nextthink = level.time + next->wait * 1000;
+		ent->nextthink = TICKFIX(Movers) ? arrived + G_TickIncl(next->wait * 1000) : level.time + next->wait * 1000;
 		ent->think = Think_BeginMoving;
 		ent->s.pos.trType = TR_STATIONARY;
 	}

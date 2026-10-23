@@ -722,6 +722,7 @@ ShootThink
 void ShootThink( void ) 
 {
 	int			delay;
+	int			now = TICKFIX(NPC) ? NPC_ThinkTime(NPC) : level.time; // runs in the bstate, on its carried grid
 
 	ucmd.buttons &= ~BUTTON_ATTACK;
 
@@ -731,12 +732,13 @@ void ShootThink( void )
 	if ( client->ps.weaponstate != WEAPON_READY && client->ps.weaponstate != WEAPON_FIRING && client->ps.weaponstate != WEAPON_IDLE) 
 		return;
 
-	if ( level.time < NPCInfo->shotTime ) 
+	if ( now < NPCInfo->shotTime ) 
 	{
 		return;
 	}
 
 	ucmd.buttons |= BUTTON_ATTACK;
+	TICKPROBE("npc_shot", NPC->s.number, 1);
 
 	NPCInfo->currentAmmo = client->ps.ammo[weaponData[client->ps.weapon].ammoIndex];	// checkme
 
@@ -805,7 +807,7 @@ void ShootThink( void )
 		delay = NPCInfo->burstSpacing;
 	}
 
-	NPCInfo->shotTime = level.time + delay;
+	NPCInfo->shotTime = now + delay;
 	NPC->attackDebounceTime = level.time + NPC_AttackDebounceForWeapon();
 }
 

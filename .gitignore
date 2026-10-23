@@ -38,3 +38,4 @@ bin
 *.opendb
 *.VC.db
 *.py
+game/tests/test_tick

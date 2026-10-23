@@ -3422,7 +3422,7 @@ void QueueServerMessageInChat(int clientNum, const char *msg) {
 	add->clientNum = clientNum;
 	add->text = strdup(msg);
 	add->inConsole = qfalse;
-	add->serverFrameNum = level.framenum;
+	add->queuedTime = level.time;
 }
 
 void QueueChatMessage(int fromClientNum, int toClientNum, const char *msg, int when) {
@@ -3444,7 +3444,7 @@ void QueueServerMessageInConsole(int clientNum, const char *msg) {
 	add->clientNum = clientNum;
 	add->text = strdup(msg);
 	add->inConsole = qtrue;
-	add->serverFrameNum = level.framenum;
+	add->queuedTime = level.time;
 }
 
 #define MAX_FUCK_LENGTH		(65)
@@ -9000,7 +9000,8 @@ void Cmd_UseHealing_f(gentity_t *ent) {
 	if (g_gametype.integer != GT_SIEGE || !ent || !ent->client || !ent->inuse || ent->client->sess.sessionTeam == TEAM_SPECTATOR || ent->health <= 0 || ent->client->tempSpectate > level.time)
 		return;
 
-	if (ent->client->lastHealedSomeone && level.time - ent->client->lastHealedSomeone < 100)
+	// with the fix TryHealingSomething carries this gate itself, and TryHeal keeps its own check
+	if (!TICKFIX(Stations) && ent->client->lastHealedSomeone && level.time - ent->client->lastHealedSomeone < 100)
 		return;
 
 	trace_t		trace;
@@ -9024,7 +9025,7 @@ void Cmd_UseHealing_f(gentity_t *ent) {
 		return;
 	}
 
-	if (!TryHealingSomething(ent, &g_entities[trace.entityNum], qtrue))
+	if (!TryHealingSomething(ent, &g_entities[trace.entityNum], qtrue, qtrue))
 		TryHeal(ent, &g_entities[trace.entityNum]);
 }
 #endif
@@ -10763,10 +10764,27 @@ void Cmd_ServerStatus2_f(gentity_t *ent)
 	PrintCvar(g_sexyDisruptor);
 	PrintCvar(g_siegeHelp);
 	PrintCvar(g_siegeReflectionFix);
+	PrintCvar(g_smoothClientsAnchor);
+	PrintCvar(g_smoothClientsLead);
+	PrintCvar(g_smoothClientsCap);
+	PrintCvar(g_smoothClientsFollow);
 	PrintCvar(g_spaceSuffocation);
 	PrintCvar(g_specInfo);
 	PrintCvar(g_swoopKillPoints);
 	PrintCvar(g_techAmmoForAllWeapons);
+	PrintCvar(g_tickFix);
+	PrintCvar(g_tickFixInput);
+	PrintCvar(g_tickFixForce);
+	PrintCvar(g_tickFixSabers);
+	PrintCvar(g_tickFixSaberDamage);
+	PrintCvar(g_tickFixWeapons);
+	PrintCvar(g_tickFixStations);
+	PrintCvar(g_tickFixItems);
+	PrintCvar(g_tickFixClient);
+	PrintCvar(g_tickFixMovers);
+	PrintCvar(g_tickFixNPC);
+	PrintCvar(g_tickFixStats);
+	PrintCvar(g_tickFixSiege);
 	PrintCvar(iLikeToDoorSpam);
 	PrintCvar(iLikeToMineSpam);
 	PrintCvar(iLikeToShieldSpam);

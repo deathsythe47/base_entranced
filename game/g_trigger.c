@@ -31,12 +31,40 @@ void multi_wait( gentity_t *ent ) {
 
 void trigger_cleared_fire (gentity_t *self);
 
+/*
+a touch gate on a carried deadline, checked as the toucher's packets arrive: stamps the check and re-anchors a
+deadline older than the gap since the previous one to now (as G_TickDueSince), without paying it. true when due
+*/
+static qboolean Trigger_GateDue(int *deadline, int *lastEval, int period) {
+	int d = *deadline;
+	int n = G_TickDueSince(&d, lastEval, period);
+
+	if (n <= 0)
+		return qfalse;
+	*deadline = d - n * period;
+	return qtrue;
+}
+
+/*
+what a trigger's wait runs from with g_tickFixMovers when the touch fires it: the end of the previous wait (stamped on
+tickDeadline by G_RunThink) if no check since then saw it pass, otherwise now. stamps the check
+*/
+static int Trigger_WaitFrom(gentity_t *ent) {
+	int period = G_TickIncl(ent->wait * 1000);
+	int d = ent->tickDeadline;
+
+	if (period < 1)
+		period = 1;
+	return Trigger_GateDue(&d, &ent->tickLastEval, period) ? d : level.time;
+}
+
 // the trigger was just activated
 // ent->activator should be set to the activator so it can be held through a delay
 // so wait for the delay time before firing
-void multi_trigger_run( gentity_t *ent ) 
+static void MultiTriggerRun( gentity_t *ent, int waitFrom ) 
 {
 	ent->think = 0;
+	TICKPROBE("trigger_fire", ent->s.number, 1);
 
 	G_ActivateBehavior( ent, BSET_USE );
 
@@ -76,7 +104,10 @@ void multi_trigger_run( gentity_t *ent )
 	{
 		if ( ent->painDebounceTime != level.time )
 		{//first ent to touch it this frame
-			ent->nextthink = level.time + ( ent->wait + ent->random * crandom() ) * 1000;
+			if ( TICKFIX(Movers) ) // the first 20 Hz tick at or past the wait
+				ent->nextthink = waitFrom + G_TickIncl(( ent->wait + ent->random * crandom() ) * 1000);
+			else
+				ent->nextthink = level.time + ( ent->wait + ent->random * crandom() ) * 1000;
 			ent->painDebounceTime = level.time;
 		}
 	} 
@@ -93,6 +124,12 @@ void multi_trigger_run( gentity_t *ent )
 	{	// mark the trigger as being touched by the player
 		ent->aimDebounceTime = level.time;
 	}
+}
+
+// the delayed fire, as a think
+void multi_trigger_run( gentity_t *ent ) 
+{
+	MultiTriggerRun( ent, TICKFIX(Movers) ? G_TickThinkTime(ent) : level.time );
 }
 
 //determine if the class given is listed in the string using the | formatting
@@ -130,13 +167,15 @@ qboolean G_NameInTriggerClassList(char *list, char *str)
 extern qboolean gSiegeRoundBegun;
 void SiegeItemRemoveOwner(gentity_t *ent, gentity_t *carrier);
 extern void SiegeItemRespawnOnOriginalSpot(gentity_t *ent, gentity_t *carrier, gentity_t *overrideOriginEnt);
-void multi_trigger( gentity_t *ent, gentity_t *activator ) 
+// touched: reached from Touch_Multi (the 50 ms gates apply to touches only, not to uses)
+static void MultiTrigger( gentity_t *ent, gentity_t *activator, qboolean touched ) 
 {
 	if (activator && activator->client && activator->client->emoted)
 		return;
 
 	qboolean haltTrigger = qfalse;
 	short i1, i2;
+	int waitFrom = level.time;
 	if ( ent->think == multi_trigger_run )
 	{//already triggered, just waiting to run
 		return;
@@ -383,6 +422,17 @@ void multi_trigger( gentity_t *ent, gentity_t *activator )
 		return;
 	}
 
+	// a recall trigger acts on every touch whatever its wait: once per 50 ms tick, as at 20 Hz
+	if ( TICKFIX(Movers) && touched && ent->recallSiegeItem && VALIDSTRING(ent->target) && !G_TickFrameGate( ent, &ent->tickGateLastEval ) )
+	{
+		return;
+	}
+
+	if ( TICKFIX(Movers) && ent->wait > 0 )
+	{
+		waitFrom = Trigger_WaitFrom( ent );
+	}
+
 	if ( ent->nextthink > level.time ) 
 	{
 		if( ent->spawnflags & 2048 ) // MULTIPLE - allow multiple entities to touch this trigger in a single frame
@@ -469,19 +519,30 @@ void multi_trigger( gentity_t *ent, gentity_t *activator )
 		return;
 	}
 
+	// with no wait, once per 50 ms tick as at 20 Hz, for every toucher that tick
+	if ( TICKFIX(Movers) && touched && ent->wait == 0 && !G_TickFrameGate( ent, &ent->tickGateLastEval ) )
+	{
+		return;
+	}
+
 	ent->activator = activator;
 
 	if(ent->delay && ent->painDebounceTime < (level.time + ent->delay) )
 	{//delay before firing trigger
 		ent->think = multi_trigger_run;
-		ent->nextthink = level.time + ent->delay;
+		ent->nextthink = TICKFIX(Movers) ? level.time + G_TickIncl(ent->delay) : level.time + ent->delay;
 		ent->painDebounceTime = level.time;
 		
 	}
 	else
 	{
-		multi_trigger_run (ent);
+		MultiTriggerRun( ent, waitFrom );
 	}
+}
+
+void multi_trigger( gentity_t *ent, gentity_t *activator ) 
+{
+	MultiTrigger( ent, activator, qfalse );
 }
 
 void Use_Multi( gentity_t *ent, gentity_t *other, gentity_t *activator ) 
@@ -491,6 +552,12 @@ void Use_Multi( gentity_t *ent, gentity_t *other, gentity_t *activator )
 
 qboolean G_PointInBounds( vec3_t point, vec3_t mins, vec3_t maxs );
 extern void Use_BinaryMover(gentity_t *ent, gentity_t *other, gentity_t *activator);
+
+// with the fix a hack completes when the 20 Hz server completed it: the first 50 ms tick past its length
+static qboolean G_HackDone(gclient_t *cl)
+{
+	return cl->ps.hackingTime - cl->ps.hackingBaseTime + G_TickStrict(cl->ps.hackingBaseTime) <= level.time ? qtrue : qfalse;
+}
 
 void Touch_Multi(gentity_t *self, gentity_t *other, trace_t *trace)
 {
@@ -780,8 +847,9 @@ void Touch_Multi(gentity_t *self, gentity_t *other, trace_t *trace)
 				}
 				return;
 			}
-			else if (other->client->ps.hackingTime < level.time)
+			else if (TICKFIX(Siege) ? G_HackDone(other->client) : other->client->ps.hackingTime < level.time)
 			{ //finished with the hack, reset the hacking values and let it fall through
+				TICKPROBE("hack_done", other->s.number, level.time - (other->client->ps.hackingTime - other->client->ps.hackingBaseTime));
 				other->client->isHacking = 0; //can't hack a client
 				other->client->ps.hackingTime = 0;
 				// cargo2 non-objective hacks
@@ -834,7 +902,7 @@ void Touch_Multi(gentity_t *self, gentity_t *other, trace_t *trace)
 				}
 				return;
 			}
-			else if (other->client->ps.hackingTime < level.time)
+			else if (TICKFIX(Siege) ? G_HackDone(other->client) : other->client->ps.hackingTime < level.time)
 			{ //finished with the hack, reset the hacking values and let it fall through
 				other->client->isHacking = 0; //can't hack a client
 				other->client->ps.hackingTime = 0;
@@ -900,7 +968,7 @@ void Touch_Multi(gentity_t *self, gentity_t *other, trace_t *trace)
 		level.hangarLiftUsedByDefense = qtrue;
 	}
 
-	multi_trigger(self, other);
+	MultiTrigger(self, other, qtrue);
 }
 
 void trigger_cleared_fire (gentity_t *self)
@@ -910,7 +978,10 @@ void trigger_cleared_fire (gentity_t *self)
 	// should start the wait timer now, because the trigger's just been cleared, so we must "wait" from this point
 	if ( self->wait > 0 ) 
 	{
-		self->nextthink = level.time + ( self->wait + self->random * crandom() ) * 1000;
+		if ( TICKFIX(Movers) ) // the first 20 Hz tick at or past the wait, from this think's scheduled time
+			self->nextthink = G_TickThinkTime(self) + G_TickIncl(( self->wait + self->random * crandom() ) * 1000);
+		else
+			self->nextthink = level.time + ( self->wait + self->random * crandom() ) * 1000;
 	}
 }
 
@@ -939,7 +1010,9 @@ void RunControlPoint(gentity_t *self) {
 	int *lastProgress = &self->genericValue17;
 	int timeSinceLastThink = level.time - *lastThink;
 	*lastThink = level.time;
-	int timeSinceLastProgress = level.time - *lastProgress;
+	// the waits run on the think's 50 ms grid, as at 20 Hz
+	const int now = TICKFIX(Siege) ? G_TickThinkTime(self) : level.time;
+	int timeSinceLastProgress = now - *lastProgress;
 
 	assert(*time > 0 && (*team == TEAM_RED || *team == TEAM_BLUE));
 
@@ -960,7 +1033,10 @@ void RunControlPoint(gentity_t *self) {
 	}
 
 	self->think = RunControlPoint;
-	self->nextthink = level.time + 50;
+	if (TICKFIX(Siege))
+		self->nextthink = G_TickRearmThink(self, 50);
+	else
+		self->nextthink = level.time + 50;
 
 	if (!gSiegeRoundBegun || level.zombies || self->flags & FL_INACTIVE)
 		return;
@@ -988,25 +1064,32 @@ void RunControlPoint(gentity_t *self) {
 	if (numGoodTeam > 0) {
 		if (blockable && numBadTeam > 0) { // progress blocked by bad guys
 			if (VALIDSTRING(self->target4)) {
-				if (!*target4wait || !*lastTarget4 || level.time - *lastTarget4 >= *target4wait) {
+				if (!*target4wait || !*lastTarget4 || now - *lastTarget4 >= *target4wait) {
 					G_UseTargets2(self, NULL, self->target4);
-					*lastTarget4 = level.time;
+					*lastTarget4 = now;
 				}
 			}
 			//return;
 		}
 		else { // increase progress
 			if (VALIDSTRING(self->target2)) {
-				if (!*target2wait || !*lastTarget2 || level.time - *lastTarget2 >= *target2wait) {
+				if (!*target2wait || !*lastTarget2 || now - *lastTarget2 >= *target2wait) {
 					G_UseTargets2(self, NULL, self->target2);
-					*lastTarget2 = level.time;
+					*lastTarget2 = now;
 				}
 			}
-			*lastProgress = level.time;
+			int tickProgressBefore = *progress;
+			*lastProgress = now;
 			*progress += timeSinceLastThink; // add the first guy's progress
 			int numExtraGuys = Com_Clampi(0, *maxPlayers > 0 ? *maxPlayers : MAX_CLIENTS, numGoodTeam - 1);
-			for (i = 0; i < numExtraGuys; i++) // add additional progress for extra people
-				*progress += (((float)*rateModifier) / 100.0f) * (float)timeSinceLastThink;
+			if (TICKFIX(Siege)) { // the fraction carries instead of being dropped each think
+				*progress += Tick_Accum(&self->tickResidual, numExtraGuys * (*rateModifier / 100.0f) * TICK_BASE_MSEC, timeSinceLastThink);
+			}
+			else {
+				for (i = 0; i < numExtraGuys; i++) // add additional progress for extra people
+					*progress += (((float)*rateModifier) / 100.0f) * (float)timeSinceLastThink;
+			}
+			TICKPROBE("cp_progress", self->s.number, *progress - tickProgressBefore);
 			if (*progress >= *time) { // check if we need to fire now, rather than waiting until the next think
 				if (self->delay && self->painDebounceTime < (level.time + self->delay)) { // delay before firing trigger
 					self->think = multi_trigger_run;
@@ -1023,15 +1106,20 @@ void RunControlPoint(gentity_t *self) {
 	}
 	else if (reversible && (numBadTeam > 0 || reverseWithNoEnemies) && (!*delayBeforeReverse || timeSinceLastProgress >= *delayBeforeReverse)) { // decrease progress
 		if (VALIDSTRING(self->target3)) {
-			if (!*target3wait || !*lastTarget3 || level.time - *lastTarget3 >= *target3wait) {
+			if (!*target3wait || !*lastTarget3 || now - *lastTarget3 >= *target3wait) {
 				G_UseTargets2(self, NULL, self->target3);
-				*lastTarget3 = level.time;
+				*lastTarget3 = now;
 			}
 		}
 		*progress -= timeSinceLastThink; // subtract the first guy's progress (or just progress for nobody being on it, if applicable)
 		int numExtraGuys = Com_Clampi(0, *maxPlayers > 0 ? *maxPlayers : MAX_CLIENTS, numBadTeam - 1);
-		for (i = 0; i < numExtraGuys; i++) // subtract additional progress for extra people
-			*progress -= (((float)*rateModifier) / 100.0f) * (float)timeSinceLastThink;
+		if (TICKFIX(Siege)) {
+			*progress += Tick_Accum(&self->tickResidual, -numExtraGuys * (*rateModifier / 100.0f) * TICK_BASE_MSEC, timeSinceLastThink);
+		}
+		else {
+			for (i = 0; i < numExtraGuys; i++) // subtract additional progress for extra people
+				*progress -= (((float)*rateModifier) / 100.0f) * (float)timeSinceLastThink;
+		}
 		if (*progress < 0)
 			*progress = 0;
 	}
@@ -2116,6 +2204,11 @@ void hurt_use( gentity_t *self, gentity_t *other, gentity_t *activator ) {
 	}
 }
 
+// a trigger_hurt's damage interval, shared by all its touchers
+static int HurtPeriod(gentity_t *self) {
+	return G_TickIncl(self->spawnflags & 16 ? 1000 : FRAMETIME);
+}
+
 void hurt_touch( gentity_t *self, gentity_t *other, trace_t *trace ) {
 	int		dflags;
 
@@ -2144,7 +2237,8 @@ void hurt_touch( gentity_t *self, gentity_t *other, trace_t *trace ) {
 		return;
 	}
 
-	if ( self->timestamp > level.time ) {
+	// with g_tickFixMovers timestamp is carried: the next damage tick is due a whole period after the last one was
+	if ( TICKFIX(Movers) ? !Trigger_GateDue(&self->timestamp, &self->tickLastEval, HurtPeriod(self)) : self->timestamp > level.time ) {
 		return;
 	}
 
@@ -2160,7 +2254,9 @@ void hurt_touch( gentity_t *self, gentity_t *other, trace_t *trace ) {
 		return;
 	}
 
-	if ( self->spawnflags & 16 ) {
+	if ( TICKFIX(Movers) ) {
+		self->timestamp += HurtPeriod(self);
+	} else if ( self->spawnflags & 16 ) {
 		self->timestamp = level.time + 1000;
 	} else {
 		self->timestamp = level.time + FRAMETIME;
@@ -2213,6 +2309,7 @@ void hurt_touch( gentity_t *self, gentity_t *other, trace_t *trace ) {
 			dmg = 99999;
 			self->timestamp = 0;
 		}
+		TICKPROBE("hurt_dmg", other->s.number, dmg);
 		if (self->activator && self->activator->inuse && self->activator->client)
 		{
 			G_Damage (other, self->activator, self->activator, NULL, NULL, dmg, dflags|DAMAGE_NO_PROTECTION, MOD_TRIGGER_HURT);
@@ -2289,7 +2386,8 @@ void space_touch( gentity_t *self, gentity_t *other, trace_t *trace )
 	if (!other->client->inSpaceIndex ||
 		other->client->inSpaceIndex == ENTITYNUM_NONE)
 	{ //freshly entering space
-		other->client->inSpaceSuffocation = level.time + INITIAL_SUFFOCATION_DELAY;
+		// checked with <, so with g_tickFixMovers this is the 20 Hz suffocation time less one
+		other->client->inSpaceSuffocation = TICKFIX(Movers) ? level.time + G_TickStrict(INITIAL_SUFFOCATION_DELAY) - 1 : level.time + INITIAL_SUFFOCATION_DELAY;
 	}
 
 	other->client->inSpaceIndex = self->s.number;

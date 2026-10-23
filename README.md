@@ -429,6 +429,43 @@ default setting: 3 (combination of 1 and 2)
 
 1 = (default) enable unlagged; anyone can use it with the `unlagged` command even if they don't have a supporting client mod
 
+#### `g_tickFix`
+0 = disable the per-area tickrate fixes and stop tracking capture records at `sv_fps` other than 30
+
+1 = (default) master switch for the tickrate fixes, which make gameplay timing independent of `sv_fps`. Each area also has its own switch, all default 1 except `g_tickFixSaberDamage` (default 2: 0 stock, 1 per-window damage, 2 sweeps on the 50 ms grid) and `g_tickFixSaberSample` (default 2: 0 chord, 1 parabola, 2 re-timed read), and only effective while `g_tickFix` is on (`g_tickFixStats` is reserved): `g_tickFixInput`, `g_tickFixForce`, `g_tickFixSabers`, `g_tickFixSaberDamage`, `g_tickFixSaberAnim`, `g_tickFixSaberBox`, `g_tickFixSaberSample`, `g_tickFixSaberOrder`, `g_tickFixWeapons`, `g_tickFixStations`, `g_tickFixItems`, `g_tickFixClient`, `g_tickFixMovers`, `g_tickFixNPC`, `g_tickFixStats`, `g_tickFixSiege`. While `g_tickFix` is on, capture records are also tracked at `sv_fps` other than 30.
+
+#### `g_tickFixSaberAnim`
+0 = a saber wielder's server-side skeleton switches to a new animation on the first server frame after the change
+
+1 = (default) with `g_tickFixSaberDamage 2`, a saber wielder's skeleton shows, at the 50 ms grid times the blade sweeps use, the animation phase an `sv_fps 20` server's skeleton showed (a changed animation is applied for the 20 Hz frame that would have applied it, with its start time corrected for the engine evaluating skeletons one frame late), so swings and parries are sampled at the same phases at any `sv_fps`. The wielder's per-frame angle update (torso twist toward the view, the head look that lerps 15% per call, the spine correction) also runs once per grid step, with the step's time, so those angles converge as they did on a 20 Hz server; between steps the step's angles stand, and the look target the head turns toward is the one the per-frame block check found on the previous grid frame (the check runs after the angle update, so a 20 Hz frame saw the previous frame's result). The spine correction inside that update reads the skeleton without rebuilding it, which on a 20 Hz server is the pose a fresh read in that frame builds, so on shorter frames the skeleton is rebuilt first with its anims shifted by the photo's offset. Guns, NPCs, vehicle entities, saber locks and death animations are unaffected (a saber-wielding rider is a saber wielder and follows the grid). Effective only with `g_tickFix`
+
+#### `g_tickFixSaberBox`
+0 = the held saber's blocking box is built from the blade's position on the previous server frame
+
+1 = (default) with `g_tickFixSaberDamage 2`, the held saber's box is built from the blade's newest 50 ms grid sample (when at most 100 ms old), the same blade that blade-on-blade contact is tested against, and the box is rebuilt on grid frames only (before the wielder's own sweep, as every 20 Hz frame did) and kept as an absolute box between them, so during the frame of grid time g every trace meets the box of the sample at g-50 at any `sv_fps`. As on a 20 Hz server, that box also holds the first blade's tip at g (the saber entity's origin, which a 20 Hz frame read at the grid time); on shorter frames it is taken from the wielder's photo at g rather than the frame-time read. The thrown saber's box is unchanged. Effective only with `g_tickFix`
+
+#### `g_tickFixSaberOrder`
+0 = a client command that arrives between server frames is run on arrival
+
+1 = (default) with `g_tickFixSaberDamage 2`, a command that arrives between frames with an arrival time at or after the 50 ms grid time the next frame photographs is held, with every later command of that client, until that frame's saber photos are done, then run in arrival order at its own arrival time, before the frame ends. A 20 Hz server took its photo at the grid time, before any command that arrived after it, so the photo again sees every player as of the grid time (facing, position, swing). The cost: on a frame with a grid time, a command that arrived after the grid time runs up to one frame later (8 ms at 125 Hz). At `sv_fps 20` and below nothing is held. Effective only with `g_tickFix`
+
+#### `g_tickFixSaberSample`
+0 = with `g_tickFixSaberDamage 2`, a blade's 50 ms grid sample that falls between two server frames is interpolated linearly between those two frame reads
+
+1 = with `g_tickFixSaberDamage 2`, that sample is the parabola through the last three frame reads: a blade turns about 60 degrees within a 33 ms frame, and the straight chord between two reads puts the tip about 10 units off its arc where the parabola stays within a few
+
+2 = (default) with `g_tickFixSaberDamage 2`, that sample is a real read: the engine evaluates skeletons one frame late and ignores the time a read asks for, but honors each anim's start time, so the saber wielder's anims (and the anim each blends from) are re-set with their starts moved later by the gap between the grid time and the frame, the blade bolt is read, and they are set back. The read then shows the pose a 20 Hz server read at that grid time. Only for clients whose anims start on the grid (`g_tickFixSaberAnim`); at `sv_fps 20` every grid time is a frame, so nothing is interpolated or re-timed. The body a photo's blade sweep is tested against is re-timed the same way (the engine builds a collision skeleton at the frame time it is given, one frame fresher than its bolt reads, so the shift there is the photo's offset in the frame less the anim start's frame-length correction), so a hit on a moving defender lands as it did at 20 Hz. Effective only with `g_tickFix`
+
+#### `g_smoothClientsAnchor`
+0 = basejka player extrapolation (with `g_smoothClients`), where other players only visibly move when one of their packets arrives
+
+1 = (default) anchor each player's extrapolation to when their latest packet arrived, so they keep moving smoothly between packets. Requires `g_smoothClients`. Tuned with `g_smoothClientsLead` (default 30, ms of extra lead, 0-200) and `g_smoothClientsCap` (default 100, maximum ms a player is extrapolated past their last packet, 0-1000; the actual limit is their measured packet interval plus jitter)
+
+#### `g_smoothClientsFollow`
+0 = spectators following a player see their raw position
+
+1 = (default) advance a followed player's position by the time since their last packet, up to the same limit as `g_smoothClientsAnchor`
+
 #### Improved projectile pushing/deflection
 Pushing/deflection has been reworked in a way consistent with base siege gameplay, but in a bug-free manner. You can enable this with the recommended settings: `g_siegeReflectionFix 1`, `g_randomConeReflection -1`, `g_coneReflectAngle 30`, `g_breakRNG 0`. To disable, use the settings `g_siegeReflectionFix 0`, `g_randomConeReflection 0`, `g_coneReflectAngle 30`, `g_breakRNG -1`.
 

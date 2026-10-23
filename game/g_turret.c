@@ -141,6 +141,7 @@ static void turret_fire ( gentity_t *ent, vec3_t start, vec3_t dir )
 		return;
 	}
 
+	TICKPROBE("turret_fire", ent->s.number, 1);
 	VectorMA( start, -START_DIS, dir, org ); // dumb....
 	G_PlayEffectID( ent->genericValue13, org, dir );
 
@@ -182,12 +183,14 @@ static void turret_fire ( gentity_t *ent, vec3_t start, vec3_t dir )
 void turret_head_think( gentity_t *self )
 //-----------------------------------------------------
 {
+	// the gates below run on the think's 100 ms grid under the fix, so strict < opens on the first think past, as at 20 Hz
+	const int now = TICKFIX(Items) ? G_TickThinkTime(self) : level.time;
 	gentity_t *top = &g_entities[self->r.ownerNum];
 	if ( !top )
 	{
 		return;
 	}
-	if ( self->painDebounceTime > level.time )
+	if ( self->painDebounceTime > now )
 	{
 		vec3_t	v_up;
 		VectorSet( v_up, 0, 0, 1 );
@@ -198,11 +201,11 @@ void turret_head_think( gentity_t *self )
 		}
 	}
 	// if it's time to fire and we have an enemy, then gun 'em down!  pushDebounce time controls next fire time
-	if ( self->enemy && self->setTime < level.time && self->attackDebounceTime < level.time )
+	if ( self->enemy && self->setTime < now && self->attackDebounceTime < now )
 	{
 		vec3_t		fwd, org;
 		// set up our next fire time
-		self->setTime = level.time + self->wait;
+		self->setTime = now + self->wait;
 
 		VectorCopy( top->r.currentOrigin, org );
 		org[2] += top->r.maxs[2]-8;
@@ -216,13 +219,14 @@ void turret_head_think( gentity_t *self )
 }
 
 //-----------------------------------------------------
-static void turret_aim( gentity_t *self )
+static void turret_aim( gentity_t *self, int dt )
 //-----------------------------------------------------
 {
 	vec3_t	enemyDir, org, org2;
 	vec3_t	desiredAngles, setAngle;
 	float	diffYaw = 0.0f, diffPitch = 0.0f, turnSpeed;
 	const float pitchCap = 40.0f;
+	const int now = TICKFIX(Items) ? G_TickThinkTime(self) : level.time;
 	gentity_t *top = &g_entities[self->r.ownerNum];
 	if ( !top )
 	{
@@ -235,7 +239,7 @@ static void turret_aim( gentity_t *self )
 	top->r.currentAngles[PITCH] = AngleNormalize180( top->r.currentAngles[PITCH] );
 	turnSpeed = top->speed;
 
-	if ( self->painDebounceTime > level.time )
+	if ( self->painDebounceTime > now )
 	{
 		desiredAngles[YAW] = top->r.currentAngles[YAW]+flrand(-45,45);
 		desiredAngles[PITCH] = top->r.currentAngles[PITCH]+flrand(-10,10);
@@ -297,6 +301,11 @@ static void turret_aim( gentity_t *self )
 		turnSpeed = 1.0f;
 	}
 
+	if (TICKFIX(Items) && dt > 0)
+	{ // the turn is a step per 100 ms think
+		turnSpeed *= Tick_Frac(dt) / Tick_Frac(FRAMETIME);
+	}
+
 	if ( diffYaw )
 	{
 		// cap max speed....
@@ -304,6 +313,7 @@ static void turret_aim( gentity_t *self )
 		{
 			diffYaw = ( diffYaw >= 0 ? turnSpeed : -turnSpeed );
 		}
+		TICKPROBE("turret_yaw", self->s.number, fabs(diffYaw));
 	}
 	if ( diffPitch )
 	{
@@ -364,7 +374,7 @@ static void turret_sleep( gentity_t *self )
 	}
 
 	// make turret play ping sound for 5 seconds
-	self->aimDebounceTime = level.time + 5000;
+	self->aimDebounceTime = (TICKFIX(Items) ? G_TickThinkTime(self) : level.time) + 5000;
 
 	// Clear enemy
 	self->enemy = NULL;
@@ -381,18 +391,19 @@ static qboolean turret_find_enemies( gentity_t *self )
 	vec3_t		enemyDir, org, org2;
 	gentity_t	*entity_list[MAX_GENTITIES], *target, *bestTarget = NULL;
 	trace_t		tr;
+	const int	now = TICKFIX(Items) ? G_TickThinkTime(self) : level.time;
 	gentity_t *top = &g_entities[self->r.ownerNum];
 	if ( !top )
 	{
 		return qfalse;
 	}
 
-	if ( self->aimDebounceTime > level.time ) // time since we've been shut off
+	if ( self->aimDebounceTime > now ) // time since we've been shut off
 	{
 		// We were active and alert, i.e. had an enemy in the last 3 secs
-		if ( self->timestamp < level.time )
+		if ( self->timestamp < now )
 		{
-			self->timestamp = level.time + 1000;
+			self->timestamp = now + 1000;
 		}
 	}
 
@@ -457,12 +468,12 @@ static qboolean turret_find_enemies( gentity_t *self )
 			if ( enemyDist < bestDist // all things equal, keep current
 				|| (!Q_stricmp( "atst_vehicle", target->NPC_type ) && bestTarget && Q_stricmp( "atst_vehicle", bestTarget->NPC_type ) ) )//target AT-STs over non-AT-STs... FIXME: must be a better, easier way to tell this, no?
 			{
-				if ( self->attackDebounceTime < level.time )
+				if ( self->attackDebounceTime < now )
 				{
 					// We haven't fired or acquired an enemy in the last 2 seconds-start-up sound
 
 					// Wind up turrets for a bit
-					self->attackDebounceTime = level.time + 1400;
+					self->attackDebounceTime = now + 1400;
 				}
 
 				bestTarget = target;
@@ -491,6 +502,8 @@ void turret_base_think( gentity_t *self )
 	qboolean	turnOff = qtrue;
 	float		enemyDist;
 	vec3_t		enemyDir, org, org2;
+	const int	dt = G_TickDt(self);
+	const int	now = TICKFIX(Items) ? G_TickThinkTime(self) : level.time;
 
 	if ( self->spawnflags & 1 )
 	{
@@ -507,7 +520,7 @@ void turret_base_think( gentity_t *self )
 		// I'm all hot and bothered
 		self->flags &= ~FL_NOTARGET;
 		//remember to keep thinking!
-		self->nextthink = level.time + FRAMETIME;
+		self->nextthink = TICKFIX(Items) ? G_TickRearmThink(self, FRAMETIME) : level.time + FRAMETIME;
 	}
 
 	if ( !self->enemy )
@@ -570,7 +583,7 @@ void turret_base_think( gentity_t *self )
 
 	if ( turnOff )
 	{
-		if ( self->bounceCount < level.time ) // bounceCount is used to keep the thing from ping-ponging from on to off
+		if ( self->bounceCount < now ) // bounceCount is used to keep the thing from ping-ponging from on to off
 		{
 			turret_sleep( self );
 		}
@@ -578,10 +591,10 @@ void turret_base_think( gentity_t *self )
 	else
 	{
 		// keep our enemy for a minimum of 2 seconds from now
-		self->bounceCount = level.time + 2000 + random() * 150;
+		self->bounceCount = now + 2000 + random() * 150;
 	}
 
-	turret_aim( self );
+	turret_aim( self, dt );
 }
 
 //-----------------------------------------------------------------------------
@@ -590,8 +603,11 @@ void turret_base_use( gentity_t *self, gentity_t *other, gentity_t *activator )
 {
 	// Toggle on and off
 	self->spawnflags = (self->spawnflags ^ 1);
-	if (!(self->spawnflags & 1)) // duo: fix not being able to turn turrets on because they never think again
+	if (!(self->spawnflags & 1)) { // duo: fix not being able to turn turrets on because they never think again
 		self->nextthink = level.time + FRAMETIME;
+		if (TICKFIX(Items))
+			self->tickLastThink = 0; // the time spent off is not a turn step
+	}
 }
 
 

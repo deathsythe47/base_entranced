@@ -49,6 +49,7 @@
     <ClInclude Include="g_nav.h" />
     <ClInclude Include="g_public.h" />
     <ClInclude Include="g_team.h" />
+    <ClInclude Include="g_tick.h" />
     <ClInclude Include="holocronicons.h" />
     <ClInclude Include="interpreter.h" />
     <ClInclude Include="inv.h" />
@@ -127,6 +128,8 @@
     <ClCompile Include="g_table.c" />
     <ClCompile Include="g_target.c" />
     <ClCompile Include="g_team.c" />
+    <ClCompile Include="g_tick.c" />
+    <ClCompile Include="g_ticktest.c" />
     <ClCompile Include="g_timer.c" />
     <ClCompile Include="g_transfers.c" />
     <ClCompile Include="g_trigger.c" />

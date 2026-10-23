@@ -604,7 +604,8 @@ void Blocked_Mover( gentity_t *ent, gentity_t *other, gentity_t *blockedBy )
 		}
 	}
 
-	if ( ent->damage ) {
+	if ( ent->damage && (!TICKFIX(Movers) || G_TickFrameGate(ent, NULL)) ) { // once per 50 ms tick
+		TICKPROBE("crusher_dmg", other->s.number, ent->damage);
 		G_Damage( other, ent, ent, NULL, NULL, ent->damage, 0, MOD_CRUSH );
 	}
 }

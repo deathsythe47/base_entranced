@@ -2780,7 +2780,7 @@ void player_die( gentity_t *self, gentity_t *inflictor, gentity_t *attacker, int
 	qboolean isAirFrag = qfalse;
 	if (self && self->client && self - g_entities < MAX_CLIENTS &&
 		attacker && attacker->client && attacker - g_entities < MAX_CLIENTS &&
-		attacker->client->lastAiredOtherClientTime[self - g_entities] && level.time - attacker->client->lastAiredOtherClientTime[self - g_entities] <= 50 &&
+		attacker->client->lastAiredOtherClientTime[self - g_entities] && level.time - attacker->client->lastAiredOtherClientTime[self - g_entities] <= (level.time - level.previousTime > 50 ? level.time - level.previousTime : 50) &&
 		attacker->client->lastAiredOtherClientMeansOfDeath[self - g_entities] == meansOfDeath) {
 
 		switch (meansOfDeath) {
@@ -3746,7 +3746,13 @@ void LimbThink( gentity_t *ent )
 		return;
 	}
 
-	if (ent->genericValue5 <= level.time)
+	if (TICKFIX(Items))
+	{ // one step per 50 ms
+		int n;
+		for (n = G_TickDue(&ent->genericValue5, TICK_BASE_MSEC); n > 0 && ent->think == LimbThink; n--)
+			G_RunExPhys(ent, gravity, mass, bounce, qtrue, NULL, 0);
+	}
+	else if (ent->genericValue5 <= level.time)
 	{ //this will be every frame by standard, but we want to compensate in case sv_fps is not 20.
 		G_RunExPhys(ent, gravity, mass, bounce, qtrue, NULL, 0);
 		ent->genericValue5 = level.time + 50;
@@ -6858,6 +6864,7 @@ int G_Damage(gentity_t *targ, gentity_t *inflictor, gentity_t *attacker,
 					}
 				}
 
+				TICKPROBE("protect_fp", targ->s.number, targ->client->ps.fd.forcePower - (targ->client->ps.fd.forcePower - maxtake*famt > 0 ? (int)(targ->client->ps.fd.forcePower - maxtake*famt) : 0));
 					targ->client->ps.fd.forcePower -= maxtake*famt;
 
 				subamt = (maxtake*hamt)+(take-maxtake);

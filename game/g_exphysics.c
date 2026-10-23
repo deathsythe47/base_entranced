@@ -32,6 +32,8 @@ void G_RunExPhys(gentity_t *ent, float gravity, float mass, float bounce, qboole
 
 	assert(mass <= 1.0f && mass >= 0.01f);
 
+	TICKPROBE("exphys_step", ent->s.number, 1);
+
 	if (gravity)
 	{ //factor it in before we do anything.
 		VectorCopy(ent->r.currentOrigin, ground);

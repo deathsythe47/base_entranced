@@ -1109,13 +1109,22 @@ void check_recharge(gentity_t *ent)
 	
 	if (!ent->activator)
 	{ //don't recharge during use
-		if (ent->genericValue8 < level.time)
+		int n;
+
+		if (TICKFIX(Stations))
+			n = G_TickDue(&ent->genericValue8, G_TickStrict(ent->genericValue5));
+		else
+			n = ent->genericValue8 < level.time ? 1 : 0;
+
+		for (; n > 0; n--)
 		{
 			if (ent->count < ent->genericValue4)
 			{
 				ent->count++;
+				TICKPROBE("station_recharge", ent->s.number, 1);
 			}
-			ent->genericValue8 = level.time + ent->genericValue5;
+			if (!TICKFIX(Stations))
+				ent->genericValue8 = level.time + ent->genericValue5;
 		}
 	}
 	ent->s.health = ent->count; //the "health bar" is gonna be how full we are
@@ -1885,7 +1894,15 @@ void fx_runner_think( gentity_t *ent )
 	VectorCopy(ent->r.currentAngles, ent->s.angles);
 	VectorCopy(ent->r.currentOrigin, ent->s.origin);
 
-	ent->nextthink = level.time + ent->delay + random() * ent->random;
+	if (TICKFIX(Movers))
+	{ // a 20 Hz server ran it on the first tick at or past the delay, and at most once per tick
+		int ms = ent->delay + random() * ent->random;
+		ent->nextthink = G_TickRearmThink(ent, G_TickIncl(ms > 0 ? ms : 1));
+	}
+	else
+	{
+		ent->nextthink = level.time + ent->delay + random() * ent->random;
+	}
 
 	if ( ent->spawnflags & 4 ) // damage
 	{

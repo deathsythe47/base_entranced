@@ -1231,14 +1231,16 @@ static void Rancor_ReturnToBox( void )
 static void Rancor_BoxBackstop( void )
 {
 	vec3_t	mins, maxs, fwd, right, angles, w;
-	float	speed, step, f, r;
+	float	speed, step, f, r, look;
 	int		a;
 
 	G_RancorBoxLimits( mins, maxs );
 	speed = NPC->client->ps.speed;
 	if ( VectorLength( NPC->client->ps.velocity ) > speed )
 		speed = VectorLength( NPC->client->ps.velocity );
-	step = speed * 0.1f;//this think plus the extra no-think frame
+	// this think plus the extra no-think frame; a carried think after a hitch can cover more than one
+	look = (TICKFIX(NPC) && NPCThinkDt > 50 ? NPCThinkDt + 50 : 100) / 1000.0f;
+	step = speed * look;
 
 	VectorSet( angles, 0, SHORT2ANGLE( ucmd.angles[YAW] + NPC->client->ps.delta_angles[YAW] ), 0 );
 	AngleVectors( angles, fwd, right, NULL );
@@ -1254,9 +1256,9 @@ static void Rancor_BoxBackstop( void )
 		else if ( w[a] < 0 && o + w[a] * step < mins[a] )
 			w[a] = 0;
 
-		if ( NPC->client->ps.velocity[a] > 0 && o + NPC->client->ps.velocity[a] * 0.1f > maxs[a] )
+		if ( NPC->client->ps.velocity[a] > 0 && o + NPC->client->ps.velocity[a] * look > maxs[a] )
 			NPC->client->ps.velocity[a] = 0;
-		else if ( NPC->client->ps.velocity[a] < 0 && o + NPC->client->ps.velocity[a] * 0.1f < mins[a] )
+		else if ( NPC->client->ps.velocity[a] < 0 && o + NPC->client->ps.velocity[a] * look < mins[a] )
 			NPC->client->ps.velocity[a] = 0;
 	}
 

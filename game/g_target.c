@@ -857,6 +857,8 @@ void target_laser_think (gentity_t *self) {
 
 	if ( tr.entityNum ) {
 		// hurt it if we can
+		if (g_entities[tr.entityNum].takedamage)
+			TICKPROBE("laser_dmg", tr.entityNum, self->damage);
 		G_Damage ( &g_entities[tr.entityNum], self, self->activator, self->movedir, 
 			tr.endpos, self->damage, DAMAGE_NO_KNOCKBACK, MOD_TARGET_LASER);
 	}
@@ -864,7 +866,7 @@ void target_laser_think (gentity_t *self) {
 	VectorCopy (tr.endpos, self->s.origin2);
 
 	trap_LinkEntity( self );
-	self->nextthink = level.time + FRAMETIME;
+	self->nextthink = TICKFIX(Movers) ? G_TickRearmThink(self, G_TickIncl(FRAMETIME)) : level.time + FRAMETIME;
 }
 
 void target_laser_on (gentity_t *self)

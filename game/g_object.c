@@ -67,6 +67,8 @@ G_RunObject
 extern void DoImpact( gentity_t *self, gentity_t *other, qboolean damageSelf );
 extern void pitch_roll_for_slope( gentity_t *forwhom, vec3_t pass_slope );
 extern void saberFirstThrown(gentity_t *saberent);
+extern void saberBackToOwner( gentity_t *saberent );
+extern void TrapThink( gentity_t *ent );
 void G_RunObject( gentity_t *ent ) 
 {
 	vec3_t		origin, oldOrg;
@@ -85,7 +87,14 @@ void G_RunObject( gentity_t *ent )
 		}
 	}
 
-	ent->nextthink = level.time + FRAMETIME;
+	// a flying trip mine's and an outbound thrown saber's thinks are carried (a saber that just turned back takes its
+	// first return think from the same schedule); other callers' thinks keep their own
+	if (TICKFIX(Weapons) && ent->think == TrapThink)
+		ent->nextthink = G_TickRearmThink(ent, G_TickIncl(FRAMETIME));
+	else if (TICKFIX(Sabers) && (ent->think == saberFirstThrown || ent->think == saberBackToOwner))
+		ent->nextthink = G_TickRearmThink(ent, G_TickIncl(FRAMETIME));
+	else
+		ent->nextthink = level.time + FRAMETIME;
 
 	VectorCopy( ent->r.currentOrigin, oldOrg );
 	// get current position

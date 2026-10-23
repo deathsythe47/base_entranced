@@ -64,7 +64,11 @@ extern gentity_t	*NPC;
 extern gNPC_t		*NPCInfo;
 extern gclient_t	*client;
 extern usercmd_t	ucmd;
+extern int			NPCThinkDt;
 extern visibility_t	enemyVisibility;
+
+int NPC_ThinkTime(gentity_t *ent);
+int NPC_CmdServerTime(gentity_t *ent);
 
 //AI_Default
 extern qboolean NPC_CheckInvestigate( int alertEventNum );

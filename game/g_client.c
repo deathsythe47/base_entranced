@@ -432,7 +432,7 @@ void JMSaberTouch(gentity_t *self, gentity_t *other, trace_t *trace)
 	if (g_spawnInvulnerability.integer)
 	{
 		other->client->ps.eFlags |= EF_INVULNERABLE;
-		other->client->invulnerableTimer = level.time + g_spawnInvulnerability.integer;
+		other->client->invulnerableTimer = level.time + (TICKFIX(Client) ? G_TickIncl(g_spawnInvulnerability.integer) : g_spawnInvulnerability.integer);
 	}
 
 	trap_SendServerCommand( -1, va("cp \"%s %s\n\"", other->client->pers.netname, G_GetStringEdString("MP_SVGAME", "BECOMEJM")) );
@@ -2827,6 +2827,7 @@ void ClientUserinfoChanged( int clientNum, char *debugMsg ) {
 
 		client->torsoAnimExecute = client->legsAnimExecute = -1;
 		client->torsoLastFlip = client->legsLastFlip = qfalse;
+		client->saberBoneSet[0].cur.valid = client->saberBoneSet[1].cur.valid = qfalse; // the records belong to the old instance
 	}
 }
 
@@ -3324,6 +3325,9 @@ void G_BroadcastServerFeatureList( int clientNum ) {
 	if (g_unlagged.integer)
 		Q_strcat(featureListConfigString, sizeof(featureListConfigString), "unlg ");
 
+	if (g_smoothClientsAnchor.integer)
+		Q_strcat(featureListConfigString, sizeof(featureListConfigString), "tkx1 ");
+
 	if (g_teamOverlayForce.integer)
 		Q_strcat(featureListConfigString, sizeof(featureListConfigString), "tolf ");
 
@@ -3789,25 +3793,55 @@ void G_BreakArm(gentity_t *ent, int arm)
 qboolean BG_SaberStanceAnim( int anim );
 qboolean PM_RunningAnim( int anim );
 #include "namespace_end.h"
-void G_UpdateClientAnims(gentity_t *self, float animSpeedScale)
+/*
+anims changed in the playerstate start on the skeleton at startTime. a part is only touched when its enable is set; a
+record (g_tickFixSaberAnim) supplies the anim and flip to apply in place of the playerstate's. an enabled part's pending
+record is cleared on every call. returns the parts set: 1 legs, 2 torso
+*/
+static void G_NoteBoneSet(saberBoneSet_t *bs, int firstFrame, int lastFrame, int flags, float speed, int start)
+{
+	bs->prev = bs->cur;
+	bs->cur.firstFrame = firstFrame;
+	bs->cur.lastFrame = lastFrame;
+	bs->cur.flags = flags;
+	bs->cur.speed = speed;
+	bs->cur.start = start;
+	bs->cur.valid = qtrue;
+}
+
+int G_UpdateClientAnimsAt(gentity_t *self, float animSpeedScale, int startTime, qboolean legsOk, qboolean torsoOk, const saberAnimRec_t *legsRec, const saberAnimRec_t *torsoRec)
 {
 	static int f;
 	static int torsoAnim;
 	static int legsAnim;
+	static qboolean torsoFlip, legsFlip;
 	static int firstFrame, lastFrame;
 	static int aFlags;
 	static float animSpeed, lAnimSpeedScale;
 	qboolean setTorso = qfalse;
+	int set = 0;
 
-	torsoAnim = (self->client->ps.torsoAnim);
-	legsAnim = (self->client->ps.legsAnim);
+	torsoAnim = torsoRec ? torsoRec->anim : self->client->ps.torsoAnim;
+	torsoFlip = torsoRec ? torsoRec->flip : self->client->ps.torsoFlip;
+	legsAnim = legsRec ? legsRec->anim : self->client->ps.legsAnim;
+	legsFlip = legsRec ? legsRec->flip : self->client->ps.legsFlip;
+	// the records are read before this, so they may point into the client
+	if (legsOk)
+	{
+		memset(self->client->legsAnimRec, 0, sizeof(self->client->legsAnimRec));
+	}
+	if (torsoOk)
+	{
+		memset(self->client->torsoAnimRec, 0, sizeof(self->client->torsoAnimRec));
+	}
 
 	if (self->client->ps.saberLockFrame)
 	{
-		trap_G2API_SetBoneAnim(self->ghoul2, 0, "model_root", self->client->ps.saberLockFrame, self->client->ps.saberLockFrame+1, BONE_ANIM_OVERRIDE_FREEZE|BONE_ANIM_BLEND, animSpeedScale, level.time, -1, 150);
-		trap_G2API_SetBoneAnim(self->ghoul2, 0, "lower_lumbar", self->client->ps.saberLockFrame, self->client->ps.saberLockFrame+1, BONE_ANIM_OVERRIDE_FREEZE|BONE_ANIM_BLEND, animSpeedScale, level.time, -1, 150);
-		trap_G2API_SetBoneAnim(self->ghoul2, 0, "Motion", self->client->ps.saberLockFrame, self->client->ps.saberLockFrame+1, BONE_ANIM_OVERRIDE_FREEZE|BONE_ANIM_BLEND, animSpeedScale, level.time, -1, 150);
-		return;
+		trap_G2API_SetBoneAnim(self->ghoul2, 0, "model_root", self->client->ps.saberLockFrame, self->client->ps.saberLockFrame+1, BONE_ANIM_OVERRIDE_FREEZE|BONE_ANIM_BLEND, animSpeedScale, startTime, -1, 150);
+		trap_G2API_SetBoneAnim(self->ghoul2, 0, "lower_lumbar", self->client->ps.saberLockFrame, self->client->ps.saberLockFrame+1, BONE_ANIM_OVERRIDE_FREEZE|BONE_ANIM_BLEND, animSpeedScale, startTime, -1, 150);
+		trap_G2API_SetBoneAnim(self->ghoul2, 0, "Motion", self->client->ps.saberLockFrame, self->client->ps.saberLockFrame+1, BONE_ANIM_OVERRIDE_FREEZE|BONE_ANIM_BLEND, animSpeedScale, startTime, -1, 150);
+		self->client->saberBoneSet[0].cur.valid = self->client->saberBoneSet[1].cur.valid = qfalse;
+		return 0;
 	}
 
 	if (self->localAnimIndex > 1 &&
@@ -3817,7 +3851,7 @@ void G_UpdateClientAnims(gentity_t *self, float animSpeedScale)
 		goto tryTorso;
 	}
 
-	if (self->client->legsAnimExecute != legsAnim || self->client->legsLastFlip != self->client->ps.legsFlip)
+	if (legsOk && (self->client->legsAnimExecute != legsAnim || self->client->legsLastFlip != legsFlip))
 	{
 		animSpeed = 50.0f / bgAllAnims[self->localAnimIndex].anims[legsAnim].frameLerp;
 		lAnimSpeedScale = (animSpeed *= animSpeedScale);
@@ -3844,9 +3878,11 @@ void G_UpdateClientAnims(gentity_t *self, float animSpeedScale)
 
 		aFlags |= BONE_ANIM_BLEND; //since client defaults to blend. Not sure if this will make much difference if any on server position, but it's here just for the sake of matching them.
 
-		trap_G2API_SetBoneAnim(self->ghoul2, 0, "model_root", firstFrame, lastFrame, aFlags, lAnimSpeedScale, level.time, -1, 150);
+		trap_G2API_SetBoneAnim(self->ghoul2, 0, "model_root", firstFrame, lastFrame, aFlags, lAnimSpeedScale, startTime, -1, 150);
+		G_NoteBoneSet(&self->client->saberBoneSet[0], firstFrame, lastFrame, aFlags, lAnimSpeedScale, startTime);
 		self->client->legsAnimExecute = legsAnim;
-		self->client->legsLastFlip = self->client->ps.legsFlip;
+		self->client->legsLastFlip = legsFlip;
+		set |= 1;
 	}
 
 tryTorso:
@@ -3855,15 +3891,15 @@ tryTorso:
 		bgAllAnims[self->localAnimIndex].anims[torsoAnim].numFrames == 0)
 
 	{ //If this fails as well just return.
-		return;
+		return set;
 	}
 	else if (self->s.number >= MAX_CLIENTS &&
 		self->s.NPC_class == CLASS_VEHICLE)
 	{ //we only want to set the root bone for vehicles
-		return;
+		return set;
 	}
 
-	if ((self->client->torsoAnimExecute != torsoAnim || self->client->torsoLastFlip != self->client->ps.torsoFlip) &&
+	if (torsoOk && (self->client->torsoAnimExecute != torsoAnim || self->client->torsoLastFlip != torsoFlip) &&
 		!self->noLumbar)
 	{
 		aFlags = 0;
@@ -3898,18 +3934,20 @@ tryTorso:
 			lastFrame = bgAllAnims[self->localAnimIndex].anims[f].firstFrame + bgAllAnims[self->localAnimIndex].anims[f].numFrames;
 		}
 
-		trap_G2API_SetBoneAnim(self->ghoul2, 0, "lower_lumbar", firstFrame, lastFrame, aFlags, lAnimSpeedScale, level.time, /*firstFrame why was it this before?*/-1, 150);
+		trap_G2API_SetBoneAnim(self->ghoul2, 0, "lower_lumbar", firstFrame, lastFrame, aFlags, lAnimSpeedScale, startTime, /*firstFrame why was it this before?*/-1, 150);
 
 		self->client->torsoAnimExecute = torsoAnim;
-		self->client->torsoLastFlip = self->client->ps.torsoFlip;
+		self->client->torsoLastFlip = torsoFlip;
 		
 		setTorso = qtrue;
+		set |= 2;
 	}
 
 	if (setTorso &&
 		self->localAnimIndex <= 1)
 	{ //only set the motion bone for humanoids.
-		trap_G2API_SetBoneAnim(self->ghoul2, 0, "Motion", firstFrame, lastFrame, aFlags, lAnimSpeedScale, level.time, -1, 150);
+		trap_G2API_SetBoneAnim(self->ghoul2, 0, "Motion", firstFrame, lastFrame, aFlags, lAnimSpeedScale, startTime, -1, 150);
+		G_NoteBoneSet(&self->client->saberBoneSet[1], firstFrame, lastFrame, aFlags, lAnimSpeedScale, startTime);
 	}
 
 #if 0 //disabled for now
@@ -3934,7 +3972,7 @@ tryTorso:
 			armAnimSpeed = 50.0f / armAnim->frameLerp;
 			armFlags = (BONE_ANIM_OVERRIDE_LOOP|BONE_ANIM_BLEND);
 
-			trap_G2API_SetBoneAnim(self->ghoul2, 0, brokenBone, armFirstFrame, armLastFrame, armFlags, armAnimSpeed, level.time, -1, 150);
+			trap_G2API_SetBoneAnim(self->ghoul2, 0, brokenBone, armFirstFrame, armLastFrame, armFlags, armAnimSpeed, startTime, -1, 150);
 		}
 		else if (self->localAnimIndex <= 1 && self->client->ps.brokenLimbs &&
 			(self->client->ps.brokenLimbs & (1 << BROKENLIMB_RARM)))
@@ -3969,11 +4007,11 @@ tryTorso:
 					armAnimSpeed = 50.0f / armAnim->frameLerp;
 					armFlags = (BONE_ANIM_OVERRIDE_LOOP|BONE_ANIM_BLEND);
 
-					trap_G2API_SetBoneAnim(self->ghoul2, 0, brokenBone, armFirstFrame, armLastFrame, armFlags, armAnimSpeed, level.time, -1, 150);
+					trap_G2API_SetBoneAnim(self->ghoul2, 0, brokenBone, armFirstFrame, armLastFrame, armFlags, armAnimSpeed, startTime, -1, 150);
 				}
 				else
 				{ //we want to keep the broken bone updated for some cases
-					trap_G2API_SetBoneAnim(self->ghoul2, 0, brokenBone, firstFrame, lastFrame, aFlags, lAnimSpeedScale, level.time, -1, 150);
+					trap_G2API_SetBoneAnim(self->ghoul2, 0, brokenBone, firstFrame, lastFrame, aFlags, lAnimSpeedScale, startTime, -1, 150);
 				}
 
 				if (self->client->ps.torsoAnim != BOTH_MELEE1 &&
@@ -3987,17 +4025,17 @@ tryTorso:
 					armAnimSpeed = 50.0f / armAnim->frameLerp;
 					armFlags = (BONE_ANIM_OVERRIDE_LOOP|BONE_ANIM_BLEND);
 
-					trap_G2API_SetBoneAnim(self->ghoul2, 0, supportBone, armFirstFrame, armLastFrame, armFlags, armAnimSpeed, level.time, -1, 150);
+					trap_G2API_SetBoneAnim(self->ghoul2, 0, supportBone, armFirstFrame, armLastFrame, armFlags, armAnimSpeed, startTime, -1, 150);
 				}
 				else
 				{ //we want to keep the support bone updated for some cases
-					trap_G2API_SetBoneAnim(self->ghoul2, 0, supportBone, firstFrame, lastFrame, aFlags, lAnimSpeedScale, level.time, -1, 150);
+					trap_G2API_SetBoneAnim(self->ghoul2, 0, supportBone, firstFrame, lastFrame, aFlags, lAnimSpeedScale, startTime, -1, 150);
 				}
 			}
 			else
 			{ //otherwise, keep it set to the same as the torso
-				trap_G2API_SetBoneAnim(self->ghoul2, 0, brokenBone, firstFrame, lastFrame, aFlags, lAnimSpeedScale, level.time, -1, 150);
-				trap_G2API_SetBoneAnim(self->ghoul2, 0, supportBone, firstFrame, lastFrame, aFlags, lAnimSpeedScale, level.time, -1, 150);
+				trap_G2API_SetBoneAnim(self->ghoul2, 0, brokenBone, firstFrame, lastFrame, aFlags, lAnimSpeedScale, startTime, -1, 150);
+				trap_G2API_SetBoneAnim(self->ghoul2, 0, supportBone, firstFrame, lastFrame, aFlags, lAnimSpeedScale, startTime, -1, 150);
 			}
 		}
 		else if (self->client->brokenLimbs)
@@ -4018,14 +4056,14 @@ tryTorso:
 				broken |= (1<<BROKENLIMB_RARM);
 
 				//want to remove the support bone too then
-				trap_G2API_SetBoneAnim(self->ghoul2, 0, "lhumerus", 0, 1, 0, 0, level.time, -1, 0);
+				trap_G2API_SetBoneAnim(self->ghoul2, 0, "lhumerus", 0, 1, 0, 0, startTime, -1, 0);
 				trap_G2API_RemoveBone(self->ghoul2, "lhumerus", 0);
 			}
 
 			assert(brokenBone);
 
 			//Set the flags and stuff to 0, so that the remove will succeed
-			trap_G2API_SetBoneAnim(self->ghoul2, 0, brokenBone, 0, 1, 0, 0, level.time, -1, 0);
+			trap_G2API_SetBoneAnim(self->ghoul2, 0, brokenBone, 0, 1, 0, 0, startTime, -1, 0);
 
 			//Now remove it
 			trap_G2API_RemoveBone(self->ghoul2, brokenBone, 0);
@@ -4033,6 +4071,14 @@ tryTorso:
 		}
 	}
 #endif
+	return set;
+}
+
+void G_UpdateClientAnims(gentity_t *self, float animSpeedScale)
+{
+	// the stock path; the grid path logs its own saber_anim from w_saber.c
+	if ((G_UpdateClientAnimsAt(self, animSpeedScale, level.time, qtrue, qtrue, NULL, NULL) & 2) && self->s.number < MAX_CLIENTS)
+		TICKPROBE("saber_anim", self->s.number, level.time % TICK_BASE_MSEC); // torso anim start phase against the 50 ms grid
 }
 
 static qboolean SaberStyleIsValidNew(gentity_t *ent, int style, int forceLevel) { // this is only intended for non-siege gametypes
@@ -5094,7 +5140,7 @@ void ClientSpawn(gentity_t *ent, qboolean forceUpdateInfo) {
 	if (g_spawnInvulnerability.integer)
 	{
 		ent->client->ps.eFlags |= EF_INVULNERABLE;
-		ent->client->invulnerableTimer = level.time + g_spawnInvulnerability.integer;
+		ent->client->invulnerableTimer = level.time + (TICKFIX(Client) ? G_TickIncl(g_spawnInvulnerability.integer) : g_spawnInvulnerability.integer);
 	}
 
 	// siege passiveheal/lifesteal: fresh life, fresh timers -- don't let a passiveheal

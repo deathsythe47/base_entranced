@@ -9,11 +9,15 @@ saberInfo_t *BG_MySaber( int clientNum, int saberNum );
 
 extern vmCvar_t    g_fixboon;
 
+int bg_timesyncBase; // ticktest (tt_timesync): the seed counts from the scenario's start, so a run does not depend on its absolute time
+
 int PM_irand_timesync(int val1, int val2)
 {
 	int i;
 
+	pm->cmd.serverTime -= bg_timesyncBase;
 	i = (val1-1) + (Q_random( &pm->cmd.serverTime )*(val2 - val1)) + 1;
+	pm->cmd.serverTime += bg_timesyncBase;
 	if (i < val1)
 	{
 		i = val1;

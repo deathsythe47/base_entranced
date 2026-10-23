@@ -8,6 +8,8 @@ extern void WP_CalcVehMuzzle(gentity_t *ent, int muzzleNum);
 extern gentity_t *WP_FireVehicleWeapon( gentity_t *ent, vec3_t start, vec3_t dir, vehWeaponInfo_t *vehWeapon, qboolean alt_fire, qboolean isTurretWeap );
 
 extern void G_VehMuzzleFireFX( gentity_t *ent, gentity_t *broadcaster, int muzzlesFired );
+extern qboolean G_VehMuzzleReady( Vehicle_t *pVeh, int muzzle );
+extern int G_VehMuzzleArm( int from, int delay, int prevEval );
 //-----------------------------------------------------
 void VEH_TurretCheckFire( Vehicle_t *pVeh, 
 						 gentity_t *parent,
@@ -22,7 +24,7 @@ void VEH_TurretCheckFire( Vehicle_t *pVeh,
 		return;
 	}
 	
-	if ( pVeh->m_iMuzzleWait[curMuzzle] >= level.time )
+	if ( !G_VehMuzzleReady(pVeh, curMuzzle) )
 	{//can't fire yet
 		return;
 	}
@@ -54,7 +56,7 @@ void VEH_TurretCheckFire( Vehicle_t *pVeh,
 			pVeh->turretStatus[turretNum].nextMuzzle = nextMuzzle-1;//-1 because you type muzzles 1-10 in the .veh file
 		}
 		//add delay to the next muzzle so it doesn't fire right away on the next frame
-		pVeh->m_iMuzzleWait[pVeh->turretStatus[turretNum].nextMuzzle] = level.time + turretStats->iDelay;
+		pVeh->m_iMuzzleWait[pVeh->turretStatus[turretNum].nextMuzzle] = G_VehMuzzleArm(pVeh->m_iMuzzleWait[curMuzzle], turretStats->iDelay, pVeh->turretTickPrevEval[turretNum]);
 	}
 }
 
@@ -333,6 +335,10 @@ void VEH_TurretThink( Vehicle_t *pVeh, gentity_t *parent, int turretNum )
 	{//not a valid turret
 		return;
 	}
+
+	// every update is a check of this turret's muzzle wait, firing or not
+	pVeh->turretTickPrevEval[turretNum] = pVeh->turretTickLastEval[turretNum];
+	pVeh->turretTickLastEval[turretNum] = level.time;
 	
 	if ( turretStats->passengerNum 
 		&& pVeh->m_iNumPassengers >= turretStats->passengerNum )

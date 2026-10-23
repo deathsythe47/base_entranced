@@ -136,6 +136,8 @@ qboolean G_CanBeEnemy(gentity_t *self, gentity_t *enemy)
 //This function gets the attack power which is used to decide broken parries,
 //knockaways, and numerous other things. It is not directly related to the
 //actual amount of damage done, however. -rww
+static qboolean SaberStepTravel( gentity_t *ent, vec3_t travel );
+
 static GAME_INLINE int G_SaberAttackPower(gentity_t *ent, qboolean attacking)
 {
 	int baseLevel;
@@ -188,7 +190,10 @@ static GAME_INLINE int G_SaberAttackPower(gentity_t *ent, qboolean attacking)
 				break;
 			}
 
-            VectorSubtract(ent->client->lastSaberBase_Always, ent->client->olderSaberBase, vSub);
+			if (!SaberStepTravel(ent, vSub))
+			{
+				VectorSubtract(ent->client->lastSaberBase_Always, ent->client->olderSaberBase, vSub);
+			}
 			swingDist = (int)VectorLength(vSub);
 
 			while (swingDist > 0)
@@ -387,7 +392,45 @@ void SaberGotHit( gentity_t *self, gentity_t *other, trace_t *trace )
 qboolean BG_SuperBreakLoseAnim( int anim );
 #include "namespace_end.h"
 
-static GAME_INLINE void SetSaberBoxSize(gentity_t *saberent)
+// g_tickFixSaberDamage modes (SaberDamageMode)
+#define SABERDMG_WINDOW	1
+#define SABERDMG_SAMPLE	2
+static int SaberDamageMode( void );
+
+// the level-wide 50 ms grid, so every client is swept at the same grid times
+static qboolean saberGridTick; // a grid time fell in this frame
+static int saberGridTime;
+
+// frames of 50 ms or more (20 Hz and slower, and the 100 and 150 ms frames the engine runs after a map load or restart):
+// every frame is a grid frame at its own time and the stock code runs
+static qboolean SaberStepFrame( void )
+{
+	return level.time - level.previousTime >= TICK_BASE_MSEC;
+}
+
+/*
+a saber's travel over the last 50 ms as a 20 Hz server stored it, from one frame read to the next (lastSaberBase_Always
+less olderSaberBase): with sweeps on the grid between frames, its first blade's last two grid samples. the frame reads
+are only 8 to 33 ms apart there, and a grid client's torso turn for a whole step lands between two of them
+*/
+static qboolean SaberStepTravel( gentity_t *ent, vec3_t travel )
+{
+	gclient_t *cl = ent->client;
+
+	if ( SaberDamageMode() != SABERDMG_SAMPLE || SaberStepFrame() || !cl || cl->ps.saberInFlight || !cl->saberTickTime[0][0]
+		|| level.time - cl->saberTickTime[0][0] > 100 || cl->saberTickTimeOld[0][0] != cl->saberTickTime[0][0] - TICK_BASE_MSEC )
+	{
+		return qfalse;
+	}
+	VectorSubtract( cl->saberTickBase[0][0], cl->saberTickBaseOld[0][0], travel );
+	return qtrue;
+}
+
+static qboolean saberPhotoRead; // inside a grid photo's blade sweep whose blade is at the grid time (not the frame-read fallback after a teleport)
+static qboolean saberVictimRetimed[MAX_CLIENTS]; // victims re-timed for this photo's body tests, restored after the sweep
+static void SaberRetime( gentity_t *self, int d );
+
+static GAME_INLINE void SetSaberBoxSizeNow(gentity_t *saberent)
 {
 	gentity_t *owner = NULL;
 	vec3_t saberOrg, saberTip;
@@ -397,6 +440,7 @@ static GAME_INLINE void SetSaberBoxSize(gentity_t *saberent)
 	qboolean dualSabers = qfalse;
 	qboolean alwaysBlock[MAX_SABERS][MAX_BLADES];
 	qboolean forceBlock = qfalse;
+	qboolean gridBox;
 
 	assert(saberent && saberent->inuse);
 
@@ -415,6 +459,9 @@ static GAME_INLINE void SetSaberBoxSize(gentity_t *saberent)
 		assert(!"Saber with no owner?");
 		return;
 	}
+
+	// g_tickFixSaberBox: the held saber's box is the blade of the newest grid sample, which is what blade-on-blade contact is tested against
+	gridBox = SaberDamageMode() == SABERDMG_SAMPLE && g_tickFixSaberBox.integer && !owner->client->ps.saberInFlight;
 
 	if ( owner->client->saber[1].model
 		&& owner->client->saber[1].model[0] )
@@ -507,8 +554,16 @@ static GAME_INLINE void SetSaberBoxSize(gentity_t *saberent)
 
 	//Start out at the saber origin, then go through all the blades and push out the extents
 	//for each blade, then set the box relative to the origin.
-	VectorCopy(saberent->r.currentOrigin, saberent->r.mins);
-	VectorCopy(saberent->r.currentOrigin, saberent->r.maxs);
+	if ( gridBox && !SaberStepFrame() && owner->client->saberTickTime[0][0] && level.time - owner->client->saberTickTime[0][0] <= 100 )
+	{ // the origin is the first blade's tip read at the frame time, not the grid time a 20 Hz frame read it at: SaberGridBoxAddTip adds that
+		VectorMA( owner->client->saberTickBase[0][0], owner->client->saber[0].blade[0].lengthMax, owner->client->saberTickDir[0][0], saberent->r.mins );
+		VectorCopy( saberent->r.mins, saberent->r.maxs );
+	}
+	else
+	{
+		VectorCopy(saberent->r.currentOrigin, saberent->r.mins);
+		VectorCopy(saberent->r.currentOrigin, saberent->r.maxs);
+	}
 
 	for (j = 0; j < MAX_SABERS; j++)
 	{
@@ -546,8 +601,16 @@ static GAME_INLINE void SetSaberBoxSize(gentity_t *saberent)
 				}
 			}
 
-			VectorCopy(owner->client->saber[j].blade[k].muzzlePoint, saberOrg);
-			VectorMA(owner->client->saber[j].blade[k].muzzlePoint, owner->client->saber[j].blade[k].lengthMax, owner->client->saber[j].blade[k].muzzleDir, saberTip);
+			if ( gridBox && owner->client->saberTickTime[j][k] && level.time - owner->client->saberTickTime[j][k] <= 100 )
+			{
+				VectorCopy(owner->client->saberTickBase[j][k], saberOrg);
+				VectorMA(owner->client->saberTickBase[j][k], owner->client->saber[j].blade[k].lengthMax, owner->client->saberTickDir[j][k], saberTip);
+			}
+			else
+			{
+				VectorCopy(owner->client->saber[j].blade[k].muzzlePoint, saberOrg);
+				VectorMA(owner->client->saber[j].blade[k].muzzlePoint, owner->client->saber[j].blade[k].lengthMax, owner->client->saber[j].blade[k].muzzleDir, saberTip);
+			}
 
 			for (i = 0; i < 3; i++)
 			{
@@ -577,6 +640,66 @@ static GAME_INLINE void SetSaberBoxSize(gentity_t *saberent)
 	VectorSubtract(saberent->r.mins, saberent->r.currentOrigin, saberent->r.mins);
 	VectorSubtract(saberent->r.maxs, saberent->r.currentOrigin, saberent->r.maxs);
 
+}
+
+/*
+g_tickFixSaberBox: a 20 Hz server rebuilt the held saber's box once per frame, before that frame's sweep, so every
+trace in the frame of grid time g met the box of the sample at g-50. for the clients whose anims start on the grid the
+box is rebuilt on grid frames only and kept, as an absolute box, between them (the saber entity's origin moves every
+frame). stock every frame for everyone else, for thrown and dead sabers, and while no grid box exists yet
+*/
+static GAME_INLINE void SetSaberBoxSize(gentity_t *saberent)
+{
+	gentity_t *owner = saberent->r.ownerNum >= 0 && saberent->r.ownerNum < MAX_CLIENTS ? &g_entities[saberent->r.ownerNum] : NULL;
+	gclient_t *cl;
+
+	if ( !owner || !owner->inuse || !owner->client || !g_tickFixSaberBox.integer || !WP_SaberAnimOnGrid( owner ) || owner->client->ps.saberInFlight )
+	{
+		SetSaberBoxSizeNow( saberent );
+		return;
+	}
+	cl = owner->client;
+	if ( saberGridTick || level.time - cl->saberGridBoxTime > 2*TICK_BASE_MSEC )
+	{
+		SetSaberBoxSizeNow( saberent );
+		if ( saberGridTick )
+		{ // the step's box; the stale fallback stays stock per frame until the next grid frame
+			VectorAdd( saberent->r.currentOrigin, saberent->r.mins, cl->saberGridBoxMins );
+			VectorAdd( saberent->r.currentOrigin, saberent->r.maxs, cl->saberGridBoxMaxs );
+			cl->saberGridBoxTime = level.time;
+		}
+		return;
+	}
+	VectorSubtract( cl->saberGridBoxMins, saberent->r.currentOrigin, saberent->r.mins );
+	VectorSubtract( cl->saberGridBoxMaxs, saberent->r.currentOrigin, saberent->r.maxs );
+}
+
+// the grid frame's box was built before the owner's photo; the first blade's tip at the grid time, which the photo just read, completes it
+static void SaberGridBoxAddTip( gentity_t *self, const vec3_t tip )
+{
+	gclient_t *cl = self->client;
+	gentity_t *saberent;
+	int i;
+
+	if ( !saberGridTick || SaberStepFrame() || cl->saberGridBoxTime != level.time || !cl->ps.saberEntityNum || cl->ps.saberInFlight
+		|| VectorCompare( cl->saberGridBoxMins, cl->saberGridBoxMaxs ) )
+	{ // an empty box (broken parry, holstered) stays empty
+		return;
+	}
+	saberent = &g_entities[cl->ps.saberEntityNum];
+	for ( i = 0; i < 3; i++ )
+	{
+		if ( tip[i] < cl->saberGridBoxMins[i] )
+		{
+			cl->saberGridBoxMins[i] = tip[i];
+		}
+		if ( tip[i] > cl->saberGridBoxMaxs[i] )
+		{
+			cl->saberGridBoxMaxs[i] = tip[i];
+		}
+	}
+	VectorSubtract( cl->saberGridBoxMins, saberent->r.currentOrigin, saberent->r.mins );
+	VectorSubtract( cl->saberGridBoxMaxs, saberent->r.currentOrigin, saberent->r.maxs );
 }
 
 void WP_SaberInitBladeData( gentity_t *ent )
@@ -848,6 +971,9 @@ static GAME_INLINE void G_G2NPCAngles(gentity_t *ent, vec3_t legs[3], vec3_t ang
 	}
 }
 
+static qboolean SaberAnglesDue( gentity_t *ent, int *time );
+static int SaberSpineShift( gentity_t *ent );
+
 static GAME_INLINE void G_G2PlayerAngles( gentity_t *ent, vec3_t legs[3], vec3_t legsAngles)
 {
 	qboolean tPitching = qfalse,
@@ -862,6 +988,14 @@ static GAME_INLINE void G_G2PlayerAngles( gentity_t *ent, vec3_t legs[3], vec3_t
 
 	vec3_t turAngles;
 	vec3_t lerpOrg, lerpAng;
+	int angleTime, spineShift;
+
+	if ( !SaberAnglesDue( ent, &angleTime ) )
+	{ // between two grid steps the step's angles stand, as they did for the whole 20 Hz frame
+		VectorCopy( ent->client->saberGridLegsAngles, legsAngles );
+		AnglesToAxis( legsAngles, legs );
+		return;
+	}
 
 	if (ent->s.eType == ET_NPC && ent->client)
 	{ //sort of hacky, but it saves a pretty big load off the server
@@ -895,12 +1029,23 @@ static GAME_INLINE void G_G2PlayerAngles( gentity_t *ent, vec3_t legs[3], vec3_t
 	{ //don't do these things on non-humanoids
 		vec3_t lookAngles;
 		entityState_t *emplaced = NULL;
+		qboolean hasLook = ent->client->ps.hasLookTarget;
+		int lookTarget = ent->client->ps.lookTarget;
 
-		if (ent->client->ps.hasLookTarget)
+		if ( !SaberStepFrame() && saberGridTick )
+		{ // a grid client on a grid frame: the target the previous grid frame's check found, as a 20 Hz frame saw it
+			if ( WP_SaberAnimOnGrid( ent ) && level.time - ent->client->saberGridLookTime <= 2*TICK_BASE_MSEC )
+			{
+				hasLook = ent->client->saberGridHasLook;
+				lookTarget = ent->client->saberGridLookTarget;
+			}
+		}
+
+		if (hasLook)
 		{
-			VectorSubtract(g_entities[ent->client->ps.lookTarget].r.currentOrigin, ent->client->ps.origin, lookAngles);
+			VectorSubtract(g_entities[lookTarget].r.currentOrigin, ent->client->ps.origin, lookAngles);
 			vectoangles(lookAngles, lookAngles);
-			ent->client->lookTime = level.time + 1000;
+			ent->client->lookTime = angleTime + 1000;
 		}
 		else
 		{
@@ -913,10 +1058,31 @@ static GAME_INLINE void G_G2PlayerAngles( gentity_t *ent, vec3_t legs[3], vec3_t
 			emplaced = &g_entities[ent->client->ps.emplacedIndex].s;
 		}
 
-		BG_G2PlayerAngles(ent->ghoul2, ent->client->renderInfo.motionBolt, &ent->s, level.time, lerpOrg, lerpAng, legs,
+		spineShift = SaberSpineShift( ent );
+		if ( spineShift >= 0 )
+		{ // the skeleton the spine correction reads, at the pose a 20 Hz frame read
+			mdxaBone_t m;
+
+			if ( spineShift )
+			{
+				SaberRetime( ent, spineShift );
+			}
+			trap_G2API_GetBoltMatrix( ent->ghoul2, 0, 0, &m, lerpAng, lerpOrg, level.time, NULL, ent->modelScale );
+		}
+		BG_G2PlayerAngles(ent->ghoul2, ent->client->renderInfo.motionBolt, &ent->s, angleTime, lerpOrg, lerpAng, legs,
 			legsAngles, &tYawing, &tPitching, &lYawing, &tYawAngle, &tPitchAngle, &lYawAngle, FRAMETIME, turAngles,
 			ent->modelScale, ciLegs, ciTorso, &ent->client->corrTime, lookAngles, ent->client->lastHeadAngles,
 			ent->client->lookTime, emplaced, NULL);
+		if ( spineShift > 0 )
+		{ // restore and rebuild every model of the instance: when the engine runs a frame right after another without moving its
+		  // ghoul2 clock, a saber model's cache would still hold the re-timed build at the next read
+			mdxaBone_t m;
+
+			SaberRetime( ent, 0 );
+			trap_G2API_GetBoltMatrix( ent->ghoul2, 0, 0, &m, lerpAng, lerpOrg, level.time, NULL, ent->modelScale );
+		}
+		VectorCopy( legsAngles, ent->client->saberGridLegsAngles );
+		ent->client->saberGridLegsTime = level.time;
 
 		if (ent->client->ps.heldByClient && ent->client->ps.heldByClient <= MAX_CLIENTS)
 		{ //then put our arm in this client's hand
@@ -2347,6 +2513,26 @@ static GAME_INLINE qboolean G_G2TraceCollide(trace_t *tr, vec3_t lastValidStart,
 			angles[YAW] = g2Hit->r.currentAngles[YAW];
 		}
 
+		/*
+		g_tickFixSaberSample 2: a grid photo tests the victim's body at the photo time too, by re-timing its anims for this read (the
+		body a 20 Hz server tested in that photo's frame). the collision skeleton is built at level.time, not at the engine's one-frame-old
+		clock the bolt reads use, so the shift is the photo's offset in the frame less the anim start's frame-length correction. once per
+		photo: the first body test rebuilds, the later ones reuse the engine's build of this frame, and the sweep's end restores every
+		victim (nothing reads a victim's skeleton in between). nothing on 50 ms frames
+		*/
+		if ( saberPhotoRead && g2Hit->client && g2Hit->s.number < MAX_CLIENTS && !saberVictimRetimed[g2Hit->s.number]
+			&& !SaberStepFrame() && g_tickFixSaberSample.integer >= 2
+			&& WP_SaberAnimOnGrid( g2Hit ) && g2Hit->client->saberBoneSet[0].cur.valid && g2Hit->client->saberBoneSet[1].cur.valid )
+		{
+			int shift = ( level.time - saberGridTime ) - ( TICK_BASE_MSEC - ( level.time - level.previousTime ) );
+
+			if ( shift )
+			{
+				SaberRetime( g2Hit, shift );
+				saberVictimRetimed[g2Hit->s.number] = qtrue;
+			}
+		}
+
 		if (g_optvehtrace.integer &&
 			g2Hit->s.eType == ET_NPC &&
 			g2Hit->s.NPC_class == CLASS_VEHICLE &&
@@ -2807,12 +2993,46 @@ FIXME: test the intersection to see if the sabers really did intersect (weren't 
 */
 extern qboolean tri_tri_intersect(vec3_t V0,vec3_t V1,vec3_t V2,vec3_t U0,vec3_t U1,vec3_t U2);
 #define SABER_EXTRAPOLATE_DIST 16.0f
+
+/*
+a blade's last swept motion: its previous and current position, or with sweeps on the grid between frames its last two
+grid samples. on 50 ms frames these are the same positions whenever every frame was swept; after a gap in the sweeps the
+stock ones are used there
+*/
+static void SaberBladeMotion( gentity_t *ent, int saberNum, int bladeNum, vec3_t baseOld, vec3_t dirOld, vec3_t base, vec3_t dir )
+{
+	gclient_t *cl = ent->client;
+	bladeInfo_t *blade = &cl->saber[saberNum].blade[bladeNum];
+
+	if ( SaberDamageMode() == SABERDMG_SAMPLE && !SaberStepFrame() && cl->saberTickTime[saberNum][bladeNum] && level.time - cl->saberTickTime[saberNum][bladeNum] <= 100 )
+	{
+		VectorCopy( cl->saberTickBase[saberNum][bladeNum], base );
+		VectorCopy( cl->saberTickDir[saberNum][bladeNum], dir );
+		if ( cl->saberTickTimeOld[saberNum][bladeNum] == cl->saberTickTime[saberNum][bladeNum] - TICK_BASE_MSEC )
+		{
+			VectorCopy( cl->saberTickBaseOld[saberNum][bladeNum], baseOld );
+			VectorCopy( cl->saberTickDirOld[saberNum][bladeNum], dirOld );
+		}
+		else
+		{ // no sample one grid step back (after spawning or a gap in the sweeps): no motion
+			VectorCopy( base, baseOld );
+			VectorCopy( dir, dirOld );
+		}
+		return;
+	}
+	VectorCopy( blade->muzzlePointOld, baseOld );
+	VectorCopy( blade->muzzleDirOld, dirOld );
+	VectorCopy( blade->muzzlePoint, base );
+	VectorCopy( blade->muzzleDir, dir );
+}
+
 qboolean WP_SabersIntersect( gentity_t *ent1, int ent1SaberNum, int ent1BladeNum, gentity_t *ent2, qboolean checkDir )
 {
 	vec3_t	saberBase1, saberTip1, saberBaseNext1, saberTipNext1;
 	vec3_t	saberBase2, saberTip2, saberBaseNext2, saberTipNext2;
 	int		ent2SaberNum = 0, ent2BladeNum = 0;
 	vec3_t	dir;
+	vec3_t	point1Old, dir1Old, point1, dir1, point2Old, dir2Old, point2, dir2;
 
 	if ( !ent1 || !ent2 )
 	{
@@ -2836,17 +3056,19 @@ qboolean WP_SabersIntersect( gentity_t *ent1, int ent1SaberNum, int ent1BladeNum
 			{
 				if ( ent2->client->saber[ent2SaberNum].blade[ent2BladeNum].lengthMax > 0 )
 				{//valid saber and this blade is on
+					SaberBladeMotion( ent1, ent1SaberNum, ent1BladeNum, point1Old, dir1Old, point1, dir1 );
+					SaberBladeMotion( ent2, ent2SaberNum, ent2BladeNum, point2Old, dir2Old, point2, dir2 );
 					//if ( ent1->client->saberInFlight )
 					{
-						VectorCopy( ent1->client->saber[ent1SaberNum].blade[ent1BladeNum].muzzlePointOld, saberBase1 );
-						VectorCopy( ent1->client->saber[ent1SaberNum].blade[ent1BladeNum].muzzlePoint, saberBaseNext1 );
+						VectorCopy( point1Old, saberBase1 );
+						VectorCopy( point1, saberBaseNext1 );
 
-						VectorSubtract( ent1->client->saber[ent1SaberNum].blade[ent1BladeNum].muzzlePoint, ent1->client->saber[ent1SaberNum].blade[ent1BladeNum].muzzlePointOld, dir );
+						VectorSubtract( point1, point1Old, dir );
 						VectorNormalize( dir );
 						VectorMA( saberBaseNext1, SABER_EXTRAPOLATE_DIST, dir, saberBaseNext1 );
 
-						VectorMA( saberBase1, ent1->client->saber[ent1SaberNum].blade[ent1BladeNum].lengthMax+SABER_EXTRAPOLATE_DIST, ent1->client->saber[ent1SaberNum].blade[ent1BladeNum].muzzleDirOld, saberTip1 );
-						VectorMA( saberBaseNext1, ent1->client->saber[ent1SaberNum].blade[ent1BladeNum].lengthMax+SABER_EXTRAPOLATE_DIST, ent1->client->saber[ent1SaberNum].blade[ent1BladeNum].muzzleDir, saberTipNext1 );
+						VectorMA( saberBase1, ent1->client->saber[ent1SaberNum].blade[ent1BladeNum].lengthMax+SABER_EXTRAPOLATE_DIST, dir1Old, saberTip1 );
+						VectorMA( saberBaseNext1, ent1->client->saber[ent1SaberNum].blade[ent1BladeNum].lengthMax+SABER_EXTRAPOLATE_DIST, dir1, saberTipNext1 );
 
 						VectorSubtract( saberTipNext1, saberTip1, dir );
 						VectorNormalize( dir );
@@ -2854,15 +3076,15 @@ qboolean WP_SabersIntersect( gentity_t *ent1, int ent1SaberNum, int ent1BladeNum
 					}
 
 					{
-						VectorCopy( ent2->client->saber[ent2SaberNum].blade[ent2BladeNum].muzzlePointOld, saberBase2 );
-						VectorCopy( ent2->client->saber[ent2SaberNum].blade[ent2BladeNum].muzzlePoint, saberBaseNext2 );
+						VectorCopy( point2Old, saberBase2 );
+						VectorCopy( point2, saberBaseNext2 );
 
-						VectorSubtract( ent2->client->saber[ent2SaberNum].blade[ent2BladeNum].muzzlePoint, ent2->client->saber[ent2SaberNum].blade[ent2BladeNum].muzzlePointOld, dir );
+						VectorSubtract( point2, point2Old, dir );
 						VectorNormalize( dir );
 						VectorMA( saberBaseNext2, SABER_EXTRAPOLATE_DIST, dir, saberBaseNext2 );
 
-						VectorMA( saberBase2, ent2->client->saber[ent2SaberNum].blade[ent2BladeNum].lengthMax+SABER_EXTRAPOLATE_DIST, ent2->client->saber[ent2SaberNum].blade[ent2BladeNum].muzzleDirOld, saberTip2 );
-						VectorMA( saberBaseNext2, ent2->client->saber[ent2SaberNum].blade[ent2BladeNum].lengthMax+SABER_EXTRAPOLATE_DIST, ent2->client->saber[ent2SaberNum].blade[ent2BladeNum].muzzleDir, saberTipNext2 );
+						VectorMA( saberBase2, ent2->client->saber[ent2SaberNum].blade[ent2BladeNum].lengthMax+SABER_EXTRAPOLATE_DIST, dir2Old, saberTip2 );
+						VectorMA( saberBaseNext2, ent2->client->saber[ent2SaberNum].blade[ent2BladeNum].lengthMax+SABER_EXTRAPOLATE_DIST, dir2, saberTipNext2 );
 
 						VectorSubtract( saberTipNext2, saberTip2, dir );
 						VectorNormalize( dir );
@@ -2883,7 +3105,7 @@ qboolean WP_SabersIntersect( gentity_t *ent1, int ent1SaberNum, int ent1BladeNum
 							continue;
 						}
 						//now check orientation of sabers, make sure they're not parallel or close to it
-						dot = DotProduct( ent1->client->saber[ent1SaberNum].blade[ent1BladeNum].muzzleDir, ent2->client->saber[ent2SaberNum].blade[ent2BladeNum].muzzleDir );
+						dot = DotProduct( dir1, dir2 );
 						if ( dot > 0.9f || dot < -0.9f )
 						{//too parallel to really block effectively?
 							continue;
@@ -3428,6 +3650,10 @@ static vec3_t	dmgDir[MAX_SABER_VICTIMS];
 static vec3_t	dmgSpot[MAX_SABER_VICTIMS];
 static qboolean dismemberDmg[MAX_SABER_VICTIMS];
 static int saberKnockbackFlags[MAX_SABER_VICTIMS];
+static qboolean victimWindowed[MAX_SABER_VICTIMS]; // has an entry the window accounting deals (here for effects only)
+static float	windowedDmg[MAX_SABER_VICTIMS]; // the part of totalDmg from those entries
+static qboolean victimDirect[MAX_SABER_VICTIMS]; // has an entry dealt here
+static qboolean saberAddWindowed; // WP_SaberDamageAdd marks its victim windowed
 static int numVictims = 0;
 void WP_SaberClearDamage( void )
 {
@@ -3437,6 +3663,9 @@ void WP_SaberClearDamage( void )
 		victimEntityNum[ven] = ENTITYNUM_NONE;
 	}
 	memset( victimHitEffectDone, 0, sizeof( victimHitEffectDone ) );
+	memset( victimWindowed, 0, sizeof( victimWindowed ) );
+	memset( victimDirect, 0, sizeof( victimDirect ) );
+	memset( windowedDmg, 0, sizeof( windowedDmg ) );
 	memset( totalDmg, 0, sizeof( totalDmg ) );
 	memset( dmgDir, 0, sizeof( dmgDir ) );
 	memset( dmgSpot, 0, sizeof( dmgSpot ) );
@@ -3491,6 +3720,15 @@ void WP_SaberDamageAdd( int trVictimEntityNum, vec3_t trDmgDir, vec3_t trDmgSpot
 			dismemberDmg[curVictim] = qtrue;
 		}
 		saberKnockbackFlags[curVictim] |= knockBackFlags;
+		if ( saberAddWindowed )
+		{
+			victimWindowed[curVictim] = qtrue;
+			windowedDmg[curVictim] += trDmg;
+		}
+		else
+		{
+			victimDirect[curVictim] = qtrue;
+		}
 	}
 }
 
@@ -3507,6 +3745,15 @@ int WP_SaberApplyDamage( gentity_t *self )
 		gentity_t *victim = NULL;
 		int dflags = 0;
 
+		if ( victimWindowed[i] )
+		{
+			if ( !victimDirect[i] )
+			{
+				continue;
+			}
+			totalDmg[i] -= windowedDmg[i];
+		}
+
 		victim = &g_entities[victimEntityNum[i]];
 
 // nmckenzie: SABER_DAMAGE_WALLS
@@ -3520,6 +3767,7 @@ int WP_SaberApplyDamage( gentity_t *self )
 			dflags |= DAMAGE_NO_DISMEMBER;
 		}
 		dflags |= saberKnockbackFlags[i];
+		TICKPROBE("saber_dmg", victim->s.number, totalDmg[i]);
 		int thisDamage = G_Damage( victim, self, self, dmgDir[i], dmgSpot[i], totalDmg[i], dflags, MOD_SABER );
 		total += thisDamage;
 		if (g_saberDefenseDebug.integer >= 2) {
@@ -3527,6 +3775,423 @@ int WP_SaberApplyDamage( gentity_t *self )
 		}
 	}
 	return total;
+}
+
+/*
+g_tickFixSaberDamage. a 20 Hz server swept each blade once per 50 ms frame and dealt that frame's damage at once.
+1 (window): blades are swept every frame, body damage is summed per victim and dealt once per 50 ms tick, rounded
+and scaled on the total. 2 (sample): blades are swept only on the 50 ms grid, from their sample at the previous grid
+time to the one at this grid time, so the swept geometry is a 20 Hz frame's at any rate
+*/
+static int SaberDamageMode( void )
+{
+	if ( !TICKFIX(SaberDamage) )
+	{
+		return 0;
+	}
+	return g_tickFixSaberDamage.integer == SABERDMG_WINDOW ? SABERDMG_WINDOW : SABERDMG_SAMPLE;
+}
+
+static void SaberGridUpdate( void )
+{
+	// a misaligned level.time never interpolates at 20 Hz
+	if ( SaberStepFrame() )
+	{
+		saberGridTick = qtrue;
+		saberGridTime = level.time;
+		return;
+	}
+	saberGridTick = level.previousTime <= 0 || level.time / TICK_BASE_MSEC != level.previousTime / TICK_BASE_MSEC;
+	saberGridTime = level.time - level.time % TICK_BASE_MSEC;
+}
+
+// g_tickFixSaberAnim: whether this client's skeleton anims start on the 50 ms grid: a live saber wielder outside a lock, with sweeps on the grid
+qboolean WP_SaberAnimOnGrid( gentity_t *self )
+{
+	return SaberDamageMode() == SABERDMG_SAMPLE && g_tickFixSaberAnim.integer && self->s.number < MAX_CLIENTS
+		&& self->client->ps.weapon == WP_SABER && !self->client->ps.saberLockFrame && self->health > 0;
+}
+
+/*
+the player-angle update is not a pure function of the frame it runs in: the head look lerps 15% toward its target per
+call and the spine correction reads the skeleton of the previous build. for the clients whose anims start on the grid it
+runs once per 50 ms step, with the step's time, as it did on every 20 Hz frame; between steps the step's bone angles
+stand. every frame, as stock, for everyone else and while no step angles exist yet (spawn, weapon switch)
+*/
+static qboolean SaberAnglesDue( gentity_t *ent, int *time )
+{
+	if ( !WP_SaberAnimOnGrid( ent ) || level.time - ent->client->saberGridLegsTime > 2*TICK_BASE_MSEC )
+	{
+		*time = level.time;
+		return qtrue;
+	}
+	*time = saberGridTime;
+	return saberGridTick;
+}
+
+/*
+the spine correction (BG_G2ClientSpineAngles) reads the Motion bolt, which the engine builds at its ghoul2 clock, the
+previous frame's time. before a grid client's angle update its anims are shifted by the photo's offset in the frame, the
+shift the blade read uses, so the correction sees the pose a 20 Hz frame saw. -1 when nothing is to be done
+*/
+static int SaberSpineShift( gentity_t *ent )
+{
+	gclient_t *cl = ent->client;
+
+	if ( SaberStepFrame() || !saberGridTick || g_tickFixSaberSample.integer < 2 || !WP_SaberAnimOnGrid( ent )
+		|| !cl->saberBoneSet[0].cur.valid || !cl->saberBoneSet[1].cur.valid )
+	{
+		return -1;
+	}
+	return level.time - saberGridTime;
+}
+
+/*
+the grid time of the 20 Hz frame that would have applied a change made at level-clock time t: the first grid time after
+t. on 50 ms frames every frame is a grid time whatever its phase, and a change made in or after this frame (t is never
+before it) is applied by the next one
+*/
+int SaberGridAfter( int t )
+{
+	if ( SaberStepFrame() )
+	{
+		return level.time + TICK_BASE_MSEC;
+	}
+	return t - t % TICK_BASE_MSEC + TICK_BASE_MSEC;
+}
+
+/*
+g_tickFixSaberOrder: the grid time the next frame photographs when that frame is not on it, else 0. a command arriving
+from that time on waits for the photo (G_HoldCmd), as on a 20 Hz server, whose frame at the grid time ran before it
+*/
+int SaberHoldGrid( void )
+{
+	int frame = G_FrameMsec(), next = level.time + frame, g = next - next % TICK_BASE_MSEC;
+
+	if ( !g_tickFixSaberOrder.integer || SaberDamageMode() != SABERDMG_SAMPLE || frame >= TICK_BASE_MSEC || g <= level.time || g == next
+		|| level.restarted || level.intermissiontime || level.pause.state != PAUSE_NONE )
+	{ // no photo is taken while paused, in intermission or waiting for a restart (whose frame returns before the release)
+		return 0;
+	}
+	return g;
+}
+
+// the grid time of the 20 Hz frame a change seen in this frame belongs to: this frame on 50 ms frames, else the first grid time at or after it
+static int SaberGridAtOrAfter( void )
+{
+	if ( SaberStepFrame() || !( level.time % TICK_BASE_MSEC ) )
+	{
+		return level.time;
+	}
+	return level.time - level.time % TICK_BASE_MSEC + TICK_BASE_MSEC;
+}
+
+/*
+note a part's anim as it stands after a change, for the 20 Hz frame at grid time `grid`. a pending entry for that frame
+is updated (a 20 Hz frame applied whatever was current at its time); otherwise an entry is inserted in grid order when
+the anim differs from what that frame would otherwise show, the entry before it or the skeleton's current anim
+*/
+void SaberAnimRecNote( saberAnimRec_t *recs, int grid, int time, int anim, qboolean flip, int execAnim, qboolean execFlip )
+{
+	int i, j;
+
+	for ( i = 0; i < SABER_ANIM_RECS && recs[i].grid && recs[i].grid < grid; i++ )
+	{
+	}
+	if ( i < SABER_ANIM_RECS && recs[i].grid == grid )
+	{
+		recs[i].anim = anim;
+		recs[i].flip = flip;
+		return;
+	}
+	if ( i > 0 ? anim == recs[i - 1].anim && flip == recs[i - 1].flip : anim == execAnim && flip == execFlip )
+	{
+		return;
+	}
+	if ( i == SABER_ANIM_RECS )
+	{ // only after skipped frames (pause) or with frames longer than a grid step: keep the newest
+		i = SABER_ANIM_RECS - 1;
+	}
+	for ( j = SABER_ANIM_RECS - 1; j > i; j-- )
+	{
+		recs[j] = recs[j - 1];
+	}
+	recs[i].grid = grid;
+	recs[i].time = time;
+	recs[i].anim = anim;
+	recs[i].flip = flip;
+}
+
+/*
+apply a part's oldest pending entry once its start time is reached. the engine evaluates every skeleton at the previous
+frame's time (the server sets the ghoul2 clock after the game frame), so a 20 Hz frame at grid time g saw an anim it
+started at g0 at phase g-50-g0. the start that shows that phase at every grid time here is g0 + 50 - frame length; it is
+the frame time itself on 50 ms frames. the entry is applied in the first frame at or past that start, so the first read
+after it never precedes the start. the later entry is kept pending
+*/
+static void SaberAnimRecApply( gentity_t *self, float animSpeedScale, int lag, qboolean torso )
+{
+	gclient_t *cl = self->client;
+	saberAnimRec_t *recs = torso ? cl->torsoAnimRec : cl->legsAnimRec;
+	saberAnimRec_t rec, next;
+	int start, set;
+
+	if ( !recs[0].grid )
+	{
+		return;
+	}
+	start = recs[0].grid + TICK_BASE_MSEC - lag;
+	if ( level.time < start )
+	{
+		return;
+	}
+	if ( start <= level.previousTime && cl->saberAnimUpdateTime < level.previousTime )
+	{ // frames went by without a saber update (pause, following, intermission): start now, as the stock call does
+		start = level.time;
+	}
+	rec = recs[0];
+	next = recs[1];
+	set = G_UpdateClientAnimsAt( self, animSpeedScale, start, !torso, torso, torso ? NULL : &rec, torso ? &rec : NULL ); // clears the part's entries
+	recs[0] = next;
+	if ( torso && ( set & 2 ) )
+	{
+		TICKPROBE( "saber_anim", self->s.number, ( start + lag ) % TICK_BASE_MSEC ); // 0 when the skeleton shows the 20 Hz phase at grid times
+		TICKPROBE( "saber_anim_wait", self->s.number, rec.grid - rec.time );
+	}
+}
+
+/*
+g_tickFixSaberAnim: a saber wielder's skeleton switches anims as a 20 Hz server's did. pmove changes are noted after
+Pmove (ClientThink_real) for the grid time after the command; a change made by game code since then (G_SetAnim: spawn,
+knockdowns, getups, taunts) belongs to the 20 Hz frame at or after this one, as that frame would have applied it. each
+pending entry is applied at the start time that reproduces the 20 Hz pose at the grid times (SaberAnimRecApply)
+*/
+static void SaberUpdateAnimsOnGrid( gentity_t *self, float animSpeedScale )
+{
+	gclient_t *cl = self->client;
+	int grid, lag;
+
+	if ( !WP_SaberAnimOnGrid( self ) )
+	{
+		G_UpdateClientAnims( self, animSpeedScale );
+		return;
+	}
+	grid = SaberGridAtOrAfter();
+	SaberAnimRecNote( cl->legsAnimRec, grid, level.time, cl->ps.legsAnim, cl->ps.legsFlip, cl->legsAnimExecute, cl->legsLastFlip );
+	SaberAnimRecNote( cl->torsoAnimRec, grid, level.time, cl->ps.torsoAnim, cl->ps.torsoFlip, cl->torsoAnimExecute, cl->torsoLastFlip );
+	lag = Com_Clampi( 1, TICK_BASE_MSEC, level.time - level.previousTime );
+	SaberAnimRecApply( self, animSpeedScale, lag, qfalse );
+	SaberAnimRecApply( self, animSpeedScale, lag, qtrue );
+	cl->saberAnimUpdateTime = level.time;
+}
+
+// the stock multipliers of a hit over SABER_NONATTACK_DAMAGE; victim NULL for a blade-on-blade hit, thrown for the thrown saber
+static int SaberScaleDamage( gentity_t *self, int rSaberNum, int rBladeNum, gentity_t *victim, qboolean thrown, int dmg )
+{
+	if ( dmg > SABER_NONATTACK_DAMAGE )
+	{
+		dmg *= g_saberDamageScale.value;
+
+		if ( !WP_SaberBladeUseSecondBladeStyle( &self->client->saber[rSaberNum], rBladeNum )
+			&& self->client->saber[rSaberNum].damageScale != 1.0f )
+		{
+			dmg = ceil( (float)dmg*self->client->saber[rSaberNum].damageScale );
+		}
+		else if ( WP_SaberBladeUseSecondBladeStyle( &self->client->saber[rSaberNum], rBladeNum )
+			&& self->client->saber[rSaberNum].damageScale2 != 1.0f )
+		{
+			dmg = ceil( (float)dmg*self->client->saber[rSaberNum].damageScale2 );
+		}
+
+		if ((self->client->ps.brokenLimbs & (1 << BROKENLIMB_RARM)) ||
+			(self->client->ps.brokenLimbs & (1 << BROKENLIMB_LARM)))
+		{
+			dmg *= 0.3;
+			if (dmg <= SABER_NONATTACK_DAMAGE)
+			{
+				dmg = SABER_NONATTACK_DAMAGE+1;
+			}
+		}
+	}
+
+	if (dmg > SABER_NONATTACK_DAMAGE && self->client->ps.isJediMaster)
+	{
+		dmg *= 2;
+	}
+
+	if (dmg > SABER_NONATTACK_DAMAGE && g_gametype.integer == GT_SIEGE &&
+		self->client->siegeClass != -1 && (bgSiegeClasses[self->client->siegeClass].classflags & (1<<CFL_MORESABERDMG)))
+	{
+		dmg *= 2;
+	}
+
+	if (g_gametype.integer == GT_SIEGE && self->client->siegeClass != -1 &&
+		bgSiegeClasses[self->client->siegeClass].swingDmg != 1.0f && !thrown)
+	{
+		dmg = (int)(dmg * bgSiegeClasses[self->client->siegeClass].swingDmg + 0.5f);
+	}
+
+	if ( victim && victim->client )
+	{
+		if ( dmg > SABER_NONATTACK_DAMAGE )
+		{
+			dmg *= 1.5;
+		}
+
+		if (self->s.eType == ET_NPC && self->client->playerTeam == victim->client->playerTeam)
+		{
+			dmg *= 0.2f;
+		}
+	}
+	return dmg;
+}
+
+// raw is fDmg * blade travel * (1 - fraction) of one body trace
+static void SaberWindowAdd( gentity_t *self, int entityNum, float raw, vec3_t dir, vec3_t spot, qboolean dismember, int knockbackFlags, int rSaberNum, int rBladeNum )
+{
+	gclient_t *cl = self->client;
+	saberWindowVictim_t *v = NULL;
+	int i;
+
+	for ( i = 0; i < cl->saberWindowVictims; i++ )
+	{
+		if ( cl->saberWindow[i].entityNum == entityNum )
+		{
+			v = &cl->saberWindow[i];
+			break;
+		}
+	}
+	if ( !v )
+	{
+		if ( cl->saberWindowVictims >= SABER_WINDOW_VICTIMS )
+		{
+			return;
+		}
+		v = &cl->saberWindow[cl->saberWindowVictims++];
+		memset( v, 0, sizeof( *v ) );
+		v->entityNum = entityNum;
+		VectorCopy( dir, v->dir );
+		VectorCopy( spot, v->spot );
+		v->saberNum = rSaberNum;
+		v->bladeNum = rBladeNum;
+		v->thrown = cl->ps.saberInFlight && rSaberNum == 0;
+		cl->saberWindowMove = cl->ps.saberMove;
+	}
+	v->raw += raw;
+	if ( dismember )
+	{
+		v->dismember = qtrue;
+	}
+	v->knockbackFlags |= knockbackFlags;
+	cl->saberWindowTime = level.time;
+}
+
+// deal the damage owed since the last tick, once per victim; returns what G_Damage dealt
+static int SaberWindowApply( gentity_t *self )
+{
+	gclient_t *cl = self->client;
+	int i, total = 0;
+
+	for ( i = 0; i < cl->saberWindowVictims; i++ )
+	{
+		saberWindowVictim_t *v = &cl->saberWindow[i];
+		gentity_t *victim = &g_entities[v->entityNum];
+		float dmg;
+		int dflags = 0, done;
+
+		if ( !victim->inuse || !victim->takedamage )
+		{
+			continue;
+		}
+
+		dmg = SaberScaleDamage( self, v->saberNum, v->bladeNum, victim, v->thrown, (int)ceil( v->raw*0.1f*0.33f ) );
+		if ( dmg < 1 )
+		{
+			// stock drops a per-trace amount scaled to zero before it reaches G_Damage, which would raise it to 1
+			continue;
+		}
+		if ( !victim->client )
+		{
+			dmg *= g_saberWallDamageScale.value;
+		}
+		if ( !v->dismember )
+		{
+			dflags |= DAMAGE_NO_DISMEMBER;
+		}
+		dflags |= v->knockbackFlags;
+
+		TICKPROBE("saber_dmg", victim->s.number, dmg);
+		done = G_Damage( victim, self, self, v->dir, v->spot, dmg, dflags, MOD_SABER );
+		total += done;
+		if (g_saberDefenseDebug.integer >= 2) {
+			PrintIngame(-1, "Did %d damage from SaberWindowApply\n", done);
+		}
+	}
+	cl->saberWindowVictims = 0;
+	return total;
+}
+
+// how many of this frame's victims are owed damage by the window accounting
+static int SaberWindowedVictims( void )
+{
+	int i, n = 0;
+
+	for ( i = 0; i < numVictims; i++ )
+	{
+		if ( victimWindowed[i] )
+		{
+			n++;
+		}
+	}
+	return n;
+}
+
+// before this frame's sweeps: damage from a finished move is dealt now, damage left over from a stale sweep is dropped
+static void SaberWindowCheck( gentity_t *self )
+{
+	gclient_t *cl = self->client;
+
+	// clash damage owed is never carried into another move or past a stale sweep
+	if ( cl->saberClashRaw && ( level.time - cl->saberClashTime > 100 || cl->ps.saberMove != cl->saberClashMove ) )
+	{
+		cl->saberClashRaw = 0;
+	}
+
+	if ( !cl->saberWindowVictims )
+	{
+		return;
+	}
+	if ( level.time - cl->saberWindowTime > 100 )
+	{
+		cl->saberWindowVictims = 0;
+	}
+	else if ( cl->ps.saberMove != cl->saberWindowMove )
+	{
+		SaberWindowApply( self );
+	}
+}
+
+// a blade-on-blade hit of raw damage. it is decided at once when the damage owed since the last decision clears
+// SABER_NONATTACK_DAMAGE, or on the tick as a touch; otherwise only its effects run. sets *dmg for the decision
+static qboolean SaberWindowClashDue( gentity_t *self, int rSaberNum, int rBladeNum, float raw, int *dmg )
+{
+	gclient_t *cl = self->client;
+	int n;
+
+	if ( !cl->saberClashRaw )
+	{
+		cl->saberClashMove = cl->ps.saberMove;
+	}
+	cl->saberClashRaw += raw;
+	cl->saberClashTime = level.time;
+	n = (int)ceil( cl->saberClashRaw*0.1f*0.33f );
+	if ( n <= SABER_NONATTACK_DAMAGE && !saberGridTick )
+	{
+		return qfalse;
+	}
+	cl->saberClashRaw = 0.0f;
+	*dmg = SaberScaleDamage( self, rSaberNum, rBladeNum, NULL, cl->ps.saberInFlight && rSaberNum == 0, n );
+	return qtrue;
 }
 
 typedef struct {
@@ -3808,6 +4473,20 @@ qboolean BG_SuperBreakWinAnim( int anim );
 
 void saberKnockDown(gentity_t *saberent, gentity_t *saberOwner, gentity_t *other);
 
+// the idle-touch debounce (open once level.time passes it). carried, it opens on the first 50 ms tick past the delay,
+// timed from when the previous one ran out if that was within this frame
+static int SaberIdleWoundTime(gentity_t *self) {
+	int from;
+
+	if (!TICKFIX(Sabers))
+		return level.time + g_saberDmgDelay_Idle.integer;
+
+	from = self->client->ps.saberIdleWound + 1;
+	if (from > level.time || from <= level.time - G_FrameMsec())
+		from = level.time;
+	return from + G_TickStrict(g_saberDmgDelay_Idle.integer) - 1;
+}
+
 static GAME_INLINE qboolean CheckSaberDamage(gentity_t *self, int rSaberNum, int rBladeNum, vec3_t saberStart, vec3_t saberEnd, qboolean doInterpolate, int trMask, qboolean extrapolate )
 {
 	static trace_t tr;
@@ -3818,6 +4497,7 @@ static GAME_INLINE qboolean CheckSaberDamage(gentity_t *self, int rSaberNum, int
 	static int selfSaberLevel;
 	static int otherSaberLevel;
 	int dmg = 0;
+	float rawDmg = 0.0f; // fDmg * blade travel * (1 - fraction), before the round-up
 	int attackStr = 0;
 	float saberBoxSize = d_saberBoxTraceSize.value;
 	qboolean idleDamage = qfalse;
@@ -3987,9 +4667,18 @@ static GAME_INLINE qboolean CheckSaberDamage(gentity_t *self, int rSaberNum, int
 			if ( extrapolate )
 			{//extrapolate 16
 				vec3_t diff;
+				float look = SABER_EXTRAPOLATE_DIST;
 				VectorSubtract( saberEnd, saberStart, diff );
+				if ( SaberDamageMode() == SABERDMG_WINDOW )
+				{ // what the point travels in 50 ms, up to the 16
+					look = VectorLength( diff )*TICK_BASE_MSEC/G_FrameMsec();
+					if ( look > SABER_EXTRAPOLATE_DIST )
+					{
+						look = SABER_EXTRAPOLATE_DIST;
+					}
+				}
 				VectorNormalize( diff );
-				VectorMA( saberStart, SABER_EXTRAPOLATE_DIST, diff, saberEndExtrapolated );
+				VectorMA( saberStart, look, diff, saberEndExtrapolated );
 			}
 			else
 			{
@@ -4105,10 +4794,12 @@ static GAME_INLINE qboolean CheckSaberDamage(gentity_t *self, int rSaberNum, int
 				if ( tr.fraction >= 1.0f )
 				{//allsolid?
 					dmg = ceil( fDmg*traceLength*0.1f*0.33f );
+					rawDmg = fDmg*traceLength;
 				}
 				else
 				{//fractional hit, the sooner you hit in the trace, the more damage you did
 					dmg = ceil( fDmg*traceLength*(1.0f-tr.fraction)*0.1f*0.33f );//(1.0f-tr.fraction) isn't really accurate, but kind of simulates what we have in SP
+					rawDmg = fDmg*traceLength*(1.0f-tr.fraction);
 				}
 #ifdef DEBUG_SABER_BOX
 				if ( g_saberDebugBox.integer == 3 || g_saberDebugBox.integer == 4 )
@@ -4500,7 +5191,7 @@ static GAME_INLINE qboolean CheckSaberDamage(gentity_t *self, int rSaberNum, int
 		{//stabdowns only damage people who are actually on the ground...
 			return qfalse;
 		}
-		self->client->ps.saberIdleWound = level.time + g_saberDmgDelay_Idle.integer;
+		self->client->ps.saberIdleWound = SaberIdleWoundTime(self);
 
 		didHit = qtrue;
 
@@ -4509,7 +5200,7 @@ static GAME_INLINE qboolean CheckSaberDamage(gentity_t *self, int rSaberNum, int
 			&& !unblockable 
 			&& WP_SaberCanBlock(&g_entities[tr.entityNum], self, tr.endpos, 0, MOD_SABER, qfalse, attackStr, NULL))
 		{//hit a client who blocked the attack (fake: didn't actually hit their saber)
-			if (dmg <= SABER_NONATTACK_DAMAGE)
+			if (dmg <= SABER_NONATTACK_DAMAGE && !TICKFIX(Sabers)) // the carried value was set just above
 			{
 				self->client->ps.saberIdleWound = level.time + g_saberDmgDelay_Idle.integer;
 			}
@@ -4517,6 +5208,12 @@ static GAME_INLINE qboolean CheckSaberDamage(gentity_t *self, int rSaberNum, int
 			VectorCopy( tr.endpos, saberClashPos );
 			VectorCopy( tr.plane.normal, saberClashNorm );
 			saberClashEventParm = 1;
+
+			if ( SaberDamageMode() == SABERDMG_WINDOW && !idleDamage && rawDmg > 0.0f
+				&& !SaberWindowClashDue( self, rSaberNum, rBladeNum, rawDmg, &dmg ) )
+			{
+				return didHit;
+			}
 
 			if (dmg > SABER_NONATTACK_DAMAGE)
 			{
@@ -4632,7 +5329,13 @@ static GAME_INLINE qboolean CheckSaberDamage(gentity_t *self, int rSaberNum, int
 				}
 			}
 
+			if ( SaberDamageMode() == SABERDMG_WINDOW && !idleDamage && rawDmg > 0.0f )
+			{ // dealt on the tick; this frame's entry only drives the hit effect
+				SaberWindowAdd( self, tr.entityNum, rawDmg, dir, tr.endpos, doDismemberment, knockbackFlags, rSaberNum, rBladeNum );
+				saberAddWindowed = qtrue;
+			}
 			WP_SaberDamageAdd( tr.entityNum, dir, tr.endpos, dmg, doDismemberment, knockbackFlags );
+			saberAddWindowed = qfalse;
 
 			if (g_entities[tr.entityNum].client)
 			{
@@ -4741,9 +5444,9 @@ static GAME_INLINE qboolean CheckSaberDamage(gentity_t *self, int rSaberNum, int
 			return qtrue;
 		}
 		didHit = qtrue;
-		self->client->ps.saberIdleWound = level.time + g_saberDmgDelay_Idle.integer;
+		self->client->ps.saberIdleWound = SaberIdleWoundTime(self);
 
-		if (dmg <= SABER_NONATTACK_DAMAGE)
+		if (dmg <= SABER_NONATTACK_DAMAGE && !TICKFIX(Sabers)) // the carried value was set just above
 		{
 			self->client->ps.saberIdleWound = level.time + g_saberDmgDelay_Idle.integer;
 		}
@@ -4756,6 +5459,12 @@ static GAME_INLINE qboolean CheckSaberDamage(gentity_t *self, int rSaberNum, int
 		sabersClashed = qtrue;
 		saberHitSaber = qtrue;
 		saberHitFraction = tr.fraction;
+
+		if ( SaberDamageMode() == SABERDMG_WINDOW && !idleDamage && rawDmg > 0.0f
+			&& !SaberWindowClashDue( self, rSaberNum, rBladeNum, rawDmg, &dmg ) )
+		{
+			return didHit;
+		}
 
 		if (saberCheckKnockdown_Smashed(&g_entities[tr.entityNum], otherOwner, self, dmg))
 		{ //smashed it out of the air
@@ -4799,6 +5508,7 @@ blockStuff:
 				{
 					if (WP_SabersCheckLock(self, otherOwner))
 					{
+						TICKPROBE("saber_clash", self->s.number, 1);
 						self->client->ps.saberBlocked = BLOCKED_NONE;
 						otherOwner->client->ps.saberBlocked = BLOCKED_NONE;
 						return didHit;
@@ -4872,6 +5582,7 @@ blockStuff:
 			&& dmg > SABER_NONATTACK_DAMAGE
 			&& !didOffense) //don't allow the person we're attacking to do this if we're making an unblockable attack
 		{//knockaways can make fast-attacker go into a broken parry anim if the ent is using fast or med. In MP, we also randomly decide this for level 3 attacks.
+			TICKPROBE("saber_clash", self->s.number, 2);
 			//Going to go ahead and let idle damage do simple knockaways. Looks sort of good that way.
 			//turn the parry into a knockaway
 			if (self->client->ps.saberEntityNum) //make sure he has his saber still
@@ -4915,6 +5626,7 @@ blockStuff:
 				 !didOffense &&
 				 !otherUnblockable)
 		{ //they are in a parry, and we are slamming down on them with a move of equal or greater force than their defense, so send them into a broken parry.. unless they are already in one.
+			TICKPROBE("saber_clash", self->s.number, 5);
 			if (otherOwner->client->ps.saberEntityNum) //make sure he has his saber still
 			{
 				saberCheckKnockdown_BrokenParry(&g_entities[otherOwner->client->ps.saberEntityNum], otherOwner, self);
@@ -4946,6 +5658,7 @@ blockStuff:
 				 !didOffense &&
 				 !unblockable)
 		{ //they are in a parry, and we are slamming down on them with a move of equal or greater force than their defense, so send them into a broken parry.. unless they are already in one.
+			TICKPROBE("saber_clash", self->s.number, 3);
 #if 0//#ifndef FINAL_BUILD
 			if (g_saberDebugPrint.integer)
 			{
@@ -4974,6 +5687,7 @@ blockStuff:
 				!PM_SaberInReflect(otherOwner->client->ps.saberMove))
 			{
 				int attackAdv, defendStr = G_PowerLevelForSaberAnim( otherOwner, 0, qtrue ), attackBonus = 0;
+				TICKPROBE("saber_clash", self->s.number, 6);
 				if ( otherOwner->client->ps.torsoAnim == BOTH_A1_SPECIAL
 					|| otherOwner->client->ps.torsoAnim == BOTH_A2_SPECIAL
 					|| otherOwner->client->ps.torsoAnim == BOTH_A3_SPECIAL )
@@ -5034,6 +5748,7 @@ blockStuff:
 		
 		if (d_saberGhoul2Collision.integer && !didDefense && dmg <= SABER_NONATTACK_DAMAGE && !otherUnblockable) //with perpoly, it looks pretty weird to have clash flares coming off the guy's face and whatnot
 		{
+			TICKPROBE("saber_clash", self->s.number, 7);
 			if (!PM_SaberInParry(otherOwner->client->ps.saberMove) &&
 				!PM_SaberInBrokenParry(otherOwner->client->ps.saberMove) &&
 				!BG_SaberInSpecial(otherOwner->client->ps.saberMove) &&
@@ -5047,6 +5762,7 @@ blockStuff:
 		}
 		else if (!didDefense && dmg > SABER_NONATTACK_DAMAGE && !otherUnblockable) //if not more than idle damage, don't even bother blocking.
 		{ //block
+			TICKPROBE("saber_clash", self->s.number, 4);
 			if (!PM_SaberInParry(otherOwner->client->ps.saberMove) &&
 				!PM_SaberInBrokenParry(otherOwner->client->ps.saberMove) &&
 				!BG_SaberInSpecial(otherOwner->client->ps.saberMove) &&
@@ -5376,6 +6092,171 @@ void G_SPSaberDamageTraceLerped( gentity_t *self, int saberNum, int bladeNum, ve
 		}
 		}
 
+/*
+g_tickFixSaberDamage 2: on a frame the grid passed, sweep the blade from its sample at the previous grid time to its
+position at this grid time, interpolated between last frame's position (muzzlePointOld, valid when stored last frame)
+and this one. with g_tickFixSaberSample the interpolation is the parabola through the last three frame reads, when
+they are one frame apart: a blade turns 60 degrees in a 33 ms frame and the chord between two reads puts the tip
+10 u off the arc, the parabola about 1 u. the trail holds the previous grid sample
+*/
+/*
+g_tickFixSaberSample 2: the engine evaluates skeletons one frame late (its ghoul2 clock is set after the game frame),
+so a read in this frame shows the pose d ms before the grid time when the grid time fell d ms before the frame. the
+saberist's anims are re-timed to start d later for that read, and put back after it (d 0 restores)
+*/
+static void SaberRetime( gentity_t *self, int d )
+{
+	static const char *bones[2][2] = { { "model_root", NULL }, { "lower_lumbar", "Motion" } };
+	int part, b;
+
+	for ( part = 0; part < 2; part++ )
+	{
+		saberBoneSet_t *r = &self->client->saberBoneSet[part];
+
+		if ( !r->cur.valid )
+		{
+			continue;
+		}
+		for ( b = 0; b < 2 && bones[part][b]; b++ )
+		{
+			if ( r->prev.valid )
+			{ // the anim it blends from, moved the same way and without a blend of its own, then the current one: the engine
+			  // captures its blend source from the previous anim's pose at the new start, the same pose it captured originally
+				trap_G2API_SetBoneAnim( self->ghoul2, 0, bones[part][b], r->prev.firstFrame, r->prev.lastFrame, r->prev.flags & ~BONE_ANIM_BLEND, r->prev.speed, r->prev.start + d, -1, 0 );
+				trap_G2API_SetBoneAnim( self->ghoul2, 0, bones[part][b], r->cur.firstFrame, r->cur.lastFrame, r->cur.flags, r->cur.speed, r->cur.start + d, -1, 150 );
+			}
+			else
+			{ // no previous anim to blend from. a bone the engine found blending keeps its blend state when currentTime is the anim's own start,
+			  // and setFrame moves the start (half a ms of bias, the engine truncates); a bone it found not blending (a fresh model) is set plainly
+				float cf = 0, sp = 0;
+				int sf = 0, ef = 0, fl = 0;
+
+				trap_G2API_GetBoneAnim( self->ghoul2, bones[part][b], 0, &cf, &sf, &ef, &fl, &sp, NULL, 0 );
+				if ( fl & BONE_ANIM_BLEND )
+				{
+					trap_G2API_SetBoneAnim( self->ghoul2, 0, bones[part][b], r->cur.firstFrame, r->cur.lastFrame, r->cur.flags, r->cur.speed, r->cur.start, d ? r->cur.firstFrame - ( d + 0.5f ) * r->cur.speed / 50.0f : -1, 150 );
+				}
+				else
+				{
+					trap_G2API_SetBoneAnim( self->ghoul2, 0, bones[part][b], r->cur.firstFrame, r->cur.lastFrame, r->cur.flags & ~BONE_ANIM_BLEND, r->cur.speed, r->cur.start + d, -1, 0 );
+				}
+			}
+		}
+	}
+}
+
+/*
+the blade's bolt with the skeleton re-timed to the grid time. the player model is queried first: a changed model
+rebuilds every model in the instance, while the saber model alone would read its cache. a saber model without this
+blade's bolt keeps the interpolated sample (the stock read reuses the previous blade's matrix there)
+*/
+static void SaberReadAtGrid( gentity_t *self, int rSaberNum, int rBladeNum, const vec3_t readOrg, const vec3_t readAng, vec3_t base, vec3_t dir )
+{
+	mdxaBone_t m, restored;
+	qboolean read;
+
+	SaberRetime( self, level.time - saberGridTime );
+	trap_G2API_GetBoltMatrix( self->ghoul2, 0, 0, &m, readAng, readOrg, level.time, NULL, self->modelScale );
+	read = trap_G2API_GetBoltMatrix( self->ghoul2, rSaberNum + 1, rBladeNum, &m, readAng, readOrg, level.time, NULL, self->modelScale );
+	SaberRetime( self, 0 );
+	// rebuild with the restored anims: only a changed model is rebuilt on a read, and a later read of a saber model this frame (a staff's second blade) would get the re-timed cache
+	trap_G2API_GetBoltMatrix( self->ghoul2, 0, 0, &restored, readAng, readOrg, level.time, NULL, self->modelScale );
+	if ( !read )
+	{
+		return;
+	}
+	BG_GiveMeVectorFromMatrix( &m, ORIGIN, base );
+	BG_GiveMeVectorFromMatrix( &m, NEGATIVE_Y, dir );
+}
+
+// a blade base moves a few units per frame; a jump beyond this is a teleport (spawn, placement), and a photo never interpolates across it
+#define SABER_TELEPORT_DIST 256.0f
+
+static void SaberSweepOnGrid( gentity_t *self, int rSaberNum, int rBladeNum, int prevStorageTime, int clipmask, const vec3_t readOrg, const vec3_t readAng )
+{
+	gclient_t *cl = self->client;
+	bladeInfo_t *blade = &cl->saber[rSaberNum].blade[rBladeNum];
+	vec3_t base, dir, end;
+	qboolean photoAtGrid = qtrue;
+
+	if ( !saberGridTick )
+	{
+		return;
+	}
+
+	if ( prevStorageTime == level.previousTime && level.previousTime < saberGridTime && saberGridTime < level.time
+		&& Distance( blade->muzzlePointOld, blade->muzzlePoint ) < SABER_TELEPORT_DIST )
+	{
+		float f = (float)(saberGridTime - level.previousTime) / (level.time - level.previousTime);
+		int i;
+
+		qboolean quadratic = g_tickFixSaberSample.integer && cl->saberRead1Time[rSaberNum][rBladeNum] == level.previousTime
+			&& cl->saberRead2Time[rSaberNum][rBladeNum] == level.previousTime - ( level.time - level.previousTime )
+			&& Distance( cl->saberRead2Base[rSaberNum][rBladeNum], blade->muzzlePointOld ) < SABER_TELEPORT_DIST;
+
+		for ( i = 0; i < 3; i++ )
+		{
+			if ( quadratic )
+			{
+				float r0 = cl->saberRead2Base[rSaberNum][rBladeNum][i], r1 = blade->muzzlePointOld[i], r2 = blade->muzzlePoint[i];
+				float d0 = cl->saberRead2Dir[rSaberNum][rBladeNum][i], d1 = blade->muzzleDirOld[i], d2 = blade->muzzleDir[i];
+
+				base[i] = r1 + f*( r2 - r0 )*0.5f + f*f*( r2 - 2.0f*r1 + r0 )*0.5f;
+				dir[i] = d1 + f*( d2 - d0 )*0.5f + f*f*( d2 - 2.0f*d1 + d0 )*0.5f;
+				continue;
+			}
+			base[i] = blade->muzzlePointOld[i] + f*(blade->muzzlePoint[i] - blade->muzzlePointOld[i]);
+			dir[i] = blade->muzzleDirOld[i] + f*(blade->muzzleDir[i] - blade->muzzleDirOld[i]);
+		}
+		if ( !VectorNormalize( dir ) )
+		{
+			VectorCopy( blade->muzzleDir, dir );
+		}
+		if ( g_tickFixSaberSample.integer >= 2 && WP_SaberAnimOnGrid( self ) && cl->saberBoneSet[0].cur.valid && cl->saberBoneSet[1].cur.valid && !( rSaberNum == 0 && cl->ps.saberInFlight ) )
+		{ // only the clients whose anims start on the grid (g_tickFixSaberAnim): the re-timing reproduces their 20 Hz photo
+			SaberReadAtGrid( self, rSaberNum, rBladeNum, readOrg, readAng, base, dir );
+		}
+	}
+	else
+	{
+		VectorCopy( blade->muzzlePoint, base );
+		VectorCopy( blade->muzzleDir, dir );
+		photoAtGrid = level.time == saberGridTime;
+	}
+	VectorMA( base, blade->lengthMax, dir, end );
+
+	VectorCopy( cl->saberTickBase[rSaberNum][rBladeNum], cl->saberTickBaseOld[rSaberNum][rBladeNum] );
+	VectorCopy( cl->saberTickDir[rSaberNum][rBladeNum], cl->saberTickDirOld[rSaberNum][rBladeNum] );
+	VectorCopy( base, cl->saberTickBase[rSaberNum][rBladeNum] );
+	VectorCopy( dir, cl->saberTickDir[rSaberNum][rBladeNum] );
+	cl->saberTickTimeOld[rSaberNum][rBladeNum] = cl->saberTickTime[rSaberNum][rBladeNum];
+	cl->saberTickTime[rSaberNum][rBladeNum] = saberGridTime;
+	if ( rSaberNum == 0 && rBladeNum == 0 )
+	{
+		SaberGridBoxAddTip( self, end );
+	}
+
+	saberPhotoRead = photoAtGrid;
+	G_SPSaberDamageTraceLerped( self, rSaberNum, rBladeNum, base, end, clipmask );
+	saberPhotoRead = qfalse;
+	{
+		int i;
+
+		for ( i = 0; i < MAX_CLIENTS; i++ )
+		{
+			if ( saberVictimRetimed[i] )
+			{
+				SaberRetime( &g_entities[i], 0 );
+				saberVictimRetimed[i] = qfalse;
+			}
+		}
+	}
+
+	VectorCopy( base, blade->trail.base );
+	VectorCopy( end, blade->trail.tip );
+	blade->trail.lastTime = level.time;
+}
+
 #include "namespace_begin.h"
 qboolean BG_SaberInTransitionAny( int move );
 #include "namespace_end.h"
@@ -5386,7 +6267,25 @@ qboolean Jedi_WaitingAmbush( gentity_t *self );
 void Jedi_Ambush( gentity_t *self );
 evasionType_t Jedi_SaberBlockGo( gentity_t *self, usercmd_t *cmd, vec3_t pHitloc, vec3_t phitDir, gentity_t *incoming, float dist );
 void NPC_SetLookTarget( gentity_t *self, int entNum, int clearTime );
-void WP_SaberStartMissileBlockCheck( gentity_t *self, usercmd_t *ucmd  )
+static void WP_SaberStartMissileBlockCheckNow( gentity_t *self, usercmd_t *ucmd );
+
+/*
+the block check runs after the saber update every frame, so a 20 Hz angle update turned the head toward the look target the
+previous frame's check found. a grid client's angle update turns toward the target the previous grid frame's check found, which
+is latched here; between grid frames the check keeps running for everything else it does
+*/
+void WP_SaberStartMissileBlockCheck( gentity_t *self, usercmd_t *ucmd )
+{
+	WP_SaberStartMissileBlockCheckNow( self, ucmd );
+	if ( self->client && saberGridTick && WP_SaberAnimOnGrid( self ) )
+	{
+		self->client->saberGridHasLook = self->client->ps.hasLookTarget;
+		self->client->saberGridLookTarget = self->client->ps.lookTarget;
+		self->client->saberGridLookTime = level.time;
+	}
+}
+
+static void WP_SaberStartMissileBlockCheckNow( gentity_t *self, usercmd_t *ucmd  )
 {
 	float		dist;
 	gentity_t	*ent, *incoming = NULL;
@@ -5794,13 +6693,42 @@ void saberFirstThrown(gentity_t *saberent);
 // map get a wider detection radius (confirmed against real playtest logs).
 #define KORRI_MINE_DETECTION_RADIUS 96.0f
 
+/*
+"now" for a thrown saber's timers: carried, the scheduled time of its think when that think ran this frame (the
+outbound think is carried on a 100 ms grid, the return think on a 50 ms one), else level.time. a think armed at
+level.time runs a frame later and is timed by level.time
+*/
+static int SaberThrownNow(gentity_t *saberent) {
+	if (TICKFIX(Sabers) && saberent->tickDeadline > level.previousTime && saberent->tickDeadline <= level.time)
+		return saberent->tickDeadline;
+	return level.time;
+}
+
+// the 500 ms debounce after a thrown saber hits or is blocked. carried, it runs from when the previous one ran out
+// if that was within this frame
+static int SaberThrownWoundTime(gentity_t *saberent, gentity_t *saberOwner) {
+	int now, from;
+
+	if (!TICKFIX(Sabers)) {
+		TICKPROBE("saber_hit_debounce", saberent->s.number, 500);
+		return level.time + 500;
+	}
+
+	now = SaberThrownNow(saberent);
+	from = saberOwner->client->ps.saberAttackWound;
+	if (from > now || from <= now - G_FrameMsec())
+		from = now;
+	TICKPROBE("saber_hit_debounce", saberent->s.number, from + G_TickIncl(500) - now);
+	return from + G_TickIncl(500);
+}
+
 static GAME_INLINE qboolean CheckThrownSaberDamaged(gentity_t *saberent, gentity_t *saberOwner, gentity_t *ent, int dist, int returning, qboolean noDCheck)
 {
 	vec3_t vecsub;
 	float veclen;
 	gentity_t *te;
 
-	if (saberOwner && saberOwner->client && saberOwner->client->ps.saberAttackWound > level.time)
+	if (saberOwner && saberOwner->client && saberOwner->client->ps.saberAttackWound > SaberThrownNow(saberent))
 	{
 		return qfalse;
 	}
@@ -5875,7 +6803,7 @@ static GAME_INLINE qboolean CheckThrownSaberDamaged(gentity_t *saberent, gentity
 						thrownSaberTouch(saberent, saberent, NULL);
 					}
 
-					saberOwner->client->ps.saberAttackWound = level.time + 500;
+					saberOwner->client->ps.saberAttackWound = SaberThrownWoundTime(saberent, saberOwner);
 					return qfalse;
 				}
 				else
@@ -5965,7 +6893,7 @@ static GAME_INLINE qboolean CheckThrownSaberDamaged(gentity_t *saberent, gentity
 					}
 				}
 
-				saberOwner->client->ps.saberAttackWound = level.time + 500;
+				saberOwner->client->ps.saberAttackWound = SaberThrownWoundTime(saberent, saberOwner);
 			}
 		}
 	}
@@ -6123,7 +7051,7 @@ static GAME_INLINE qboolean CheckThrownSaberDamaged(gentity_t *saberent, gentity
 					}
 				}
 
-				saberOwner->client->ps.saberAttackWound = level.time + 500;
+				saberOwner->client->ps.saberAttackWound = SaberThrownWoundTime(saberent, saberOwner);
 			}
 		}
 	}
@@ -6152,7 +7080,7 @@ static GAME_INLINE void saberCheckRadiusDamage(gentity_t *saberent, int returnin
 		return;
 	}
 
-	if (saberOwner->client->ps.saberAttackWound > level.time)
+	if (saberOwner->client->ps.saberAttackWound > SaberThrownNow(saberent))
 	{
 		return;
 	}
@@ -6699,6 +7627,24 @@ qboolean saberKnockOutOfHand(gentity_t *saberent, gentity_t *saberOwner, vec3_t 
 	return qtrue;
 }
 
+// the hand's last travel, its direction in dif: the travel a 20 Hz server sampled over 50 ms, from the grid samples or scaled by the real time between the two frame reads
+static float SaberHandMotion(gentity_t *ent, vec3_t dif) {
+	gclient_t *cl = ent->client;
+	float dist;
+	int dt;
+
+	if (SaberStepTravel(ent, dif))
+		return VectorNormalize(dif);
+
+	VectorSubtract(cl->lastSaberBase_Always, cl->olderSaberBase, dif);
+	dist = VectorNormalize(dif);
+	if (!TICKFIX(Sabers))
+		return dist;
+
+	dt = cl->lastSaberStorageTime - cl->olderSaberStorageTime;
+	return dt > 0 && dt < 200 ? dist * TICK_BASE_MSEC / dt : dist;
+}
+
 //Called at the result of a circle lock duel - the loser gets his saber tossed away and is put into a reflected attack anim
 qboolean saberCheckKnockdown_DuelLoss(gentity_t *saberent, gentity_t *saberOwner, gentity_t *other)
 {
@@ -6723,8 +7669,7 @@ qboolean saberCheckKnockdown_DuelLoss(gentity_t *saberent, gentity_t *saberOwner
 	if (validMomentum)
 	{
 		//Get the difference 
-		VectorSubtract(other->client->lastSaberBase_Always, other->client->olderSaberBase, dif);
-		totalDistance = VectorNormalize(dif);
+		totalDistance = SaberHandMotion(other, dif);
 
 		if (!totalDistance)
 		{ //fine, try our own
@@ -6735,8 +7680,7 @@ qboolean saberCheckKnockdown_DuelLoss(gentity_t *saberent, gentity_t *saberOwner
 
 			if (validMomentum)
 			{
-				VectorSubtract(saberOwner->client->lastSaberBase_Always, saberOwner->client->olderSaberBase, dif);
-				totalDistance = VectorNormalize(dif);
+				totalDistance = SaberHandMotion(saberOwner, dif);
 			}
 		}
 
@@ -6822,8 +7766,7 @@ qboolean saberCheckKnockdown_BrokenParry(gentity_t *saberent, gentity_t *saberOw
 		float totalDistance;
 		float distScale = 6.5f;
 
-		VectorSubtract(other->client->lastSaberBase_Always, other->client->olderSaberBase, dif);
-		totalDistance = VectorNormalize(dif);
+		totalDistance = SaberHandMotion(other, dif);
 
 		if (!totalDistance)
 		{ //fine, try our own
@@ -6832,8 +7775,7 @@ qboolean saberCheckKnockdown_BrokenParry(gentity_t *saberent, gentity_t *saberOw
 				return qfalse;
 			}
 
-			VectorSubtract(saberOwner->client->lastSaberBase_Always, saberOwner->client->olderSaberBase, dif);
-			totalDistance = VectorNormalize(dif);
+			totalDistance = SaberHandMotion(saberOwner, dif);
 		}
 
 		if (!totalDistance)
@@ -6947,6 +7889,7 @@ void saberBackToOwner(gentity_t *saberent)
 	gentity_t *saberOwner = &g_entities[saberent->r.ownerNum];
 	vec3_t dir;
 	float ownerLen;
+	int now;
 
 	if (saberent->r.ownerNum == ENTITYNUM_NONE)
 	{
@@ -7008,10 +7951,12 @@ void saberBackToOwner(gentity_t *saberent)
 
 	ownerLen = VectorLength(dir);
 
-	if (saberent->speed < level.time)
+	now = SaberThrownNow(saberent);
+	if (saberent->speed < now)
 	{
 		float baseSpeed = 900;
 
+		TICKPROBE("saber_return_reaim", saberent->s.number, 1);
 		VectorNormalize(dir);
 
 		saberMoveBack(saberent, qtrue);
@@ -7021,12 +7966,12 @@ void saberBackToOwner(gentity_t *saberent)
 		{ //allow players with high saber throw rank to control the return speed of the saber
 			baseSpeed = 900;
 
-			saberent->speed = level.time;
+			saberent->speed = now;
 		}
 		else
 		{
 			baseSpeed = 700;
-			saberent->speed = level.time + 50;
+			saberent->speed = now + 50;
 		}
 
 		//Gradually slow down as it approaches, so it looks smoother coming into the hand.
@@ -7093,7 +8038,8 @@ void saberBackToOwner(gentity_t *saberent)
 		saberMoveBack(saberent, qtrue);
 	}
 
-	saberent->nextthink = level.time;
+	// a 20 Hz server ran the return think every 50 ms frame
+	saberent->nextthink = TICKFIX(Sabers) ? G_TickRearmThink(saberent, TICK_BASE_MSEC) : level.time;
 }
 
 void saberFirstThrown(gentity_t *saberent);
@@ -7159,6 +8105,8 @@ void thrownSaberTouch (gentity_t *saberent, gentity_t *other, trace_t *trace)
 	{
 		return;
 	}
+	if (saberent->think != saberBackToOwner && saberent->r.ownerNum < MAX_CLIENTS && g_entities[saberent->r.ownerNum].client)
+		TICKPROBE("saber_return", saberent->s.number, level.time - g_entities[saberent->r.ownerNum].client->ps.saberDidThrowTime);
 
 	if (trace && level.siegeMap == SIEGEMAP_KORRIBAN && g_gametype.integer == GT_SIEGE &&
 		(!other || !VALIDSTRING(other->classname) || (Q_stricmp(other->classname, "laserTrap") && Q_stricmp(other->classname, "detpack"))))
@@ -7181,7 +8129,7 @@ void thrownSaberTouch (gentity_t *saberent, gentity_t *other, trace_t *trace)
 	VectorCopy(saberent->r.currentOrigin, saberent->s.pos.trBase);
 
 	saberent->think = saberBackToOwner;
-	saberent->nextthink = level.time;
+	saberent->nextthink = TICKFIX(Sabers) ? SaberThrownNow(saberent) + TICK_BASE_MSEC : level.time; // the next 20 Hz frame
 
 	if (other && other->r.ownerNum < MAX_CLIENTS &&
 		(other->r.contents & CONTENTS_LIGHTSABER) &&
@@ -7204,6 +8152,7 @@ void saberFirstThrown(gentity_t *saberent)
 	vec3_t		vSub;
 	float		vLen;
 	gentity_t	*saberOwn = &g_entities[saberent->r.ownerNum];
+	int			now;
 
 	if (saberent->r.ownerNum == ENTITYNUM_NONE)
 	{
@@ -7256,14 +8205,17 @@ void saberFirstThrown(gentity_t *saberent)
 		return;
 	}
 
-	if ((level.time - saberOwn->client->ps.saberDidThrowTime) > 500)
+	now = SaberThrownNow(saberent);
+	TICKPROBE("saber_throw_think", saberent->s.number, now - saberOwn->client->ps.saberDidThrowTime);
+
+	if ((now - saberOwn->client->ps.saberDidThrowTime) > 500)
 	{
 		if (!(saberOwn->client->buttons & BUTTON_ALT_ATTACK))
 		{ //If owner releases altattack 500ms or later after throwing saber, it autoreturns
 			thrownSaberTouch(saberent, saberent, NULL);
 			goto runMin;
 		}
-		else if ((level.time - saberOwn->client->ps.saberDidThrowTime) > 6000)
+		else if ((now - saberOwn->client->ps.saberDidThrowTime) > 6000)
 		{ //if it's out longer than 6 seconds, return it
 			thrownSaberTouch(saberent, saberent, NULL);
 			goto runMin;
@@ -7291,11 +8243,14 @@ void saberFirstThrown(gentity_t *saberent)
 		goto runMin;
 	}
 
+	// carried, the re-aim is timed on the outbound think's own 100 ms grid
 	if (saberOwn->client->ps.fd.forcePowerLevel[FP_SABERTHROW] >= FORCE_LEVEL_2 &&
-		saberent->speed < level.time)
+		saberent->speed < now)
 	{ //if owner is rank 3 in saber throwing, the saber goes where he points
 		vec3_t fwd, traceFrom, traceTo, dir;
 		trace_t tr;
+
+		TICKPROBE("saber_reaim", saberent->s.number, now - saberOwn->client->ps.saberDidThrowTime);
 
 		AngleVectors(saberOwn->client->ps.viewangles, fwd, 0, 0);
 
@@ -7328,11 +8283,11 @@ void saberFirstThrown(gentity_t *saberent)
 
 		if (saberOwn->client->ps.fd.forcePowerLevel[FP_SABERTHROW] >= FORCE_LEVEL_3)
 		{ //we'll treat them to a quicker update rate if their throw rank is high enough
-			saberent->speed = level.time + 100;
+			saberent->speed = now + 100;
 		}
 		else
 		{
-			saberent->speed = level.time + 400;
+			saberent->speed = now + 400;
 		}
 	}
 
@@ -8166,6 +9121,8 @@ void WP_SaberPositionUpdate( gentity_t *self, usercmd_t *ucmd )
 	gentity_t *vehEnt = NULL;
 	int rSaberNum = 0;
 	int rBladeNum = 0;
+	int prevStorageTime;
+	qboolean sweptOnGrid = qfalse;
 
 #if 0//#ifdef _DEBUG
 	if (g_disableServerG2.integer)
@@ -8203,6 +9160,12 @@ void WP_SaberPositionUpdate( gentity_t *self, usercmd_t *ucmd )
 		!g2SaberInstance)
 	{
 		return;
+	}
+
+	SaberGridUpdate();
+	if (SaberDamageMode() == SABERDMG_WINDOW)
+	{
+		SaberWindowCheck(self);
 	}
 
 	if (BG_KickingAnim(self->client->ps.legsAnim))
@@ -8549,7 +9512,7 @@ nextStep:
 		fVSpeed += self->client->ps.velocity[2];
 	}
 
-	fVSpeed *= 1.6f/g_svfps.value;
+	fVSpeed *= 1.6f / (TICKFIX(Sabers) ? 20.0f : g_svfps.value); // fixed: 1.6 frames of travel at 20 Hz
 
 	//Cap it off at reasonable values so the saber box doesn't go flying ahead of us or
 	//something if we get a big speed boost from something.
@@ -8628,6 +9591,7 @@ nextStep:
 	if (self->client->lastSaberStorageTime && (level.time - self->client->lastSaberStorageTime) < 200)
 	{ //alright
 		VectorCopy(self->client->lastSaberBase_Always, self->client->olderSaberBase);
+		self->client->olderSaberStorageTime = self->client->lastSaberStorageTime;
 		self->client->olderIsValid = qtrue;
 	}
 	else
@@ -8855,6 +9819,11 @@ nextStep:
 			while (rBladeNum < self->client->saber[rSaberNum].numBlades)
 			{
 				//update muzzle data for the blade
+				// keep the read before the old one too, with both frame times, for the quadratic grid sample
+				VectorCopy(self->client->saber[rSaberNum].blade[rBladeNum].muzzlePointOld, self->client->saberRead2Base[rSaberNum][rBladeNum]);
+				VectorCopy(self->client->saber[rSaberNum].blade[rBladeNum].muzzleDirOld, self->client->saberRead2Dir[rSaberNum][rBladeNum]);
+				self->client->saberRead2Time[rSaberNum][rBladeNum] = self->client->saberRead1Time[rSaberNum][rBladeNum];
+				self->client->saberRead1Time[rSaberNum][rBladeNum] = self->client->saber[rSaberNum].blade[rBladeNum].storageTime;
 				VectorCopy(self->client->saber[rSaberNum].blade[rBladeNum].muzzlePoint, self->client->saber[rSaberNum].blade[rBladeNum].muzzlePointOld);
 				VectorCopy(self->client->saber[rSaberNum].blade[rBladeNum].muzzleDir, self->client->saber[rSaberNum].blade[rBladeNum].muzzleDirOld);
 
@@ -8911,6 +9880,7 @@ nextStep:
 					VectorMA( boltOrigin, self->client->saber[rSaberNum].blade[rBladeNum].lengthMax, self->client->saber[rSaberNum].blade[rBladeNum].muzzleDir, end );
 				}
 
+				prevStorageTime = self->client->saber[rSaberNum].blade[rBladeNum].storageTime;
 				self->client->saber[rSaberNum].blade[rBladeNum].storageTime = level.time;
 
 				if (self->client->hasCurrentPosition && d_saberInterpolate.integer)
@@ -9071,6 +10041,11 @@ nextStep:
 						}
 					}
 				}
+				else if ( d_saberSPStyleDamage.integer && SaberDamageMode() == SABERDMG_SAMPLE )
+				{
+					SaberSweepOnGrid( self, rSaberNum, rBladeNum, prevStorageTime, (MASK_PLAYERSOLID|CONTENTS_LIGHTSABER|MASK_SHOT), properOrigin, properAngles );
+					sweptOnGrid = qtrue;
+				}
 				else if ( d_saberSPStyleDamage.integer )
 				{
 					G_SPSaberDamageTraceLerped( self, rSaberNum, rBladeNum, boltOrigin, end, (MASK_PLAYERSOLID|CONTENTS_LIGHTSABER|MASK_SHOT) );
@@ -9080,9 +10055,13 @@ nextStep:
 					CheckSaberDamage(self, rSaberNum, rBladeNum, boltOrigin, end, qfalse, (MASK_PLAYERSOLID|CONTENTS_LIGHTSABER|MASK_SHOT), qfalse);
 				}
 
-				VectorCopy(boltOrigin, self->client->saber[rSaberNum].blade[rBladeNum].trail.base);
-				VectorCopy(end, self->client->saber[rSaberNum].blade[rBladeNum].trail.tip);
-				self->client->saber[rSaberNum].blade[rBladeNum].trail.lastTime = level.time;
+				if (!sweptOnGrid)
+				{
+					VectorCopy(boltOrigin, self->client->saber[rSaberNum].blade[rBladeNum].trail.base);
+					VectorCopy(end, self->client->saber[rSaberNum].blade[rBladeNum].trail.tip);
+					self->client->saber[rSaberNum].blade[rBladeNum].trail.lastTime = level.time;
+				}
+				sweptOnGrid = qfalse;
 				self->client->hasCurrentPosition = qtrue;
 
 				//do hit effects
@@ -9098,9 +10077,13 @@ nextStep:
 
 		if (!(g_damageFixes.integer & DAMAGEFIXES_SABERTHROW_SABERISTS)) {
 			WP_SaberApplyDamage(self); // legacy mode; simply apply the damage
+			if (SaberDamageMode() == SABERDMG_WINDOW && saberGridTick)
+				SaberWindowApply(self);
 		}
 		else {
 			int damageDone = WP_SaberApplyDamage(self);
+			if (SaberDamageMode() == SABERDMG_WINDOW) // between ticks, damage owed to this frame's victims counts as done
+				damageDone += saberGridTick ? SaberWindowApply(self) : SaberWindowedVictims();
 			if (numHits) {
 
 				// see if we got a hit
@@ -9166,7 +10149,11 @@ nextStep:
 
 				// if the saber touched someone and they are still alive, return to owner
 				if (hitVictimNum >= 0 && g_entities[hitVictimNum].health > 0 && self->client->ps.saberInFlight && saberent->think != saberBackToOwner)
+				{
 					thrownSaberTouch(saberent, saberent, NULL);
+					if (TICKFIX(Sabers))
+						saberent->nextthink = level.time; // the saber thinks later this frame, as stock
+				}
 			}
 		}
 
@@ -9191,7 +10178,7 @@ finalUpdate:
 		return;
 	}
 
-	G_UpdateClientAnims(self, animSpeedScale);
+	SaberUpdateAnimsOnGrid(self, animSpeedScale);
 }
 
 int WP_MissileBlockForBlock( int saberBlock )

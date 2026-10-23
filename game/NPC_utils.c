@@ -233,7 +233,7 @@ qboolean NPC_UpdateAngles ( qboolean doPitch, qboolean doYaw )
 				exact = qfalse;
 
 				decay = 60.0 + yawSpeed * 3;
-				decay *= 50.0f / 1000.0f;//msec
+				decay *= (TICKFIX(NPC) && NPCThinkDt > 0 ? NPCThinkDt : 50.0f) / 1000.0f;//msec
 
 				if ( error < 0.0 ) 
 				{
@@ -269,7 +269,7 @@ qboolean NPC_UpdateAngles ( qboolean doPitch, qboolean doYaw )
 				exact = qfalse;
 
 				decay = 60.0 + yawSpeed * 3;
-				decay *= 50.0f / 1000.0f;//msec
+				decay *= (TICKFIX(NPC) && NPCThinkDt > 0 ? NPCThinkDt : 50.0f) / 1000.0f;//msec
 
 				if ( error < 0.0 ) 
 				{

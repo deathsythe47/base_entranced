@@ -330,6 +330,8 @@ static void turretG2_fire ( gentity_t *ent, vec3_t start, vec3_t dir )
 		return;
 	}
 
+	TICKPROBE("turretg2_fire", ent->s.number, 1);
+
 	VectorMA( start, -START_DIS, dir, org ); // dumb....
 
 	if ( ent->random )
@@ -417,16 +419,19 @@ void turretG2_respawn( gentity_t *self )
 void turretG2_head_think( gentity_t *self )
 //-----------------------------------------------------
 {
+	// the gates below run on the think's 100 ms grid under the fix, so strict < opens on the first think past, as at 20 Hz
+	const int now = TICKFIX(Items) ? G_TickThinkTime(self) : level.time;
+
 	// if it's time to fire and we have an enemy, then gun 'em down!  pushDebounce time controls next fire time
 	if ( self->enemy 
-		&& self->setTime < level.time 
-		&& self->attackDebounceTime < level.time )
+		&& self->setTime < now 
+		&& self->attackDebounceTime < now )
 	{
 		vec3_t		fwd, org;
 		mdxaBone_t	boltMatrix;
 
 		// set up our next fire time
-		self->setTime = level.time + self->wait;
+		self->setTime = now + self->wait;
 
 		// Getting the flash bolt here
 		trap_G2API_GetBoltMatrix( self->ghoul2,
@@ -461,7 +466,7 @@ void turretG2_head_think( gentity_t *self )
 }
 
 //-----------------------------------------------------
-static void turretG2_aim( gentity_t *self )
+static void turretG2_aim( gentity_t *self, int dt )
 //-----------------------------------------------------
 {
 	vec3_t	enemyDir, org, org2;
@@ -469,6 +474,13 @@ static void turretG2_aim( gentity_t *self )
 	float	diffYaw = 0.0f, diffPitch = 0.0f;
 	float	maxYawSpeed = (self->spawnflags&SPF_TURRETG2_TURBO)?30.0f:14.0f;
 	float	maxPitchSpeed = (self->spawnflags&SPF_TURRETG2_TURBO)?15.0f:3.0f;
+
+	/*
+	the pitch cap is a step per 100 ms think. the yaw cap needs no scaling: it bounds a turn rate (trDelta),
+	which the trajectory applies over however long the think took
+	*/
+	if (TICKFIX(Items) && dt > 0)
+		maxPitchSpeed *= Tick_Frac(dt) / Tick_Frac(FRAMETIME);
 
 	// move our gun base yaw to where we should be at this time....
 	BG_EvaluateTrajectory( &self->s.apos, level.time, self->r.currentAngles );
@@ -557,6 +569,7 @@ static void turretG2_aim( gentity_t *self )
 
 	if ( diffPitch )
 	{
+		TICKPROBE("turretg2_pitch", self->s.number, fabs(diffPitch) > maxPitchSpeed ? maxPitchSpeed : fabs(diffPitch));
 		if ( fabs(diffPitch) > maxPitchSpeed )
 		{
 			// cap max speed
@@ -632,7 +645,7 @@ static void turretG2_turnoff( gentity_t *self )
 	}
 	
 	// make turret play ping sound for 5 seconds
-	self->aimDebounceTime = level.time + 5000;
+	self->aimDebounceTime = (TICKFIX(Items) ? G_TickThinkTime(self) : level.time) + 5000;
 
 	// Clear enemy
 	self->enemy = NULL;
@@ -649,17 +662,18 @@ static qboolean turretG2_find_enemies( gentity_t *self )
 	vec3_t		enemyDir, org, org2;
 	qboolean	foundClient = qfalse;
 	gentity_t	*entity_list[MAX_GENTITIES], *target, *bestTarget = NULL;
+	const int	now = TICKFIX(Items) ? G_TickThinkTime(self) : level.time;
 
-	if ( self->aimDebounceTime > level.time ) // time since we've been shut off
+	if ( self->aimDebounceTime > now ) // time since we've been shut off
 	{
 		// We were active and alert, i.e. had an enemy in the last 3 secs
-		if ( self->painDebounceTime < level.time )
+		if ( self->painDebounceTime < now )
 		{
 			if ( !(self->spawnflags&SPF_TURRETG2_TURBO) )
 			{
 				G_Sound(self, CHAN_BODY, G_SoundIndex( "sound/chars/turret/ping.wav" ));
 			}
-			self->painDebounceTime = level.time + 1000;
+			self->painDebounceTime = now + 1000;
 		}
 	}
 
@@ -760,7 +774,7 @@ static qboolean turretG2_find_enemies( gentity_t *self )
 
 			if ( enemyDist < bestDist || (target->client && !foundClient))// all things equal, keep current
 			{
-				if ( self->attackDebounceTime < level.time )
+				if ( self->attackDebounceTime < now )
 				{
 					// We haven't fired or acquired an enemy in the last 2 seconds-start-up sound
 					if ( !(self->spawnflags&SPF_TURRETG2_TURBO) )
@@ -769,7 +783,7 @@ static qboolean turretG2_find_enemies( gentity_t *self )
 					}
 
 					// Wind up turrets for a bit
-					self->attackDebounceTime = level.time + 1400;
+					self->attackDebounceTime = now + 1400;
 				}
 
 				bestTarget = target;
@@ -802,8 +816,10 @@ void turretG2_base_think( gentity_t *self )
 	qboolean	turnOff = qtrue;
 	float		enemyDist;
 	vec3_t		enemyDir, org, org2;
+	const int	dt = G_TickDt(self);
+	const int	now = TICKFIX(Items) ? G_TickThinkTime(self) : level.time;
 
-	self->nextthink = level.time + FRAMETIME;
+	self->nextthink = TICKFIX(Items) ? G_TickRearmThink(self, FRAMETIME) : level.time + FRAMETIME;
 
 	if (level.siegeMap == SIEGEMAP_HOTH && g_removeHothHangarTurrets.integer &&
 		(level.siegeStage == SIEGESTAGE_ROUND1 || level.siegeStage == SIEGESTAGE_ROUND2) && !Q_stricmp(self->targetname, "hangar_turrets")) {
@@ -815,7 +831,7 @@ void turretG2_base_think( gentity_t *self )
 	{//dead
 		if (self->spawnflags & SPF_TURRETG2_CANRESPAWN)
 		{//can respawn
-			if ( self->genericValue5 && self->genericValue5 < level.time )
+			if ( self->genericValue5 && self->genericValue5 < now )
 			{ //we are dead, see if it's time to respawn
 				turretG2_respawn( self );
 			}
@@ -825,7 +841,7 @@ void turretG2_base_think( gentity_t *self )
 	else if ( self->spawnflags & 1 )
 	{// not turned on
 		turretG2_turnoff( self );
-		turretG2_aim( self );
+		turretG2_aim( self, dt );
 
 		// No target
 		self->flags |= FL_NOTARGET;
@@ -846,18 +862,18 @@ void turretG2_base_think( gentity_t *self )
 		}
 	}
 
-	if ( self->last_move_time < level.time )
+	if ( self->last_move_time < now )
 	{//MISNOMER: used a enemy recalcing debouncer
 		if ( turretG2_find_enemies( self ) )
 		{//found one
 			turnOff = qfalse;
 			if ( self->enemy->client )
 			{//hold on to clients for a min of 3 seconds
-				self->last_move_time = level.time + 3000;
+				self->last_move_time = now + 3000;
 			}
 			else
 			{//hold less
-				self->last_move_time = level.time + 500;
+				self->last_move_time = now + 500;
 			}
 		}
 	}
@@ -913,7 +929,7 @@ void turretG2_base_think( gentity_t *self )
 
 	if ( turnOff )
 	{
-		if ( self->bounceCount < level.time ) // bounceCount is used to keep the thing from ping-ponging from on to off
+		if ( self->bounceCount < now ) // bounceCount is used to keep the thing from ping-ponging from on to off
 		{
 			turretG2_turnoff( self );
 		}
@@ -921,10 +937,10 @@ void turretG2_base_think( gentity_t *self )
 	else
 	{
 		// keep our enemy for a minimum of 2 seconds from now
-		self->bounceCount = level.time + 2000 + random() * 150;
+		self->bounceCount = now + 2000 + random() * 150;
 	}
 
-	turretG2_aim( self );
+	turretG2_aim( self, dt );
 	if ( !turnOff )
 	{
 		turretG2_head_think( self );

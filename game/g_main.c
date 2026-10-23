@@ -655,6 +655,28 @@ vmCvar_t	g_protectCallvoteHack;
 vmCvar_t    g_minimumVotesCount;
 vmCvar_t    g_fixPitKills;
 vmCvar_t    g_fixForceRegenTime;
+vmCvar_t	g_tickProbe;
+vmCvar_t	g_tickFix;
+vmCvar_t	g_tickFixInput;
+vmCvar_t	g_tickFixForce;
+vmCvar_t	g_tickFixSabers;
+vmCvar_t	g_tickFixSaberDamage;
+vmCvar_t	g_tickFixSaberAnim;
+vmCvar_t	g_tickFixSaberBox;
+vmCvar_t	g_tickFixSaberSample;
+vmCvar_t	g_tickFixSaberOrder;
+vmCvar_t	g_tickFixWeapons;
+vmCvar_t	g_tickFixStations;
+vmCvar_t	g_tickFixItems;
+vmCvar_t	g_tickFixClient;
+vmCvar_t	g_tickFixMovers;
+vmCvar_t	g_tickFixNPC;
+vmCvar_t	g_tickFixStats;
+vmCvar_t	g_tickFixSiege;
+vmCvar_t	g_smoothClientsAnchor;
+vmCvar_t	g_smoothClientsLead;
+vmCvar_t	g_smoothClientsCap;
+vmCvar_t	g_smoothClientsFollow;
 vmCvar_t	g_fixGripKills;
 vmCvar_t	g_creditAirKills;
 
@@ -1063,6 +1085,28 @@ static cvarTable_t		gameCvarTable[] = {
 
 	{ &g_fixPitKills,	"g_fixPitKills"	, "1"	, CVAR_ARCHIVE, 0, qtrue },
 	{ &g_fixForceRegenTime,	"g_fixForceRegenTime"	, "0"	, CVAR_ARCHIVE, 0, qtrue },
+	{ &g_tickProbe, "g_tickProbe", "0", 0, 0, qfalse },
+	{ &g_tickFix, "g_tickFix", "0", CVAR_ARCHIVE, 0, qtrue },
+	{ &g_tickFixInput, "g_tickFixInput", "0", CVAR_ARCHIVE, 0, qtrue },
+	{ &g_tickFixForce, "g_tickFixForce", "0", CVAR_ARCHIVE, 0, qtrue },
+	{ &g_tickFixSabers, "g_tickFixSabers", "0", CVAR_ARCHIVE, 0, qtrue },
+	{ &g_tickFixSaberDamage, "g_tickFixSaberDamage", "0", CVAR_ARCHIVE, 0, qtrue }, // 1 per-window damage, 2 sweeps on the 50 ms grid
+	{ &g_tickFixSaberAnim, "g_tickFixSaberAnim", "0", CVAR_ARCHIVE, 0, qtrue }, // with sweeps on the grid: saber wielders' skeleton anims start at grid times
+	{ &g_tickFixSaberBox, "g_tickFixSaberBox", "0", CVAR_ARCHIVE, 0, qtrue }, // with sweeps on the grid: the held saber's box is the newest grid sample
+	{ &g_tickFixSaberSample, "g_tickFixSaberSample", "2", CVAR_ARCHIVE, 0, qtrue }, // with sweeps on the grid, a grid sample between two frame reads: 1 the parabola through the last three reads, 2 a read with the skeleton re-timed to the grid time
+	{ &g_tickFixSaberOrder, "g_tickFixSaberOrder", "0", CVAR_ARCHIVE, 0, qtrue }, // with sweeps on the grid: a command that arrives after the grid time the next frame photographs runs after that frame's saber photos, as on a 20 Hz server
+	{ &g_tickFixWeapons, "g_tickFixWeapons", "0", CVAR_ARCHIVE, 0, qtrue },
+	{ &g_tickFixStations, "g_tickFixStations", "0", CVAR_ARCHIVE, 0, qtrue },
+	{ &g_tickFixItems, "g_tickFixItems", "0", CVAR_ARCHIVE, 0, qtrue },
+	{ &g_tickFixClient, "g_tickFixClient", "0", CVAR_ARCHIVE, 0, qtrue },
+	{ &g_tickFixMovers, "g_tickFixMovers", "0", CVAR_ARCHIVE, 0, qtrue },
+	{ &g_tickFixNPC, "g_tickFixNPC", "0", CVAR_ARCHIVE, 0, qtrue },
+	{ &g_tickFixStats, "g_tickFixStats", "0", CVAR_ARCHIVE, 0, qtrue },
+	{ &g_tickFixSiege, "g_tickFixSiege", "0", CVAR_ARCHIVE, 0, qtrue },
+	{ &g_smoothClientsAnchor, "g_smoothClientsAnchor", "0", CVAR_ARCHIVE, 0, qtrue },
+	{ &g_smoothClientsLead, "g_smoothClientsLead", "30", CVAR_ARCHIVE, 0, qtrue },
+	{ &g_smoothClientsCap, "g_smoothClientsCap", "100", CVAR_ARCHIVE, 0, qtrue },
+	{ &g_smoothClientsFollow, "g_smoothClientsFollow", "0", CVAR_ARCHIVE, 0, qtrue },
 	{ &g_fixGripKills,	"g_fixGripKills", "1"	, CVAR_ARCHIVE, 0, qtrue },
 	{ &g_creditAirKills,	"g_creditAirKills", "1"	, CVAR_ARCHIVE, 0, qtrue },
 
@@ -2048,7 +2092,7 @@ static isLivePug_t CheckLivePug(char **reasonOut) {
 		return ISLIVEPUG_NO;
 	}
 #endif
-	if (g_speed.integer != 250 || !g_fixForceRegenTime.integer || g_forceRegenTime.integer == 1 || !pmove_float.integer || g_saberDamageScale.value != 1.0f || g_gravity.integer != 760 || (level.siegeMap == SIEGEMAP_KORRIBAN && !(g_knockback.integer == 1000 || !g_knockback.integer)) || g_knockback.integer != 1000) {
+	if (g_speed.integer != 250 || (!g_fixForceRegenTime.integer && !TICKFIX(Force)) || g_forceRegenTime.integer == 1 || !pmove_float.integer || g_saberDamageScale.value != 1.0f || g_gravity.integer != 760 || (level.siegeMap == SIEGEMAP_KORRIBAN && !(g_knockback.integer == 1000 || !g_knockback.integer)) || g_knockback.integer != 1000) {
 		*reasonOut = "non-standard speed, force regen fix, pmove_float, saber damage scale, gravity, or knockback";
 		return ISLIVEPUG_NO;
 	}
@@ -5753,6 +5797,7 @@ extern void turretG2_base_think(gentity_t *self);
 extern void turret_base_think(gentity_t *self);
 extern void DownedSaberThink(gentity_t *saberent);
 extern void emplaced_gun_update(gentity_t *self);
+extern void RunControlPoint(gentity_t *self);
 
 void G_RunThink(gentity_t *ent) {
 	int	thinktime;
@@ -5900,6 +5945,17 @@ void G_RunThink(gentity_t *ent) {
 					pVeh->lastShieldInc += dt;
 			}
 		}
+
+		// control point last think, so a pause does not count as progress time
+		if (ent->think == RunControlPoint) {
+			ent->genericValue16 += dt;
+			if (ent->genericValue17 > 0)
+				ent->genericValue17 += dt; // last progress time, for delaybeforereverse
+		}
+
+		// G_TickDt clock
+		if (ent->tickLastThink > 0)
+			ent->tickLastThink += dt;
 	}
 
 	thinktime = ent->nextthink;
@@ -5911,6 +5967,7 @@ void G_RunThink(gentity_t *ent) {
 	}
 	
 
+	ent->tickDeadline = thinktime;
 	ent->nextthink = 0;
 	if (!ent->think) {
 		goto runicarus;
@@ -7215,6 +7272,18 @@ static void RunAutoRestart(void) {
 extern void G_SayTo(gentity_t *ent, gentity_t *other, int mode, int color, const char *name, const char *message, char *locMsg/*, qboolean outOfBandOk*/);
 extern void SetSiegeClass(gentity_t *ent, char *className);
 
+// ms between extended info updates for this stat viewer
+static int SiegeEDataRate(gentity_t *ent, int updateRate) {
+	if (ent->client->isMedHealingSomeone || ent->client->isMedSupplyingSomeone || (ent->client->sess.sessionTeam == TEAM_SPECTATOR && ent->client->sess.spectatorState == SPECTATOR_FOLLOW &&
+		ent->client->sess.spectatorClient >= 0 && ent->client->sess.spectatorClient < MAX_CLIENTS &&
+		g_entities[ent->client->sess.spectatorClient].client && g_entities[ent->client->sess.spectatorClient].client->sess.sessionTeam != TEAM_SPECTATOR &&
+		g_entities[ent->client->sess.spectatorClient].client->siegeClass != -1 && bgSiegeClasses[g_entities[ent->client->sess.spectatorClient].client->siegeClass].classflags & (1 << CFL_STATVIEWER) &&
+		(g_entities[ent->client->sess.spectatorClient].client->isMedHealingSomeone || g_entities[ent->client->sess.spectatorClient].client->isMedSupplyingSomeone))) {
+		return updateRate < 100 ? updateRate : 100; // faster if you are actively healing someone
+	}
+	return updateRate;
+}
+
 void G_RunFrame( int levelTime ) {
 	int			i;
 	gentity_t	*ent;
@@ -7309,7 +7378,7 @@ void G_RunFrame( int levelTime ) {
 		ListIterate(&level.queuedServerMessagesList, &iter, qfalse);
 		while (IteratorHasNext(&iter)) {
 			queuedServerMessage_t *msg = IteratorNext(&iter);
-			int timeSince = g_svfps.integer * (level.framenum - msg->serverFrameNum);
+			int timeSince = level.time - msg->queuedTime;
 			const int threshold = 50; // this seems to work
 			if (timeSince < threshold)
 				continue;
@@ -7497,7 +7566,7 @@ void G_RunFrame( int levelTime ) {
 			G_Printf(S_COLOR_YELLOW"Cheats are enabled. Capture records won't be tracked during this map.\n");
 			level.mapCaptureRecords.readonly = qtrue;
 #endif
-		} else if ( g_svfps.integer != 30 ) {
+		} else if ( !g_tickFix.integer && g_svfps.integer != 30 ) {
 			G_Printf( S_COLOR_YELLOW"Server FPS is not standard. Capture records won't be tracked during this map.\n" );
 			level.mapCaptureRecords.readonly = qtrue;
 		} else if ( g_speed.value != 250 ) {
@@ -7512,7 +7581,7 @@ void G_RunFrame( int levelTime ) {
 		} else if ( g_saberDamageScale.value != 1.0f) {
 			G_Printf( S_COLOR_YELLOW"Saber damage scale is not standard. Capture records won't be tracked during this map.\n" );
 			level.mapCaptureRecords.readonly = qtrue;
-		} else if ( !g_fixForceRegenTime.integer || g_forceRegenTime.integer == 1 ) {
+		} else if ( (!g_fixForceRegenTime.integer && !TICKFIX(Force)) || g_forceRegenTime.integer == 1 ) {
 			G_Printf( S_COLOR_YELLOW"Force regen is not standard. Capture records won't be tracked during this map.\n" );
 			level.mapCaptureRecords.readonly = qtrue;
 		} else if ((g_redTeam.string[0] && Q_stricmp(g_redTeam.string, "none") && Q_stricmp(g_redTeam.string, "0")) ||
@@ -7530,7 +7599,9 @@ void G_RunFrame( int levelTime ) {
 		}
 	}
 
-	if (g_gametype.integer == GT_SIEGE && g_siegeRespawn.integer && level.siegeRespawnCheck < level.time) { // check for a respawn wave
+	// with the fix a wave fires on the frame its deadline is reached and the next one carries from that deadline
+	if (g_gametype.integer == GT_SIEGE && g_siegeRespawn.integer &&
+		(TICKFIX(Siege) ? level.siegeRespawnCheck <= level.time : level.siegeRespawnCheck < level.time)) { // check for a respawn wave
 		int i;
 		qboolean hasAliveTech[3] = { qfalse };
 		for (i = 0; i < MAX_CLIENTS; i++) {
@@ -7538,7 +7609,9 @@ void G_RunFrame( int levelTime ) {
 			if (!clEnt->inuse || !clEnt->client || clEnt->client->sess.sessionTeam == TEAM_SPECTATOR || clEnt->client->sess.sessionTeam == TEAM_FREE)
 				continue;
 
-			if ((clEnt->client->tempSpectate > level.time) || (clEnt->health <= 0 && level.time > clEnt->client->respawnTime)) {
+			// the same respawn rule as ClientThink's
+			if ((clEnt->client->tempSpectate > level.time) || (clEnt->health <= 0 &&
+				(TICKFIX(Client) ? level.time - clEnt->client->respawnTime >= TICK_BASE_MSEC : level.time > clEnt->client->respawnTime))) {
 				respawn(clEnt);
 				clEnt->client->tempSpectate = 0;
 			}
@@ -7559,8 +7632,13 @@ void G_RunFrame( int levelTime ) {
 			}
 		}
 
+		// seconds since the previous wave, from the deadline it armed (the frame delta at g_siegeRespawn 0/1;
+		// synthetic for the first wave after something else moved the deadline)
+		TICKPROBE("wave", ENTITYNUM_WORLD, (level.time - level.siegeRespawnCheck + (g_siegeRespawn.integer > 1 ? g_siegeRespawn.integer * 1000 : 0)) / 1000.0);
 		if (!g_siegeRespawn.integer || g_siegeRespawn.integer == 1)
 			level.siegeRespawnCheck = level.time;
+		else if (TICKFIX(Siege))
+			level.siegeRespawnCheck = Tick_Rearm(level.siegeRespawnCheck, level.time, G_FrameMsec(), g_siegeRespawn.integer * 1000);
 		else
 			level.siegeRespawnCheck = level.time + g_siegeRespawn.integer * 1000;
 
@@ -7925,7 +8003,8 @@ void G_RunFrame( int levelTime ) {
 		}
 
 		// clear events that are too old
-		if ( level.time - ent->eventTime > EVENT_VALID_MSEC ) {
+		// strict: at 20 Hz events lasted until the first tick past EVENT_VALID_MSEC
+		if ( TICKFIX(Client) ? level.time - ent->eventTime >= G_TickStrict(EVENT_VALID_MSEC) : level.time - ent->eventTime > EVENT_VALID_MSEC ) {
 			if ( ent->s.event ) {
 				ent->s.event = 0;	
 				if ( ent->client ) {
@@ -8052,7 +8131,17 @@ void G_RunFrame( int levelTime ) {
 							}
 						}
 
-						ent->client->inSpaceSuffocation = level.time + Q_irand(100, 200);
+						if (TICKFIX(Movers))
+						{ // from when this one was due if that was within the frame, held as the 20 Hz time less one
+							int from = ent->client->inSpaceSuffocation + 1;
+							if (from > level.time || from < level.time - G_FrameMsec())
+								from = level.time;
+							ent->client->inSpaceSuffocation = from + G_TickStrict(Q_irand(100, 200)) - 1;
+						}
+						else
+						{
+							ent->client->inSpaceSuffocation = level.time + Q_irand(100, 200);
+						}
 					}
 				}
 			}
@@ -8105,8 +8194,10 @@ void G_RunFrame( int levelTime ) {
 
 #define JETPACK_DEFUEL_RATE		200 //approx. 20 seconds of idle use from a fully charged fuel amt
 #define JETPACK_REFUEL_RATE		150 //seems fair
+			// short burst: 3 fuel per 50 ms tick (the strict 14 ms ran every 20 Hz frame), refuel the strict 75 ms on the 20 Hz grid
+			qboolean shortBurst = (g_gametype.integer == GT_SIEGE && ent->client->siegeClass != -1 && bgSiegeClasses[ent->client->siegeClass].shortBurstJetpack) ? qtrue : qfalse;
 			if (ent->client->jetPackOn && level.pause.state == PAUSE_NONE) { //using jetpack, drain fuel
-				if (ent->client->jetPackDebReduce < level.time) {
+				if (TICKFIX(Client) ? G_TickDue(&ent->client->jetPackDebReduce, G_TickStrict(shortBurst ? 14 : JETPACK_DEFUEL_RATE)) > 0 : ent->client->jetPackDebReduce < level.time) {
 					if (g_gametype.integer == GT_SIEGE && ent->client->siegeClass != -1 && bgSiegeClasses[ent->client->siegeClass].shortBurstJetpack)
 						ent->client->ps.jetpackFuel -= 3;
 					else
@@ -8116,19 +8207,24 @@ void G_RunFrame( int levelTime ) {
 						ent->client->ps.jetpackFuel = 0;
 						Jetpack_Off(ent);
 					}
-					if (g_gametype.integer == GT_SIEGE && ent->client->siegeClass != -1 && bgSiegeClasses[ent->client->siegeClass].shortBurstJetpack)
-						ent->client->jetPackDebReduce = level.time + 14;
-					else
-						ent->client->jetPackDebReduce = level.time + JETPACK_DEFUEL_RATE;
+					if (!TICKFIX(Client)) {
+						if (g_gametype.integer == GT_SIEGE && ent->client->siegeClass != -1 && bgSiegeClasses[ent->client->siegeClass].shortBurstJetpack)
+							ent->client->jetPackDebReduce = level.time + 14;
+						else
+							ent->client->jetPackDebReduce = level.time + JETPACK_DEFUEL_RATE;
+					}
 				}
+				TICKPROBE("fuel", ent->s.number, ent->client->ps.jetpackFuel);
 			}
 			else if (ent->client->ps.jetpackFuel < 100 && level.pause.state == PAUSE_NONE) { //recharge jetpack
-				if (ent->client->jetPackDebRecharge < level.time) {
+				if (TICKFIX(Client) ? G_TickDue(&ent->client->jetPackDebRecharge, G_TickStrict(shortBurst ? JETPACK_REFUEL_RATE / 2 : JETPACK_REFUEL_RATE)) > 0 : ent->client->jetPackDebRecharge < level.time) {
 					ent->client->ps.jetpackFuel++;
-					if (g_gametype.integer == GT_SIEGE && ent->client->siegeClass != -1 && bgSiegeClasses[ent->client->siegeClass].shortBurstJetpack)
-						ent->client->jetPackDebRecharge = level.time + (JETPACK_REFUEL_RATE / 2);
-					else
-						ent->client->jetPackDebRecharge = level.time + JETPACK_REFUEL_RATE;
+					if (!TICKFIX(Client)) {
+						if (g_gametype.integer == GT_SIEGE && ent->client->siegeClass != -1 && bgSiegeClasses[ent->client->siegeClass].shortBurstJetpack)
+							ent->client->jetPackDebRecharge = level.time + (JETPACK_REFUEL_RATE / 2);
+						else
+							ent->client->jetPackDebRecharge = level.time + JETPACK_REFUEL_RATE;
+					}
 				}
 			}
 
@@ -8136,7 +8232,7 @@ void G_RunFrame( int levelTime ) {
 #define CLOAK_REFUEL_RATE		150 //seems fair
 			if (ent->client->ps.powerups[PW_CLOAKED] && level.pause.state == PAUSE_NONE)
 			{ //using cloak, drain battery
-				if (ent->client->cloakDebReduce < level.time)
+				if (TICKFIX(Client) ? G_TickDue(&ent->client->cloakDebReduce, G_TickStrict(CLOAK_DEFUEL_RATE)) > 0 : ent->client->cloakDebReduce < level.time)
 				{
 					ent->client->ps.cloakFuel--;
 					
@@ -8145,15 +8241,18 @@ void G_RunFrame( int levelTime ) {
 						ent->client->ps.cloakFuel = 0;
 						Jedi_Decloak(ent);
 					}
-					ent->client->cloakDebReduce = level.time + CLOAK_DEFUEL_RATE;
+					if (!TICKFIX(Client))
+						ent->client->cloakDebReduce = level.time + CLOAK_DEFUEL_RATE;
 				}
+				TICKPROBE("cloak", ent->s.number, ent->client->ps.cloakFuel);
 			}
 			else if (ent->client->ps.cloakFuel < 100)
 			{ //recharge cloak
-				if (ent->client->cloakDebRecharge < level.time)
+				if (TICKFIX(Client) ? G_TickDue(&ent->client->cloakDebRecharge, G_TickStrict(CLOAK_REFUEL_RATE)) > 0 : ent->client->cloakDebRecharge < level.time)
 				{
 					ent->client->ps.cloakFuel++;
-					ent->client->cloakDebRecharge = level.time + CLOAK_REFUEL_RATE;
+					if (!TICKFIX(Client))
+						ent->client->cloakDebRecharge = level.time + CLOAK_REFUEL_RATE;
 				}
 			}
 
@@ -8164,20 +8263,13 @@ void G_RunFrame( int levelTime ) {
 						g_entities[ent->client->sess.spectatorClient].client && g_entities[ent->client->sess.spectatorClient].client->sess.sessionTeam != TEAM_SPECTATOR &&
 						g_entities[ent->client->sess.spectatorClient].client->siegeClass != -1 && bgSiegeClasses[g_entities[ent->client->sess.spectatorClient].client->siegeClass].classflags & (1 << CFL_STATVIEWER))))
 			{ //see if it's time to send this guy an update of extended info
-				if (ent->client->siegeEDataSend < level.time)
+				int updateRate = Com_Clampi(1, 1000, g_teamOverlayUpdateRate.integer);
+				// strict: at 20 Hz the update went out on the first tick past the rate picked at the previous send
+				if (TICKFIX(Siege) ? G_TickDue(&ent->client->siegeEDataSend, G_TickStrict(SiegeEDataRate(ent, updateRate))) > 0 : ent->client->siegeEDataSend < level.time)
 				{
-					int updateRate = Com_Clampi(1, 1000, g_teamOverlayUpdateRate.integer);
                     G_SiegeClientExData(ent);
-					if (ent->client->isMedHealingSomeone || ent->client->isMedSupplyingSomeone || (ent->client->sess.sessionTeam == TEAM_SPECTATOR && ent->client->sess.spectatorState == SPECTATOR_FOLLOW &&
-						ent->client->sess.spectatorClient >= 0 && ent->client->sess.spectatorClient < MAX_CLIENTS &&
-						g_entities[ent->client->sess.spectatorClient].client && g_entities[ent->client->sess.spectatorClient].client->sess.sessionTeam != TEAM_SPECTATOR &&
-						g_entities[ent->client->sess.spectatorClient].client->siegeClass != -1 && bgSiegeClasses[g_entities[ent->client->sess.spectatorClient].client->siegeClass].classflags & (1 << CFL_STATVIEWER) &&
-						(g_entities[ent->client->sess.spectatorClient].client->isMedHealingSomeone || g_entities[ent->client->sess.spectatorClient].client->isMedSupplyingSomeone))) {
-						ent->client->siegeEDataSend = level.time + (updateRate < 100 ? updateRate : 100); // faster if you are actively healing someone
-					}
-					else {
-						ent->client->siegeEDataSend = level.time + updateRate;
-					}
+					if (!TICKFIX(Siege))
+						ent->client->siegeEDataSend = level.time + SiegeEDataRate(ent, updateRate);
 				}
 			}
 
@@ -8237,7 +8329,7 @@ void G_RunFrame( int levelTime ) {
 			int j;
 			// turn off any expired powerups
 			for ( j = 0 ; j < MAX_POWERUPS ; j++ ) {
-				if ( ent->client->ps.powerups[ j ] < level.time ) {
+				if ( TICKFIX(Client) ? level.time - ent->client->ps.powerups[ j ] >= TICK_BASE_MSEC : ent->client->ps.powerups[ j ] < level.time ) {
 					ent->client->ps.powerups[ j ] = 0;
 				}
 			}
@@ -8296,6 +8388,8 @@ void G_RunFrame( int levelTime ) {
 #ifdef _G_FRAME_PERFANAL
 	trap_PrecisionTimer_Start(&timer_ClientEndframe);
 #endif
+	G_RunHeldCmds(NULL);
+
 	// perform final fixups on the players
 	ent = &g_entities[0];
 	for (i=0 ; i < level.maxclients ; i++, ent++ ) {
@@ -8303,6 +8397,9 @@ void G_RunFrame( int levelTime ) {
 			ClientEndFrame( ent );
 		}
 	}
+
+	if (level.tickTest.active)
+		TickTest_RunFrame();
 #ifdef _G_FRAME_PERFANAL
 	iTimer_ClientEndframe = trap_PrecisionTimer_End(timer_ClientEndframe);
 #endif
@@ -8651,7 +8748,7 @@ void G_RunFrame( int levelTime ) {
 	RunAutoRestart();
 
 	// clear out onLiftDuringPause if we've been unpaused for more than 2 ticks
-	int tickTime = 1000 / g_svfps.integer;
+	int tickTime = 1000 / Com_Clampi(1, 1000, g_svfps.integer);
 	if (level.pause.unpauseTime && level.pause.state == PAUSE_NONE && level.time - level.pause.unpauseTime > tickTime * 2) {
 		for (int i = 0; i < MAX_CLIENTS; i++)
 			level.clients[i].pers.onLiftDuringPause = NULL;

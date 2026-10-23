@@ -679,18 +679,21 @@ void P_WorldEffects( gentity_t *ent ) {
 	//
 	if (waterlevel && 
 		(ent->watertype&(CONTENTS_LAVA|CONTENTS_SLIME)) ) {
+		// one sizzle per 700 ms; stock's inclusive check against the strict pain debounce hit twice at 20 Hz
 		if (ent->health > 0
-			&& ent->pain_debounce_time <= level.time	) {
+			&& (TICKFIX(Client) ? G_TickDue(&ent->client->tickDeadline[TICK_LAVA], 700) > 0 : ent->pain_debounce_time <= level.time) ) {
 
 			if ( envirosuit ) {
 				G_AddEvent( ent, EV_POWERUP_BATTLESUIT, 0 );
 			} else {
 				if (ent->watertype & CONTENTS_LAVA) {
+					TICKPROBE("sizzle_dmg", ent->s.number, 30 * waterlevel);
 					G_Damage (ent, NULL, NULL, NULL, NULL, 
 						30*waterlevel, 0, MOD_LAVA);
 				}
 
 				if (ent->watertype & CONTENTS_SLIME) {
+					TICKPROBE("sizzle_dmg", ent->s.number, 10 * waterlevel);
 					G_Damage (ent, NULL, NULL, NULL, NULL, 
 						10*waterlevel, 0, MOD_SLIME);
 				}
@@ -1412,7 +1415,7 @@ FP_RAGE bit (the active-use window) does.
 */
 void G_SiegePassiveHealTick( gentity_t *ent ) {
 	gclient_t *client = ent->client;
-	int maxHealth;
+	int maxHealth, n = 1;
 
 	if ( g_gametype.integer != GT_SIEGE || client->siegeClass == -1 )
 		return;
@@ -1437,15 +1440,24 @@ void G_SiegePassiveHealTick( gentity_t *ent ) {
 		(1 << FP_SPEED) | (1 << FP_TELEPATHY) | (1 << FP_SEE) ) )
 		return;
 
-	if ( client->passiveHealDebounceTime > level.time )
+	if ( TICKFIX(Siege) )
+	{ // carried, one heal per tick: at 20 Hz the heal came on the first tick at or past the period
+		int period = (int)( bgSiegeClasses[client->siegeClass].passiveHeal * 1000.0f );
+		n = G_TickDue( &client->passiveHealDebounceTime, G_TickIncl( period > 0 ? period : 1 ) );
+		if ( n <= 0 )
+			return;
+	}
+	else if ( client->passiveHealDebounceTime > level.time )
 		return;
 
-	ent->health++;
+	ent->health += n;
 	if ( ent->health > maxHealth )
 		ent->health = maxHealth;
 	client->ps.stats[STAT_HEALTH] = ent->health;
+	TICKPROBE("class_passiveheal", ent->s.number, n);
 
-	client->passiveHealDebounceTime = level.time + (int)( bgSiegeClasses[client->siegeClass].passiveHeal * 1000.0f );
+	if ( !TICKFIX(Siege) )
+		client->passiveHealDebounceTime = level.time + (int)( bgSiegeClasses[client->siegeClass].passiveHeal * 1000.0f );
 }
 
 /*
@@ -2268,12 +2280,17 @@ void G_CheckClientIdle( gentity_t *ent, usercmd_t *ucmd )
 	}
 }
 
-void NPC_Accelerate( gentity_t *ent, qboolean fullWalkAcc, qboolean fullRunAcc )
+void NPC_Accelerate( gentity_t *ent, qboolean fullWalkAcc, qboolean fullRunAcc, int msec )
 {
+	int accel;
+
 	if ( !ent->client || !ent->NPC )
 	{
 		return;
 	}
+
+	// stats.acceleration is per 50 ms of movement
+	accel = TICKFIX(NPC) ? Tick_Accum(&ent->tickResidual, ent->NPC->stats.acceleration, msec) : ent->NPC->stats.acceleration;
 
 	if ( !ent->NPC->stats.acceleration )
 	{//No acceleration means just start and stop
@@ -2282,17 +2299,17 @@ void NPC_Accelerate( gentity_t *ent, qboolean fullWalkAcc, qboolean fullRunAcc )
 	//FIXME:  in cinematics always accel/decel?
 	else if ( ent->NPC->desiredSpeed <= ent->NPC->stats.walkSpeed )
 	{//Only accelerate if at walkSpeeds
-		if ( ent->NPC->desiredSpeed > ent->NPC->currentSpeed + ent->NPC->stats.acceleration )
+		if ( ent->NPC->desiredSpeed > ent->NPC->currentSpeed + accel )
 		{
-			ent->NPC->currentSpeed += ent->NPC->stats.acceleration;
+			ent->NPC->currentSpeed += accel;
 		}
 		else if ( ent->NPC->desiredSpeed > ent->NPC->currentSpeed )
 		{
 			ent->NPC->currentSpeed = ent->NPC->desiredSpeed;
 		}
-		else if ( fullWalkAcc && ent->NPC->desiredSpeed < ent->NPC->currentSpeed - ent->NPC->stats.acceleration )
+		else if ( fullWalkAcc && ent->NPC->desiredSpeed < ent->NPC->currentSpeed - accel )
 		{//decelerate even when walking
-			ent->NPC->currentSpeed -= ent->NPC->stats.acceleration;
+			ent->NPC->currentSpeed -= accel;
 		}
 		else if ( ent->NPC->desiredSpeed < ent->NPC->currentSpeed )
 		{//stop on a dime
@@ -2301,17 +2318,17 @@ void NPC_Accelerate( gentity_t *ent, qboolean fullWalkAcc, qboolean fullRunAcc )
 	}
 	else//  if ( ent->NPC->desiredSpeed > ent->NPC->stats.walkSpeed )
 	{//Only decelerate if at runSpeeds
-		if ( fullRunAcc && ent->NPC->desiredSpeed > ent->NPC->currentSpeed + ent->NPC->stats.acceleration )
+		if ( fullRunAcc && ent->NPC->desiredSpeed > ent->NPC->currentSpeed + accel )
 		{//Accelerate to runspeed
-			ent->NPC->currentSpeed += ent->NPC->stats.acceleration;
+			ent->NPC->currentSpeed += accel;
 		}
 		else if ( ent->NPC->desiredSpeed > ent->NPC->currentSpeed )
 		{//accelerate instantly
 			ent->NPC->currentSpeed = ent->NPC->desiredSpeed;
 		}
-		else if ( fullRunAcc && ent->NPC->desiredSpeed < ent->NPC->currentSpeed - ent->NPC->stats.acceleration )
+		else if ( fullRunAcc && ent->NPC->desiredSpeed < ent->NPC->currentSpeed - accel )
 		{
-			ent->NPC->currentSpeed -= ent->NPC->stats.acceleration;
+			ent->NPC->currentSpeed -= accel;
 		}
 		else if ( ent->NPC->desiredSpeed < ent->NPC->currentSpeed )
 		{
@@ -2872,6 +2889,27 @@ void ForceSiegeGhostUpdateForFollowers(int followedClientNum) {
 	}
 }
 
+// whether the held use key ticks now (one-shot uses fire); with the fix, call once per server frame
+qboolean G_UseGateDue(gentity_t *ent) {
+	gclient_t *client = ent->client;
+
+	if (TICKFIX(Input)) // sets useTick
+		return G_TickDueSince(&client->ps.useDelay, &client->useTick, G_TickStrict(100)) > 0 ? qtrue : qfalse;
+
+	if (client->ps.useDelay < level.time) {
+		client->ps.useDelay = level.time + 100;
+		return qtrue;
+	}
+	return qfalse;
+}
+
+// a usercmd with the use key up is a check of the use-driven gates, so a re-press does not fire on a deadline carried from before it
+void G_UseKeyUp(gentity_t *ent) {
+	ent->client->useTick = level.time;
+	ent->client->tickLastEval[TICK_MEDIC] = level.time;
+	ent->client->tickLastEval[TICK_SUPPLY] = level.time;
+}
+
 /*
 ==============
 ClientThink
@@ -2884,6 +2922,49 @@ once for each server frame, which makes for smooth demo recording.
 ==============
 */
 qboolean IsMindTrickedByAnyone(int targetClientNum);
+// gencmd debounce: accepted once ms have passed since the previous one. under the fix a command repeated every frame
+// is stamped with the previous due time, so the cadence is ms at any frame rate
+static qboolean GenCmdReady(gclient_t *client, int slot, int ms) {
+	if (TICKFIX(Client)) {
+		int due = client->genCmdDebounce[slot] + ms;
+
+		if (!G_TickDue(&due, ms))
+			return qfalse;
+		client->genCmdDebounce[slot] = due - ms;
+		return qtrue;
+	}
+
+	if (client->genCmdDebounce[slot] > level.time - ms)
+		return qfalse;
+	client->genCmdDebounce[slot] = level.time;
+	return qtrue;
+}
+
+extern int g_LastFrameTime;
+
+/*
+the level-clock time a command is processed at. between frames level.time is still the previous frame's, so the part of
+the frame already elapsed is added, capped below the frame length so the stamp never reaches the next frame's time.
+inside a frame a command stands for its own serverTime, clamped into the frame (equal to level.time for per-frame bots
+and forced thinks)
+*/
+int G_CmdLevelTime( int cmdServerTime )
+{
+	if ( level.cmdStamp )
+	{ // a held command, run at the end of the frame after its arrival
+		return level.cmdStamp;
+	}
+	if ( level.tickTest.cmdStamp )
+	{ // a test bot command delivered as if between frames
+		return level.tickTest.cmdStamp;
+	}
+	if ( level.frameStartTime && level.time == g_LastFrameTime )
+	{
+		return level.time + Com_Clampi( 0, G_FrameMsec() - 1, trap_Milliseconds() - level.frameStartTime );
+	}
+	return Com_Clampi( level.previousTime + 1, level.time, cmdServerTime );
+}
+
 void ClientThink_real( gentity_t *ent ) {
 	gclient_t	*client;
 	pmove_t		pm;
@@ -3046,6 +3127,10 @@ void ClientThink_real( gentity_t *ent ) {
 	if ( msec > 200 ) {
 		msec = 200;
 	}
+
+	// remember force/use presses from every accepted usercmd, for code that runs once per server frame
+	client->tickButtonsAccum |= ucmd->buttons & (BUTTON_FORCEPOWER | BUTTON_FORCEGRIP | BUTTON_FORCE_LIGHTNING |
+		BUTTON_FORCE_DRAIN | BUTTON_USE);
 
 	if ( pmove_msec.integer < 3 ) {
 		trap_Cvar_Set("pmove_msec", "3");
@@ -3402,6 +3487,7 @@ void ClientThink_real( gentity_t *ent ) {
     //OSP: pause
     if ( level.pause.state != PAUSE_NONE ) {
         ucmd->buttons = 0;
+        client->tickButtonsAccum = 0;
         ucmd->forwardmove = 0;
         ucmd->rightmove = 0;
         ucmd->upmove = 0;
@@ -3558,7 +3644,7 @@ void ClientThink_real( gentity_t *ent ) {
 					ent->NPC->desiredSpeed = 0;
 				}
 
-				NPC_Accelerate( ent, qfalse, qfalse );
+				NPC_Accelerate( ent, qfalse, qfalse, msec );
 
 				if ( ent->NPC->currentSpeed <= 24 && ent->NPC->desiredSpeed < ent->NPC->currentSpeed )
 				{//No-one walks this slow
@@ -3920,7 +4006,7 @@ void ClientThink_real( gentity_t *ent ) {
 				if (g_spawnInvulnerability.integer)
 				{
 					ent->client->ps.eFlags |= EF_INVULNERABLE;
-					ent->client->invulnerableTimer = level.time + g_spawnInvulnerability.integer;
+					ent->client->invulnerableTimer = level.time + (TICKFIX(Client) ? G_TickIncl(g_spawnInvulnerability.integer) : g_spawnInvulnerability.integer);
 				}
 
 				//add back weapons
@@ -4008,7 +4094,7 @@ void ClientThink_real( gentity_t *ent ) {
 				if (g_spawnInvulnerability.integer)
 				{
 					ent->client->ps.eFlags |= EF_INVULNERABLE;
-					ent->client->invulnerableTimer = level.time + g_spawnInvulnerability.integer;
+					ent->client->invulnerableTimer = level.time + (TICKFIX(Client) ? G_TickIncl(g_spawnInvulnerability.integer) : g_spawnInvulnerability.integer);
 				}
 
 				//add back weapons
@@ -4163,7 +4249,7 @@ void ClientThink_real( gentity_t *ent ) {
 				if (g_spawnInvulnerability.integer)
 				{
 					ent->client->ps.eFlags |= EF_INVULNERABLE;
-					ent->client->invulnerableTimer = level.time + g_spawnInvulnerability.integer;
+					ent->client->invulnerableTimer = level.time + (TICKFIX(Client) ? G_TickIncl(g_spawnInvulnerability.integer) : g_spawnInvulnerability.integer);
 				}
 
 				//remove melee, add saber, if necessary
@@ -4455,10 +4541,12 @@ void ClientThink_real( gentity_t *ent ) {
 	}
 
 	//NOTE: can't put USE here *before* PMove!!
-	if ( ent->client->ps.useDelay > level.time 
+	// the carried useDelay is the next use tick; strip only for the 100 ms after a use, as stock did
+	if ( (TICKFIX(Input) ? ent->client->ps.useDelay - (G_TickStrict(100) - 100) : ent->client->ps.useDelay) > level.time 
 		&& ent->client->ps.m_iVehicleNum )
 	{//when in a vehicle, debounce the use...
 		ucmd->buttons &= ~BUTTON_USE;
+		ent->client->tickButtonsAccum &= ~BUTTON_USE;
 	}
 
 	//FIXME: need to do this before check to avoid walls and cliffs (or just cliffs?)
@@ -4561,12 +4649,17 @@ void ClientThink_real( gentity_t *ent ) {
 			SetClientViewAngle( ent, lockAng );
 		}
 
-		if ( ent->client->ps.saberLockHitCheckTime < level.time )
+		// with g_tickFixInput a press counts in any usercmd; with g_tickFixForce the lock advances once per 50 ms tick
+		qboolean lockFrame = ent->client->ps.saberLockHitCheckTime < level.time;
+		qboolean lockTick = TICKFIX(Force) ? G_TickDueSince(&ent->client->saberLockTick, &ent->client->tickLastEval[TICK_FORCE_SABERLOCK], TICK_BASE_MSEC) > 0 : lockFrame;
+		qboolean lockPress = TICKFIX(Input) || lockFrame;
+
+		if ( lockTick || lockPress )
 		{//have moved to next frame since last lock push
 			ent->client->ps.saberLockHitCheckTime = level.time;//so we don't push more than once per server frame
-			if ( ( ent->client->buttons & BUTTON_ATTACK ) && ! ( ent->client->oldbuttons & BUTTON_ATTACK ) )
+			if ( lockPress && ( ent->client->buttons & BUTTON_ATTACK ) && ! ( ent->client->oldbuttons & BUTTON_ATTACK ) )
 			{
-				if ( ent->client->ps.saberLockHitIncrementTime < level.time )
+				if ( TICKFIX(Input) || ent->client->ps.saberLockHitIncrementTime < level.time )
 				{//have moved to next frame since last saberlock attack button press
 					int lockHits = 0;
 					ent->client->ps.saberLockHitIncrementTime = level.time;//so we don't register an attack key press more than once per server frame
@@ -4617,7 +4710,7 @@ void ClientThink_real( gentity_t *ent ) {
 					}
 				}
 			}
-			if ( ent->client->ps.saberLockHits > 0 )
+			if ( lockTick && ent->client->ps.saberLockHits > 0 )
 			{
 				if ( !ent->client->ps.saberLockAdvance )
 				{
@@ -4691,6 +4784,16 @@ void ClientThink_real( gentity_t *ent ) {
 	}
 
 	Pmove (&pm);
+
+	if ( WP_SaberAnimOnGrid( ent ) )
+	{
+		// g_tickFixSaberAnim: an anim this command changed is applied as the 20 Hz frame after the command would have
+		int cmdTime = G_CmdLevelTime( ucmd->serverTime );
+		int grid = SaberGridAfter( cmdTime );
+
+		SaberAnimRecNote( client->legsAnimRec, grid, cmdTime, client->ps.legsAnim, client->ps.legsFlip, client->legsAnimExecute, client->legsLastFlip );
+		SaberAnimRecNote( client->torsoAnimRec, grid, cmdTime, client->ps.torsoAnim, client->ps.torsoFlip, client->torsoAnimExecute, client->torsoLastFlip );
+	}
 
 	if ( pm.cmd.forwardmove ) {
 		ent->client->usedForwardOrBackward = qtrue;
@@ -4773,15 +4876,13 @@ void ClientThink_real( gentity_t *ent ) {
 		case 0:
 			break;
 		case GENCMD_SABERSWITCH:
-			if (ent->client->genCmdDebounce[GENCMD_DELAY_SABER] > level.time - 300)
+			if (!GenCmdReady(ent->client, GENCMD_DELAY_SABER, 300))
 				break;
-			ent->client->genCmdDebounce[GENCMD_DELAY_SABER] = level.time;
 			Cmd_ToggleSaber_f(ent);
 			break;
 		case GENCMD_ENGAGE_DUEL:
-			if (ent->client->genCmdDebounce[GENCMD_DELAY_DUEL] > level.time - 300)
+			if (!GenCmdReady(ent->client, GENCMD_DELAY_DUEL, 300))
 				break;
-			ent->client->genCmdDebounce[GENCMD_DELAY_DUEL] = level.time;
 			if (g_gametype.integer == GT_SIEGE)
 				Cmd_SiegeDuel_f(ent);
 			else
@@ -4789,17 +4890,15 @@ void ClientThink_real( gentity_t *ent ) {
 		case GENCMD_FORCE_HEAL:
 			if (ent && ent->client && ent->client->emoted)
 				break;
-			if (ent->client->genCmdDebounce[GENCMD_DELAY_HEAL] > level.time - 300)
+			if (!GenCmdReady(ent->client, GENCMD_DELAY_HEAL, 300))
 				break;
-			ent->client->genCmdDebounce[GENCMD_DELAY_HEAL] = level.time;
 			ForceHeal(ent);
 			break;
 		case GENCMD_FORCE_SPEED:
 			if (ent && ent->client && ent->client->emoted)
 				break;
-			if (ent->client->genCmdDebounce[GENCMD_DELAY_SPEED] > level.time - 300)
+			if (!GenCmdReady(ent->client, GENCMD_DELAY_SPEED, 300))
 				break;
-			ent->client->genCmdDebounce[GENCMD_DELAY_SPEED] = level.time;
 			ForceSpeed(ent, 0);
 			break;
 		case GENCMD_FORCE_THROW:
@@ -4815,33 +4914,29 @@ void ClientThink_real( gentity_t *ent ) {
 		case GENCMD_FORCE_DISTRACT:
 			if (ent && ent->client && ent->client->emoted)
 				break;
-			if (ent->client->genCmdDebounce[GENCMD_DELAY_TRICK] > level.time - 300)
+			if (!GenCmdReady(ent->client, GENCMD_DELAY_TRICK, 300))
 				break;
-			ent->client->genCmdDebounce[GENCMD_DELAY_TRICK] = level.time;
 			ForceTelepathy(ent);
 			break;
 		case GENCMD_FORCE_RAGE:
 			if (ent && ent->client && ent->client->emoted)
 				break;
-			if (ent->client->genCmdDebounce[GENCMD_DELAY_RAGE] > level.time - 300)
+			if (!GenCmdReady(ent->client, GENCMD_DELAY_RAGE, 300))
 				break;
-			ent->client->genCmdDebounce[GENCMD_DELAY_RAGE] = level.time;
 			ForceRage(ent);
 			break;
 		case GENCMD_FORCE_PROTECT:
 			if (ent && ent->client && ent->client->emoted)
 				break;
-			if (ent->client->genCmdDebounce[GENCMD_DELAY_PROTECT] > level.time - 300)
+			if (!GenCmdReady(ent->client, GENCMD_DELAY_PROTECT, 300))
 				break;
-			ent->client->genCmdDebounce[GENCMD_DELAY_PROTECT] = level.time;
 			ForceProtect(ent);
 			break;
 		case GENCMD_FORCE_ABSORB:
 			if (ent && ent->client && ent->client->emoted)
 				break;
-			if (ent->client->genCmdDebounce[GENCMD_DELAY_ABSORB] > level.time - 300)
+			if (!GenCmdReady(ent->client, GENCMD_DELAY_ABSORB, 300))
 				break;
-			ent->client->genCmdDebounce[GENCMD_DELAY_ABSORB] = level.time;
 			ForceAbsorb(ent);
 			break;
 		case GENCMD_FORCE_HEALOTHER:
@@ -4861,9 +4956,8 @@ void ClientThink_real( gentity_t *ent ) {
 		case GENCMD_FORCE_SEEING:
 			if (ent && ent->client && ent->client->emoted)
 				break;
-			if (ent->client->genCmdDebounce[GENCMD_DELAY_SEEING] > level.time - 300)
+			if (!GenCmdReady(ent->client, GENCMD_DELAY_SEEING, 300))
 				break;
-			ent->client->genCmdDebounce[GENCMD_DELAY_SEEING] = level.time;
 			ForceSeeing(ent);
 			break;
 		case GENCMD_USE_SEEKER:
@@ -4924,9 +5018,8 @@ void ClientThink_real( gentity_t *ent ) {
 		case GENCMD_USE_ELECTROBINOCULARS:
 			if (ent && ent->client && ent->client->emoted)
 				break;
-			if (ent->client->genCmdDebounce[GENCMD_DELAY_BINOCS] > level.time - 300)
+			if (!GenCmdReady(ent->client, GENCMD_DELAY_BINOCS, 300))
 				break;
-			ent->client->genCmdDebounce[GENCMD_DELAY_BINOCS] = level.time;
 			if ((ent->client->ps.stats[STAT_HOLDABLE_ITEMS] & (1 << HI_BINOCULARS)) &&
 				G_ItemUsable(&ent->client->ps, HI_BINOCULARS))
 			{
@@ -4944,9 +5037,8 @@ void ClientThink_real( gentity_t *ent ) {
 		case GENCMD_ZOOM:
 			if (ent && ent->client && ent->client->emoted)
 				break;
-			if (ent->client->genCmdDebounce[GENCMD_DELAY_ZOOM] > level.time - 300)
+			if (!GenCmdReady(ent->client, GENCMD_DELAY_ZOOM, 300))
 				break;
-			ent->client->genCmdDebounce[GENCMD_DELAY_ZOOM] = level.time;
 			if ((ent->client->ps.stats[STAT_HOLDABLE_ITEMS] & (1 << HI_BINOCULARS)) &&
 				G_ItemUsable(&ent->client->ps, HI_BINOCULARS))
 			{
@@ -4978,9 +5070,8 @@ void ClientThink_real( gentity_t *ent ) {
 		case GENCMD_USE_JETPACK:
 			if (ent && ent->client && ent->client->emoted)
 				break;
-			if (ent->client->genCmdDebounce[GENCMD_DELAY_JETPACK] > level.time - (g_reduceJetpackToggleTime.integer ? 300 : 1000))
+			if (!GenCmdReady(ent->client, GENCMD_DELAY_JETPACK, (g_reduceJetpackToggleTime.integer ? 300 : 1000)))
 				break;
-			ent->client->genCmdDebounce[GENCMD_DELAY_JETPACK] = level.time;
 			if ((ent->client->ps.stats[STAT_HOLDABLE_ITEMS] & (1 << HI_JETPACK))/* &&
 				G_ItemUsable(&ent->client->ps, HI_JETPACK)*/)
 			{
@@ -5012,9 +5103,8 @@ void ClientThink_real( gentity_t *ent ) {
 		case GENCMD_USE_EWEB:
 			if (ent && ent->client && ent->client->emoted)
 				break;
-			if (ent->client->genCmdDebounce[GENCMD_DELAY_EWEB] > level.time - 300)
+			if (!GenCmdReady(ent->client, GENCMD_DELAY_EWEB, 300))
 				break;
-			ent->client->genCmdDebounce[GENCMD_DELAY_EWEB] = level.time;
 			if ((ent->client->ps.stats[STAT_HOLDABLE_ITEMS] & (1 << HI_EWEB)) &&
 				G_ItemUsable(&ent->client->ps, HI_EWEB))
 			{
@@ -5025,9 +5115,8 @@ void ClientThink_real( gentity_t *ent ) {
 		case GENCMD_USE_CLOAK:
 			if (ent && ent->client && ent->client->emoted)
 				break;
-			if (ent->client->genCmdDebounce[GENCMD_DELAY_CLOAK] > level.time - 300)
+			if (!GenCmdReady(ent->client, GENCMD_DELAY_CLOAK, 300))
 				break;
-			ent->client->genCmdDebounce[GENCMD_DELAY_CLOAK] = level.time;
 			if ((ent->client->ps.stats[STAT_HOLDABLE_ITEMS] & (1 << HI_CLOAK)) &&
 				G_ItemUsable(&ent->client->ps, HI_CLOAK))
 			{
@@ -5048,40 +5137,34 @@ void ClientThink_real( gentity_t *ent ) {
 				if (!(ent->client->saber[0].singleBladeStyle || (ent->client->saber[1].model && ent->client->saber[1].model[0]))) // single
 					delay = 100;
 			}
-			if (ent->client->genCmdDebounce[GENCMD_DELAY_SABERSWITCH] > level.time - delay)
+			if (!GenCmdReady(ent->client, GENCMD_DELAY_SABERSWITCH, delay))
 				break;
 		}
-		ent->client->genCmdDebounce[GENCMD_DELAY_SABERSWITCH] = level.time;
 		Cmd_SaberAttackCycle_f(ent);
 		break;
 		case GENCMD_TAUNT:
-			if (ent->client->genCmdDebounce[GENCMD_DELAY_TAUNT] > level.time - 300)
+			if (!GenCmdReady(ent->client, GENCMD_DELAY_TAUNT, 300))
 				break;
-			ent->client->genCmdDebounce[GENCMD_DELAY_TAUNT] = level.time;
 			G_SetTauntAnim(ent, TAUNT_TAUNT);
 			break;
 		case GENCMD_BOW:
-			if (ent->client->genCmdDebounce[GENCMD_DELAY_EMOTE] > level.time - 300)
+			if (!GenCmdReady(ent->client, GENCMD_DELAY_EMOTE, 300))
 				break;
-			ent->client->genCmdDebounce[GENCMD_DELAY_EMOTE] = level.time;
 			G_SetTauntAnim(ent, TAUNT_BOW);
 			break;
 		case GENCMD_MEDITATE:
-			if (ent->client->genCmdDebounce[GENCMD_DELAY_EMOTE] > level.time - 300)
+			if (!GenCmdReady(ent->client, GENCMD_DELAY_EMOTE, 300))
 				break;
-			ent->client->genCmdDebounce[GENCMD_DELAY_EMOTE] = level.time;
 			G_SetTauntAnim(ent, TAUNT_MEDITATE);
 			break;
 		case GENCMD_FLOURISH:
-			if (ent->client->genCmdDebounce[GENCMD_DELAY_TAUNT] > level.time - 300)
+			if (!GenCmdReady(ent->client, GENCMD_DELAY_TAUNT, 300))
 				break;
-			ent->client->genCmdDebounce[GENCMD_DELAY_TAUNT] = level.time;
 			G_SetTauntAnim(ent, TAUNT_FLOURISH);
 			break;
 		case GENCMD_GLOAT:
-			if (ent->client->genCmdDebounce[GENCMD_DELAY_TAUNT] > level.time - 300)
+			if (!GenCmdReady(ent->client, GENCMD_DELAY_TAUNT, 300))
 				break;
-			ent->client->genCmdDebounce[GENCMD_DELAY_TAUNT] = level.time;
 			G_SetTauntAnim(ent, TAUNT_GLOAT);
 			break;
 		default:
@@ -5099,6 +5182,14 @@ void ClientThink_real( gentity_t *ent ) {
 	}
 	else {
 		BG_PlayerStateToEntityState( &ent->client->ps, &ent->s, qfalse );
+	}
+
+	/* a carried NPC's state is rewritten on its think grid, every 50 ms (100 when dead or frozen): extrapolate 100 ms
+	instead of stopping at +50 when the next update is late. vehicles keep stock's duration (an empty one updates every
+	100 ms, a piloted one on the pilot's commands) */
+	if ( isNPC && ent->s.pos.trType == TR_LINEAR_STOP && TICKFIX(NPC) && ent->s.NPC_class != CLASS_VEHICLE )
+	{
+		ent->s.pos.trDuration = 50 + TICK_BASE_MSEC;
 	}
 
 	if (isNPC)
@@ -5132,13 +5223,36 @@ void ClientThink_real( gentity_t *ent ) {
     if ( level.pause.state == PAUSE_NONE )
             ClientEvents( ent, oldEventSequence );
 
+	// a vehicle's released fire button counts as a check of that weapon's muzzle wait; with both held pmove fires alt
+	if ( ent->m_pVehicle )
+	{
+		if ( !(pm.cmd.buttons & BUTTON_ATTACK) || (pm.cmd.buttons & BUTTON_ALT_ATTACK) )
+			ent->m_pVehicle->weaponTickLastEval[0] = level.time;
+		if ( !(pm.cmd.buttons & BUTTON_ALT_ATTACK) )
+			ent->m_pVehicle->weaponTickLastEval[1] = level.time;
+	}
+
 	if ( pm.useEvent )
 	{
 		//TODO: Use
 	}
-	if ((ent->client->pers.cmd.buttons & BUTTON_USE) && ent->client->ps.useDelay < level.time)
+	if (TICKFIX(Input))
+	{ // once per server frame while held, counting a press from any usercmd since the last check
+		int buttons = ent->client->pers.cmd.buttons | ent->client->tickButtonsAccum;
+		if (!(buttons & BUTTON_USE))
+		{
+			G_UseKeyUp(ent);
+		}
+		else if (ent->client->useFrame != level.time)
+		{
+			ent->client->useFrame = level.time;
+			ent->client->tickButtonsAccum &= ~BUTTON_USE;
+			TryUse(ent, G_UseGateDue(ent));
+		}
+	}
+	else if ((ent->client->pers.cmd.buttons & BUTTON_USE) && ent->client->ps.useDelay < level.time)
 	{
-		TryUse(ent);
+		TryUse(ent, qtrue);
 		ent->client->ps.useDelay = level.time + 100;
 	}
 
@@ -5224,7 +5338,8 @@ void ClientThink_real( gentity_t *ent ) {
 		&& !(client->ps.eFlags2&EF2_HELD_BY_MONSTER)//can't respawn while being eaten
 		&& ent->s.eType != ET_NPC ) {
 		// wait for the attack button to be pressed
-		if ( level.time > client->respawnTime && !gDoSlowMoDuel ) {
+		// the respawn delays are whole 20 Hz ticks and the checks strict, so 20 Hz allowed it one tick after
+		if ( (TICKFIX(Client) ? level.time - client->respawnTime >= TICK_BASE_MSEC : level.time > client->respawnTime) && !gDoSlowMoDuel ) {
 			// forcerespawn is to prevent users from waiting out powerups
 			int forceRes = g_forcerespawn.integer;
 
@@ -5239,7 +5354,7 @@ void ClientThink_real( gentity_t *ent ) {
 			}
 
 			if ( forceRes > 0 && 
-				( level.time - client->respawnTime ) > forceRes * 1000 ) {
+				(TICKFIX(Client) ? level.time - client->respawnTime >= forceRes * 1000 + TICK_BASE_MSEC : ( level.time - client->respawnTime ) > forceRes * 1000) ) {
 				respawn( ent );
 				return;
 			}
@@ -5317,7 +5432,14 @@ void ClientThink_real( gentity_t *ent ) {
 		case 4: interval = g_senseBoost4_interval.integer; break;
 		case 5: interval = 0; break; // just constant
 		}
-		if ((!interval || level.time % interval <= 1000) && !IsMindTrickedByAnyone(ent - g_entities)) {
+		qboolean senseOn;
+		if (!interval)
+			senseOn = qtrue;
+		else if (TICKFIX(Siege)) // paused time excluded; on for as long as the 20 Hz window lasted
+			senseOn = (level.time - level.startTime) % interval < G_TickStrict(1000) ? qtrue : qfalse;
+		else
+			senseOn = level.time % interval <= 1000 ? qtrue : qfalse;
+		if (senseOn && !IsMindTrickedByAnyone(ent - g_entities)) {
 			ent->client->ps.fd.forcePowerLevel[FP_SEE] = 3;
 			ent->client->ps.fd.forcePowersActive |= (1 << FP_SEE);
 		}
@@ -5368,8 +5490,11 @@ A new command has arrived from the client
 */
 void ClientThink( int clientNum,usercmd_t *ucmd ) {
 	gentity_t *ent;
+	qboolean held = qfalse;
+	usercmd_t runCmd;
 
 	ent = g_entities + clientNum;
+	runCmd = ent->client->pers.cmd; // the command run last, as ClientThink_real left it
 	if (clientNum < MAX_CLIENTS)
 	{
 		trap_GetUsercmd( clientNum, &ent->client->pers.cmd );
@@ -5384,21 +5509,145 @@ void ClientThink( int clientNum,usercmd_t *ucmd ) {
 	{
 		ent->client->pers.cmd = *ucmd;
 	}
+	else if (clientNum < MAX_CLIENTS && !(ent->r.svFlags & SVF_BOT)) {
+		// a packet from this client arrived; several usercmds in one packet share the same ms
+		clientPersistant_t *pers = &ent->client->pers;
+		int ms = trap_Milliseconds();
+		if (ms != pers->lastPacketMs) {
+			if (pers->lastPacketMs && ms - pers->lastPacketMs <= 1000) { // longer gaps are stalls, not intervals
+				float d = ms - pers->lastPacketMs;
+				if (!pers->packetIntervalAvg) {
+					pers->packetIntervalAvg = d;
+				}
+				else {
+					float j = fabs(d - pers->packetIntervalAvg);
+					pers->packetJitterAvg += (j - pers->packetJitterAvg) * 0.125f;
+					pers->packetIntervalAvg += (d - pers->packetIntervalAvg) * 0.125f;
+				}
+			}
+			pers->lastPacketMs = ms;
+			// level.time plus the time since the previous frame ended, up to one frame
+			pers->lastPacketLevelTime = level.frameStartTime ? level.time + Com_Clampi(0, G_FrameMsec(), ms - level.frameStartTime) : level.time;
+		}
+	}
 
 	if ( !(ent->r.svFlags & SVF_BOT) && !g_synchronousClients.integer ) {
-		ClientThink_real( ent );
+		held = G_HoldCmd( ent );
+		if ( !held )
+			ClientThink_real( ent );
 	}
 	// vehicles are clients and when running synchronous they still need to think here
 	// so special case them.
 	else if ( clientNum >= MAX_CLIENTS ) {
 		ClientThink_real( ent );
 	}
+	if ( held ) // the frame's updates read the last command run
+		ent->client->pers.cmd = runCmd;
 }
 
 
+/*
+g_tickFixSaberOrder: a command (in pers.cmd) arriving between frames from the grid time the next frame photographs on is held,
+with every later one so the order stays, until that frame's saber photos are done. qtrue when held: the caller then puts
+pers.cmd back to the last command run, as ClientThink_real left it, which the frame's saber and force updates read
+*/
+qboolean G_HoldCmd( gentity_t *ent )
+{
+	clientPersistant_t *pers = &ent->client->pers;
+	int g = SaberHoldGrid(), stamp;
+
+	if ( ent->s.number >= MAX_CLIENTS || level.cmdStamp || ( !level.tickTest.cmdStamp && level.time != g_LastFrameTime ) )
+	{ // only a command arriving between frames waits: a think run inside a frame or a held command (a spawn's) runs now
+		return qfalse;
+	}
+	stamp = G_CmdLevelTime( pers->cmd.serverTime );
+	if ( !pers->numHeldCmds && ( !g || stamp < g ) )
+	{ // once one is held, later ones are too, even when nothing more needs holding (a pause began), so they run in order
+		return qfalse;
+	}
+	if ( pers->numHeldCmds >= MAX_HELD_CMDS )
+	{ // a burst too long to hold: run what is held, then this one
+		usercmd_t cmd = pers->cmd;
+
+		G_RunHeldCmds( ent );
+		pers->cmd = cmd;
+		return qfalse;
+	}
+	pers->heldCmds[pers->numHeldCmds] = pers->cmd;
+	pers->heldStamps[pers->numHeldCmds] = stamp;
+	pers->heldSeqs[pers->numHeldCmds] = ++level.heldSeq;
+	{ // the flag timers read the clock as the command arrived, as stock ran it then
+		const int ms = trap_Milliseconds();
+		pers->heldWallTimes[pers->numHeldCmds] = ms;
+		pers->heldLagBases[pers->numHeldCmds] = ms - level.frameStartTime + level.time;
+	}
+	pers->numHeldCmds++;
+	return qtrue;
+}
+
+// held commands run by arrival stamp; equal stamps (clamped below the next frame under load) in arrival order
+static qboolean G_HeldBefore( const clientPersistant_t *a, const clientPersistant_t *b )
+{
+	int sa = a->heldStamps[a->nextHeldCmd], sb = b->heldStamps[b->nextHeldCmd];
+
+	return sa < sb || ( sa == sb && a->heldSeqs[a->nextHeldCmd] < b->heldSeqs[b->nextHeldCmd] );
+}
+
+// after the frame's saber photos: every held command, all clients (or only one) in arrival order, each at its own arrival time
+void G_RunHeldCmds( gentity_t *only )
+{
+	for (;;)
+	{
+		clientPersistant_t *pers;
+		gentity_t *ent;
+		int i, best = -1;
+
+		for ( i = 0; i < level.maxclients; i++ )
+		{
+			pers = &level.clients[i].pers;
+			if ( only && i != only->s.number )
+			{
+				continue;
+			}
+			if ( pers->nextHeldCmd < pers->numHeldCmds && ( best < 0 || G_HeldBefore( pers, &level.clients[best].pers ) ) )
+			{
+				best = i;
+			}
+		}
+		if ( best < 0 )
+		{
+			break;
+		}
+		ent = &g_entities[best];
+		pers = &ent->client->pers;
+		level.cmdStamp = pers->heldStamps[pers->nextHeldCmd];
+		level.cmdWallTime = pers->heldWallTimes[pers->nextHeldCmd];
+		level.cmdLagBase = pers->heldLagBases[pers->nextHeldCmd];
+		pers->cmd = pers->heldCmds[pers->nextHeldCmd++];
+		if ( pers->nextHeldCmd >= pers->numHeldCmds )
+		{
+			pers->numHeldCmds = pers->nextHeldCmd = 0;
+		}
+		if ( ent->inuse && pers->connected == CON_CONNECTED )
+		{
+			if ( level.tickTest.active && TickTest_IsBot( best ) )
+			{ // a test bot's command is built when it runs, from the state the commands before it left
+				TickTest_BotThink( best, &pers->cmd );
+			}
+			ClientThink_real( ent );
+			if ( level.tickTest.active )
+			{
+				TickTest_ApplyPin( TickTest_BotIndex( best ) );
+			}
+		}
+		level.cmdStamp = 0;
+	}
+}
+
 void G_RunClient( gentity_t *ent ) {
 	// force a client think if it's been too long since their last real one
-	if (!(ent->r.svFlags & SVF_BOT) && g_forceClientUpdateRate.integer && ent->client->lastCmdTime < level.time - g_forceClientUpdateRate.integer &&
+	if (!(ent->r.svFlags & SVF_BOT) && g_forceClientUpdateRate.integer &&
+		(TICKFIX(Client) ? level.time - ent->client->lastCmdTime >= G_TickStrict(g_forceClientUpdateRate.integer) : ent->client->lastCmdTime < level.time - g_forceClientUpdateRate.integer) &&
 		ent->client->sess.sessionTeam != TEAM_SPECTATOR) {
 		trap_GetUsercmd(ent - g_entities, &ent->client->pers.cmd);
 		ent->client->lastCmdTime = level.time;
@@ -5413,10 +5662,40 @@ void G_RunClient( gentity_t *ent ) {
 	if ( !(ent->r.svFlags & SVF_BOT) && !g_synchronousClients.integer ) {
 		return;
 	}
+	if (level.tickTest.active && (ent->r.svFlags & SVF_BOT)) {
+		int num = ent - g_entities, idx = TickTest_BotIndex(num);
+
+		// sub-frame test bot commands: one think per cmdMsec of level time, the command rebuilt for each
+		if (idx >= 0 && level.tickTest.cmdMsec > 0 && level.tickTest.phase == TICKTEST_RUNNING) {
+			int t, steps;
+
+			if (level.tickTest.cmdArrival) // thought at the end of the frame before (TickTest_RunFrame)
+				return;
+
+			for (t = level.tickTest.botNextCmd[idx], steps = 0; t <= TickTest_CmdLimit(idx) && steps < 16; t += level.tickTest.cmdMsec, steps++) {
+				ent->client->pers.cmd.serverTime = t;
+				TickTest_BotThink(num, &ent->client->pers.cmd);
+				ClientThink_real(ent);
+				TickTest_ApplyPin(idx);
+			}
+			level.tickTest.botNextCmd[idx] = t;
+			return;
+		}
+		ent->client->pers.cmd.serverTime = level.time;
+		TickTest_BotThink(num, &ent->client->pers.cmd);
+		ClientThink_real(ent);
+		return;
+	}
 	ent->client->pers.cmd.serverTime = level.time;
 	ClientThink_real( ent );
 }
 
+
+// how far past its last packet arrival a player may be extrapolated: the expected wait for the next one
+static int SmoothClientsCap(const gclient_t *cl) {
+	int maxCap = Com_Clampi(0, 1000, g_smoothClientsCap.integer);
+	return Com_Clampi(0, maxCap, (int)(cl->pers.packetIntervalAvg + 2.0f * cl->pers.packetJitterAvg));
+}
 
 /*
 ==================
@@ -5453,6 +5732,13 @@ void SpectatorClientEndFrame( gentity_t *ent ) {
 
 				ent->client->ps.eFlags = cl->ps.eFlags;
 				ent->client->ps = cl->ps;
+
+				// advance the followed player's view by the time since their last packet, up to the same cap
+				if (g_smoothClientsFollow.integer && !(g_entities[clientNum].r.svFlags & SVF_BOT) &&
+					level.pause.state == PAUSE_NONE && cl->pers.lastPacketLevelTime > 0) {
+					int elapsed = Com_Clampi(0, SmoothClientsCap(cl), level.time - cl->pers.lastPacketLevelTime);
+					VectorMA(ent->client->ps.origin, elapsed * 0.001f, cl->ps.velocity, ent->client->ps.origin);
+				}
 
 				if (ent->client->sess.isInkognito || (g_lockdown.integer && !G_ClientIsWhitelisted(ent - g_entities))
 					|| originalPing == -1
@@ -5640,8 +5926,8 @@ void ClientEndFrame( gentity_t *ent ) {
             if ( level.pause.state != PAUSE_NONE && ent->client->ps.powerups[i] != INT_MAX )
                     ent->client->ps.powerups[i] += level.time - level.previousTime;
 
-            if ( ent->client->ps.powerups[i] < level.time )
-                    ent->client->ps.powerups[i] = 0;
+            if ( TICKFIX(Client) ? level.time - ent->client->ps.powerups[i] >= TICK_BASE_MSEC : ent->client->ps.powerups[i] < level.time )
+                    ent->client->ps.powerups[i] = 0; // strict: at 20 Hz a powerup lasted until the first tick past its end
     }
 
 	int time_delta = level.time - level.previousTime;
@@ -5723,6 +6009,8 @@ void ClientEndFrame( gentity_t *ent ) {
 			ent->client->lastHealedSomeone += time_delta;
 		if (ent->pain_debounce_time)
 		   ent->pain_debounce_time += time_delta;
+		if (ent->client->tickDeadline[TICK_LAVA])
+			ent->client->tickDeadline[TICK_LAVA] += time_delta;
 		if (ent->client->ps.fd.forcePowerRegenDebounceTime)
 			ent->client->ps.fd.forcePowerRegenDebounceTime += time_delta;
 		if (ent->client->tempSpectate)
@@ -5773,6 +6061,17 @@ void ClientEndFrame( gentity_t *ent ) {
 	if (g_smoothClients.integer) {
 		BG_PlayerStateToEntityStateExtraPolate( &ent->client->ps, &ent->s, ent->client->ps.commandTime, qfalse );
 		//rww - 12-03-02 - Don't snap the origin of players! It screws prediction all up.
+
+		/* anchor the extrapolation to when the latest packet arrived, so clients draw
+		origin + vel * clamp(snapTime - arrival + lead, 0, cap + lead) and the player keeps
+		moving between packets instead of only when one arrives */
+		if (g_smoothClientsAnchor.integer && !isNPC && ent - g_entities < MAX_CLIENTS && !(ent->r.svFlags & SVF_BOT) &&
+			level.pause.state == PAUSE_NONE && ent->client->pers.lastPacketLevelTime > 0) {
+			int lead = Com_Clampi(0, 200, g_smoothClientsLead.integer);
+			int cap = SmoothClientsCap(ent->client);
+			ent->s.pos.trTime = ent->client->pers.lastPacketLevelTime - lead;
+			ent->s.pos.trDuration = cap + lead;
+		}
 	}
 	else {
 		BG_PlayerStateToEntityState( &ent->client->ps, &ent->s, qfalse );
