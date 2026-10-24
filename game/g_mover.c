@@ -3438,9 +3438,28 @@ qboolean G_EntIsRemovableUsable(int entNum)
 	return qfalse;
 }
 
+void func_usable_use(gentity_t *self, gentity_t *other, gentity_t *activator);
+
+static qboolean korriShieldHideNow;
+
+static qboolean func_korriIsCoffinShield(gentity_t *self)
+{
+	return (level.siegeMap == SIEGEMAP_KORRIBAN && VALIDSTRING(self->targetname) && !Q_stricmp(self->targetname, "coffinguard_shield")) ? qtrue : qfalse;
+}
+
+static void func_korriShieldDelayedHide(gentity_t *self)
+{
+	self->think = 0;
+	self->nextthink = -1;
+	korriShieldHideNow = qtrue;
+	func_usable_use(self, self, self->activator);
+	korriShieldHideNow = qfalse;
+}
+
 void func_usable_use(gentity_t *self, gentity_t *other, gentity_t *activator)
 {//Toggle on and off
-	G_ActivateBehavior(self, BSET_USE);
+	if (!korriShieldHideNow)
+		G_ActivateBehavior(self, BSET_USE);
 	if (self->s.eFlags & EF_SHADER_ANIM)
 	{//animate shader when used
 		self->s.frame++;//inc frame
@@ -3480,6 +3499,17 @@ void func_usable_use(gentity_t *self, gentity_t *other, gentity_t *activator)
 	}
 	else
 	{
+		if (!korriShieldHideNow && func_korriIsCoffinShield(self))
+		{//the coffin shield drops 10 seconds after the scepter is delivered
+			if (self->think != func_korriShieldDelayedHide)
+			{
+				self->activator = activator;
+				self->think = func_korriShieldDelayedHide;
+				self->nextthink = level.time + 10000;
+			}
+			return;
+		}
+
 		self->s.solid = 0;
 		self->r.contents = 0;
 		self->clipmask = 0;
@@ -3487,7 +3517,7 @@ void func_usable_use(gentity_t *self, gentity_t *other, gentity_t *activator)
 		self->s.eFlags |= EF_NODRAW;
 		self->count = 0;
 
-		if (level.siegeMap == SIEGEMAP_KORRIBAN && VALIDSTRING(self->targetname) && !Q_stricmp(self->targetname, "coffinguard_shield"))
+		if (func_korriIsCoffinShield(self))
 			level.korriCoffinShieldDown = qtrue;
 
 		if (self->placeStuff)

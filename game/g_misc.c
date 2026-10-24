@@ -1928,6 +1928,19 @@ void fx_runner_think( gentity_t *ent )
 }
 
 //----------------------------------------------------------
+void fx_runner_use( gentity_t *self, gentity_t *other, gentity_t *activator );
+
+static qboolean korriFxHideNow;
+
+static void fx_korriShieldDelayedOff( gentity_t *self )
+{
+	self->think = fx_runner_think;
+	self->nextthink = level.time;
+	korriFxHideNow = qtrue;
+	fx_runner_use( self, self, self->activator );
+	korriFxHideNow = qfalse;
+}
+
 void fx_runner_use( gentity_t *self, gentity_t *other, gentity_t *activator )
 {
 	if (self->s.isPortalEnt)
@@ -1965,7 +1978,8 @@ void fx_runner_use( gentity_t *self, gentity_t *other, gentity_t *activator )
 	else
 	{
 		// ensure we are working with the right think function
-		self->think = fx_runner_think;
+		if ( self->think != fx_korriShieldDelayedOff )
+			self->think = fx_runner_think;
 
 		// toggle our state
 		if ( self->nextthink == -1 )
@@ -1984,6 +1998,17 @@ void fx_runner_use( gentity_t *self, gentity_t *other, gentity_t *activator )
 		}
 		else
 		{
+			if ( !korriFxHideNow && level.siegeMap == SIEGEMAP_KORRIBAN && VALIDSTRING(self->targetname) && !Q_stricmp(self->targetname, "coffinguard_shield") )
+			{//the coffin shield effect drops with the shield, 10 seconds after delivery
+				if ( self->think != fx_korriShieldDelayedOff )
+				{
+					self->activator = activator;
+					self->think = fx_korriShieldDelayedOff;
+					self->nextthink = level.time + 10000;
+				}
+				return;
+			}
+
 			// turn off for now
 			self->nextthink = -1;
 
