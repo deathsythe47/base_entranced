@@ -942,6 +942,10 @@ typedef struct {
 	int			lastPacketLevelTime;
 	float		packetIntervalAvg;
 	float		packetJitterAvg;
+	// g_smoothClientsAnchor 2: arrival minus command time of his latest packet, tracked low
+	int			cmdLatencyPacketTime;
+	float		cmdLatencyLow;
+	int			cmdLatencyOutliers;
 	// g_tickFixSaberOrder: commands that arrived after the grid time the next frame photographs, run after its saber photos
 #define MAX_HELD_CMDS 32
 	usercmd_t	heldCmds[MAX_HELD_CMDS];
@@ -3317,6 +3321,7 @@ extern vmCvar_t		g_netUnlock;
 #define NMF_BACKFLIP		(1 << 1)
 #define NMF_NETUNLOCK		(1 << 2)
 #define NMF_WASRESTARTED	(1 << 3)
+#define NMF_SMOOTHANCHOR	(1 << 4)
 extern vmCvar_t		g_nmFlags;
 extern vmCvar_t		g_enableNmAuth;
 extern vmCvar_t		g_specInfo;

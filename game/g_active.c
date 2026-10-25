@@ -5697,6 +5697,33 @@ static int SmoothClientsCap(const gclient_t *cl) {
 	return Com_Clampi(0, maxCap, (int)(cl->pers.packetIntervalAvg + 2.0f * cl->pers.packetJitterAvg));
 }
 
+// once per packet: arrival minus his command time, tracked low so the anchor never lands after the snapshot;
+// creeps up with his clock drift, ignores spikes, resets only after 8 outliers in a row (his clock reset)
+static void SmoothClientsSampleLatency(gclient_t *cl) {
+	clientPersistant_t *pers = &cl->pers;
+	float latency;
+
+	if (pers->lastPacketLevelTime == pers->cmdLatencyPacketTime) {
+		return;
+	}
+	latency = pers->lastPacketLevelTime - cl->ps.commandTime;
+	if (!pers->cmdLatencyPacketTime || latency < pers->cmdLatencyLow) {
+		pers->cmdLatencyLow = latency;
+		pers->cmdLatencyOutliers = 0;
+	}
+	else if (latency - pers->cmdLatencyLow > 100.0f) {
+		if (++pers->cmdLatencyOutliers >= 8) {
+			pers->cmdLatencyLow = latency;
+			pers->cmdLatencyOutliers = 0;
+		}
+	}
+	else {
+		pers->cmdLatencyOutliers = 0;
+		pers->cmdLatencyLow += (latency - pers->cmdLatencyLow) * (1.0f / 128.0f);
+	}
+	pers->cmdLatencyPacketTime = pers->lastPacketLevelTime;
+}
+
 /*
 ==================
 SpectatorClientEndFrame
@@ -6062,15 +6089,22 @@ void ClientEndFrame( gentity_t *ent ) {
 		BG_PlayerStateToEntityStateExtraPolate( &ent->client->ps, &ent->s, ent->client->ps.commandTime, qfalse );
 		//rww - 12-03-02 - Don't snap the origin of players! It screws prediction all up.
 
-		/* anchor the extrapolation to when the latest packet arrived, so clients draw
-		origin + vel * clamp(snapTime - arrival + lead, 0, cap + lead) and the player keeps
-		moving between packets instead of only when one arrives */
+		/* anchor the extrapolation so clients draw origin + vel * clamp(snapTime - anchor + lead, 0, cap + lead)
+		and the player keeps moving between packets instead of only when one arrives. 1 anchors to the
+		packet's arrival; 2 anchors to his command time plus the lowest latency seen lately, which puts every
+		packet on one line whatever its own delay was, so an irregular connection no longer moves him in jolts */
 		if (g_smoothClientsAnchor.integer && !isNPC && ent - g_entities < MAX_CLIENTS && !(ent->r.svFlags & SVF_BOT) &&
 			level.pause.state == PAUSE_NONE && ent->client->pers.lastPacketLevelTime > 0) {
 			int lead = Com_Clampi(0, 200, g_smoothClientsLead.integer);
-			int cap = SmoothClientsCap(ent->client);
-			ent->s.pos.trTime = ent->client->pers.lastPacketLevelTime - lead;
-			ent->s.pos.trDuration = cap + lead;
+			if (g_smoothClientsAnchor.integer >= 2) {
+				SmoothClientsSampleLatency(ent->client);
+				ent->s.pos.trTime = ent->client->ps.commandTime + (int)(ent->client->pers.cmdLatencyLow + 0.5f) - lead;
+				ent->s.pos.trDuration = Com_Clampi(0, 1000, g_smoothClientsCap.integer) + lead;
+			}
+			else {
+				ent->s.pos.trTime = ent->client->pers.lastPacketLevelTime - lead;
+				ent->s.pos.trDuration = SmoothClientsCap(ent->client) + lead;
+			}
 		}
 	}
 	else {
