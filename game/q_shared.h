@@ -633,6 +633,9 @@ enum
 };
 typedef int forcePowers_t;
 
+// bits 21-31 of fd.forcePowersActive hold the detpack cooldown (bg_pmove.c); mask when treating the field as a whole
+#define FORCE_POWERS_ACTIVE_BITS 0x001fffff
+
 typedef enum
 {
 	SABER_NONE = 0,

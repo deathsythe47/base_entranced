@@ -5600,7 +5600,7 @@ static void SetCanDetpackTime(int *out, int newTime) {
 		return;
 	}
 
-	*out = (*out & 0x001fffff) | ((newTime & 0x7ff) << 21);
+	*out = (*out & FORCE_POWERS_ACTIVE_BITS) | ((newTime & 0x7ff) << 21);
 }
 
 // retrieve canDetpackTime from the most significant 11 bits

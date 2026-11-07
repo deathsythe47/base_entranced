@@ -1196,7 +1196,7 @@ void WP_ForcePowerRegenerate( gentity_t *self, int overrideAmt )
 		.. and not carrying a boon
 		*/
 		if ( !self->client->ps.velocity[0] && !self->client->ps.velocity[1] && !self->client->ps.velocity[2] &&
-			!self->client->ps.fd.forcePowersActive &&
+			!(self->client->ps.fd.forcePowersActive & FORCE_POWERS_ACTIVE_BITS) &&
 			!( self->client->ps.powerups[PW_REDFLAG] || self->client->ps.powerups[PW_BLUEFLAG] ) &&
 			!self->client->ps.powerups[PW_FORCE_BOON] ) {
 			// .. then there is no reason to keep the run invalid/making it a weapons run
@@ -6192,7 +6192,7 @@ void WP_ForcePowersUpdate( gentity_t *self, usercmd_t *ucmd )
 			}
 		}
 	}
-	int forcePowersActive = self->client->ps.fd.forcePowersActive;
+	int forcePowersActive = self->client->ps.fd.forcePowersActive & FORCE_POWERS_ACTIVE_BITS;
 	if (self->client->sess.senseBoost && g_gametype.integer == GT_SIEGE && self->client->siegeClass != -1 && !bgSiegeClasses[self->client->siegeClass].forcePowerLevels[FP_SEE])
 		forcePowersActive &= ~(1 << FP_SEE);
 	if (d_debugRegen.integer == self - g_entities) {
@@ -6228,8 +6228,8 @@ void WP_ForcePowersUpdate( gentity_t *self, usercmd_t *ucmd )
 		}
 	}
 	if (!forcePowersActive ||
-		self->client->ps.fd.forcePowersActive == (1 << FP_DRAIN) ||
-		(self->client->ps.fd.forcePowersActive == (1 << FP_LEVITATION) && self->client->ps.m_iVehicleNum))
+		(self->client->ps.fd.forcePowersActive & FORCE_POWERS_ACTIVE_BITS) == (1 << FP_DRAIN) ||
+		((self->client->ps.fd.forcePowersActive & FORCE_POWERS_ACTIVE_BITS) == (1 << FP_LEVITATION) && self->client->ps.m_iVehicleNum))
 	{//when not using the force, regenerate at 1 point per half second
 		if ( (!self->client->ps.saberInFlight || (g_improvedDisarm.integer && self->client->ps.saberInFlight && !self->client->ps.saberEntityNum)) && self->client->ps.fd.forcePowerRegenDebounceTime < level.time &&
 			(self->client->ps.weapon != WP_SABER || !BG_SaberInSpecial(self->client->ps.saberMove)) )
@@ -6387,7 +6387,7 @@ qboolean Jedi_DodgeEvasion( gentity_t *self, gentity_t *shooter, trace_t *tr, in
 
 	if (g_forceDodge.integer == 2)
 	{
-		if (self->client->ps.fd.forcePowersActive)
+		if (self->client->ps.fd.forcePowersActive & FORCE_POWERS_ACTIVE_BITS)
 		{ //for now just don't let us dodge if we're using a force power at all
 			return qfalse;
 		}
