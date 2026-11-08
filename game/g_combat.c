@@ -1915,6 +1915,144 @@ extern qboolean Jedi_WaitingAmbush( gentity_t *self );
 void CheckExitRules( void );
 extern void Rancor_DropVictim( gentity_t *self );
 
+#define OBITRESEND_SILENCE_MSEC	250		// no usercmd for this long: assume no snapshots are reaching them either
+#define OBITRESEND_OVERLAP_MSEC	400		// an obituary made this long before a silence may still have been missed
+#define OBITRESEND_FLUSH_MSEC	2000	// after a silence ends, send what is due by then even if something has not expired
+
+static qboolean ObitResendEligible( int clientNum ) {
+	gclient_t *cl = &level.clients[clientNum];
+	if ( !g_resendObituaries.integer || cl->pers.connected != CON_CONNECTED || ( g_entities[clientNum].r.svFlags & SVF_BOT ) )
+		return qfalse;
+#ifdef NEWMOD_SUPPORT
+	return cl->sess.auth == AUTHENTICATED ? qtrue : qfalse;
+#else
+	return qfalse;
+#endif
+}
+
+// sends the picked records, oldest first, OBITRESEND_PER_CMD to a command
+static void ObitResendSend( int clientNum, const qboolean *pick ) {
+	char cmd[MAX_STRING_CHARS];
+	int i, inCmd = 0;
+
+	for ( i = 0; i < OBITRESEND_RING; i++ ) {
+		obitResendRecord_t *r = &level.obitResend[( level.obitResendNext + i ) % OBITRESEND_RING];
+		if ( !pick[( level.obitResendNext + i ) % OBITRESEND_RING] )
+			continue;
+		r->sentTo |= ( 1 << clientNum );
+		if ( !inCmd )
+			Q_strncpyz( cmd, "kls -1 -1 sgc", sizeof( cmd ) );
+		/* hex key=value pairs; a client skips keys it does not know. no p=<protocol> key means protocol 1,
+		   and a client ignores a protocol it does not speak */
+		Q_strcat( cmd, sizeof( cmd ), va( " \"mob t=%x v=%x k=%x m=%x%s%s%s%s\"", r->time, r->victim, r->killer, r->mod,
+			r->isJediMaster ? " j=1" : "", r->customObituary ? va( " c=%x", r->customObituary ) : "", r->bump ? " b=1" : "", r->air ? " a=1" : "" ) );
+		if ( ++inCmd == OBITRESEND_PER_CMD ) {
+			trap_SendServerCommand( clientNum, cmd );
+			inCmd = 0;
+		}
+	}
+	if ( inCmd )
+		trap_SendServerCommand( clientNum, cmd );
+}
+
+// called right after an obituary temp entity is set up
+void G_ObitResendRecord( gentity_t *ev ) {
+	obitResendRecord_t *r = &level.obitResend[level.obitResendNext];
+	level.obitResendNext = ( level.obitResendNext + 1 ) % OBITRESEND_RING;
+
+	memset( r, 0, sizeof( *r ) );
+	ev->s.time = level.time;
+	r->time = level.time;
+	r->victim = ev->s.otherEntityNum;
+	r->killer = ev->s.otherEntityNum2;
+	r->mod = ev->s.eventParm;
+	r->isJediMaster = ev->s.isJediMaster;
+	r->customObituary = ev->s.emplacedOwner;
+	r->bump = ev->s.userInt1;
+	r->air = ev->s.userInt2;
+	r->hideMask = ev->r.broadcastClients[1];
+}
+
+// called as the temp entity is freed
+void G_ObitResendExpired( gentity_t *ev ) {
+	int i;
+	for ( i = 0; i < OBITRESEND_RING; i++ ) {
+		obitResendRecord_t *r = &level.obitResend[i];
+		if ( r->time && r->time == ev->s.time && r->victim == ev->s.otherEntityNum ) {
+			r->expired = qtrue;
+			return;
+		}
+	}
+}
+
+/*
+	once a client that stopped sending usercmds starts again, sends it one copy of every obituary it may
+	have missed meanwhile, in as few commands as fit. that waits until each one made before the silence
+	ended has expired: until then a snapshot may still carry the event, and that must arrive first. the
+	ones still live when it ended are copied too, since a slot freed and reused during the silence looks
+	like the entity the client saw before it, so its event never fires. a copy of an event that did
+	arrive is dropped by the client, by its s.time and victim
+*/
+void G_ObitResendFrame( void ) {
+	int c, i;
+
+	if ( !g_resendObituaries.integer )
+		return;
+
+	for ( c = 0; c < MAX_CLIENTS; c++ ) {
+		obitResendClient_t *oc = &level.obitResendClient[c];
+		gclient_t *cl = &level.clients[c];
+		qboolean pick[OBITRESEND_RING];
+		qboolean any = qfalse, due = qtrue;
+
+		if ( !ObitResendEligible( c ) )
+			continue;
+
+		if ( level.time - cl->lastRealCmdTime >= OBITRESEND_SILENCE_MSEC ) {
+			// a new silence before the last one was sent joins it
+			if ( !oc->silenceStart )
+				oc->silenceStart = cl->lastRealCmdTime;
+			oc->silenceEnd = 0;
+			continue;
+		}
+		if ( !oc->silenceStart )
+			continue;
+		if ( !oc->silenceEnd )
+			oc->silenceEnd = cl->lastRealCmdTime;
+
+		for ( i = 0; i < OBITRESEND_RING; i++ ) {
+			const obitResendRecord_t *r = &level.obitResend[i];
+			pick[i] = r->time && !( r->sentTo & ( 1 << c ) ) && !( r->hideMask & ( 1 << c ) ) && r->time >= cl->pers.enterTime &&
+				r->time > oc->silenceStart - OBITRESEND_OVERLAP_MSEC && r->time <= oc->silenceEnd;
+			if ( pick[i] ) {
+				any = qtrue;
+				if ( !r->expired )
+					due = qfalse;
+			}
+		}
+		if ( !due && level.time - oc->silenceEnd < OBITRESEND_FLUSH_MSEC )
+			continue;
+		if ( any ) {
+			for ( i = 0; i < OBITRESEND_RING; i++ ) {
+				if ( !level.obitResend[i].expired )
+					pick[i] = qfalse;
+			}
+			ObitResendSend( c, pick );
+		}
+		oc->silenceStart = oc->silenceEnd = 0;
+	}
+}
+
+// a client slot changed hands: nothing sent to the previous occupant counts for the new one
+void G_ObitResendClientReset( int clientNum ) {
+	int i;
+	if ( clientNum < 0 || clientNum >= MAX_CLIENTS )
+		return;
+	memset( &level.obitResendClient[clientNum], 0, sizeof( level.obitResendClient[clientNum] ) );
+	for ( i = 0; i < OBITRESEND_RING; i++ )
+		level.obitResend[i].sentTo &= ~( 1 << clientNum );
+}
+
 extern qboolean g_dontFrickinCheck;
 extern qboolean g_endPDuel;
 extern qboolean g_noPDuelCheck;
@@ -2929,6 +3067,7 @@ void player_die( gentity_t *self, gentity_t *inflictor, gentity_t *attacker, int
 		ent->s.emplacedOwner = customObituary;
 		if (isAirFrag && g_creditAirKills.integer)
 			ent->s.userInt2 = 1;
+		G_ObitResendRecord( ent );
 	}
 
 	self->enemy = attacker;

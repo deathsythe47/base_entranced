@@ -5364,6 +5364,7 @@ void ClientDisconnect( int clientNum ) {
 	// cleanup if we are kicking a bot that
 	// hasn't spawned yet
 	G_RemoveQueuedBotBegin( clientNum );
+	G_ObitResendClientReset( clientNum );
 
 	ent = g_entities + clientNum;
 	if ( !ent->client ) {

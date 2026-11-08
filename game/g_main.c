@@ -679,6 +679,7 @@ vmCvar_t	g_smoothClientsCap;
 vmCvar_t	g_smoothClientsFollow;
 vmCvar_t	g_fixGripKills;
 vmCvar_t	g_creditAirKills;
+vmCvar_t	g_resendObituaries;
 
 vmCvar_t	g_fixForceJumpAnimationLock;
 vmCvar_t	g_fixSniperSwitch;
@@ -1109,6 +1110,7 @@ static cvarTable_t		gameCvarTable[] = {
 	{ &g_smoothClientsFollow, "g_smoothClientsFollow", "0", CVAR_ARCHIVE, 0, qtrue },
 	{ &g_fixGripKills,	"g_fixGripKills", "1"	, CVAR_ARCHIVE, 0, qtrue },
 	{ &g_creditAirKills,	"g_creditAirKills", "1"	, CVAR_ARCHIVE, 0, qtrue },
+	{ &g_resendObituaries,	"g_resendObituaries", "1"	, CVAR_ARCHIVE, 0, qtrue },
 
 	{ &g_fixForceJumpAnimationLock,	"g_fixForceJumpAnimationLock"	, "0"	, CVAR_ARCHIVE | CVAR_LATCH, 0, qtrue },
 	{ &g_fixSniperSwitch,	"g_fixSniperSwitch"		, "0"	, CVAR_ARCHIVE | CVAR_LATCH, 0, qtrue },
@@ -8018,6 +8020,8 @@ void G_RunFrame( int levelTime ) {
 			}
 			if ( ent->freeAfterEvent ) {
 				// tempEntities or dropped items completely go away after their event
+				if ( ent->s.eType == ET_EVENTS + EV_OBITUARY )
+					G_ObitResendExpired( ent );
 				if (ent->s.eFlags & EF_SOUNDTRACKER)
 				{ //don't trigger the event again..
 					ent->s.event = 0;
@@ -8359,6 +8363,8 @@ void G_RunFrame( int levelTime ) {
 	}
 
 	SiegeCheckTimers();
+
+	G_ObitResendFrame();
 
 	if (g_fixVehicleTurbo.integer) {
 		for (int i = MAX_CLIENTS; i < ENTITYNUM_WORLD; i++) {

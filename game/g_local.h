@@ -1719,6 +1719,23 @@ typedef struct {
 	int				numQuiet;
 } tickTest_t;
 
+// obituaries go out only in snapshots, so a client that receives none while one is live never sees it.
+// clients that support it get a reliable copy of each one they may have missed, keyed by s.time + victim
+#define OBITRESEND_RING			64
+#define OBITRESEND_PER_CMD		16
+typedef struct {
+	int			time;			// level.time it was made, also in the event's s.time
+	int			victim, killer, mod, isJediMaster, customObituary, bump, air;
+	int			hideMask;		// clients it was hidden from (broadcastClients[1])
+	qboolean	expired;		// its temp entity is gone, so no later snapshot can carry it
+	int			sentTo;			// clients already sent a copy
+} obitResendRecord_t;
+
+typedef struct {
+	int			silenceStart;	// lastRealCmdTime when their usercmds stopped, 0 none
+	int			silenceEnd;		// lastRealCmdTime when they started again, 0 still silent; copies not yet sent
+} obitResendClient_t;
+
 typedef struct {
 	struct gclient_s	*clients;		// [maxclients]
 
@@ -2059,6 +2076,9 @@ typedef struct {
 	int cmdWallTime, cmdLagBase; // its trap_Milliseconds() and flag timer lag base at arrival
 	int heldSeq; // arrival count of held commands, which orders equal stamps
 
+	obitResendRecord_t obitResend[OBITRESEND_RING];
+	int obitResendNext;
+	obitResendClient_t obitResendClient[MAX_CLIENTS];
 } level_locals_t;
 
 //
@@ -2604,6 +2624,10 @@ void BeginIntermission (void);
 void InitBodyQue (void);
 void ClientSpawn( gentity_t *ent, qboolean forceUpdateInfo );
 void player_die (gentity_t *self, gentity_t *inflictor, gentity_t *attacker, int damage, int mod);
+void G_ObitResendRecord( gentity_t *ev );
+void G_ObitResendExpired( gentity_t *ev );
+void G_ObitResendFrame( void );
+void G_ObitResendClientReset( int clientNum );
 void AddScore( gentity_t *ent, vec3_t origin, int score );
 void CalculateRanks( void );
 qboolean SpotWouldTelefrag( gentity_t *spot );
@@ -3365,6 +3389,7 @@ extern vmCvar_t		g_smoothClientsCap;
 extern vmCvar_t		g_smoothClientsFollow;
 extern vmCvar_t     g_fixGripKills;
 extern vmCvar_t     g_creditAirKills;
+extern vmCvar_t		g_resendObituaries;
 
 
 extern vmCvar_t		g_allow_vote_customTeams;
