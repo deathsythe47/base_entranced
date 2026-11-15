@@ -1206,6 +1206,10 @@ void respawn( gentity_t *ent ) {
 			ent->client->ps.eFlags = 0;
 			ent->client->ps.saberMove = LS_NONE;
 			ent->takedamage = qfalse;
+			// damage banked while dead would otherwise play as a pain sound on the first ghost frame
+			ent->client->damage_blood = 0;
+			ent->client->damage_armor = 0;
+			ent->client->damage_knockback = 0;
 			if (g_siegeGhosting.integer)
 				ent->client->ps.eFlags |= EF_NODRAW; // prevent player model from bugging out for a nanosecond
 			trap_LinkEntity(ent);
