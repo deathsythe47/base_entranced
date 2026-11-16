@@ -982,6 +982,104 @@ void SiegeClearSwitchData(void)
 	level.antiLamingTime = 0;
 }
 
+// why a running round 2 can't be converted to round 1 right now, or NULL if it can
+const char *G_SiegeRound1Refusal(void) {
+	int elapsed;
+
+	if (g_gametype.integer != GT_SIEGE)
+		return "Must be in siege gametype.";
+	if (!g_siegeTeamSwitch.integer || !g_siegePersistant.beatingTime || level.siegeStage != SIEGESTAGE_ROUND2 ||
+		!gSiegeRoundBegun || gSiegeRoundEnded || level.intermissiontime || level.intermissionQueued)
+		return "Round 2 must be in progress.";
+
+	// a forced round 2 can run past the map's own limit; as round 1 it would end on the spot
+	elapsed = level.time - level.siegeRoundStartTime;
+	if ((imperial_time_limit && elapsed >= imperial_time_limit) || (rebel_time_limit && elapsed >= rebel_time_limit))
+		return "The round has already run past the map's time limit.";
+
+	return NULL;
+}
+
+#define SIEGESTAT_TO_ROUND1(field)	do { cl->sess.siegeStats.field[0] = cl->sess.siegeStats.field[1]; cl->sess.siegeStats.field[1] = 0; } while (0)
+
+/*
+turns the running round 2 into round 1 without a restart: the round keeps its start time, teams,
+objectives and stats, and the round 1 it was trying to beat is forgotten
+*/
+qboolean G_SiegeConvertToRound1(void) {
+	extern void G_UpdateCvars(void);
+	static const char *perRound[] = { "objscompleted", "heldformaxat", "heldformaxtime", "total" };
+	char value[MAX_CVAR_VALUE_STRING], matchInfo[MAX_INFO_STRING];
+	int i, start;
+
+	if (G_SiegeRound1Refusal())
+		return qfalse;
+
+	// the engine keeps its own copy, which the end of the round reads back
+	memset(&g_siegePersistant, 0, sizeof(g_siegePersistant));
+	trap_SiegePersSet(&g_siegePersistant);
+
+	level.siegeStage = SIEGESTAGE_ROUND1;
+	level.siegeMatchWinner = SIEGEMATCHWINNER_NONE;
+
+	gImperialCountdown = level.siegeRoundStartTime + imperial_time_limit;
+	gRebelCountdown = level.siegeRoundStartTime + rebel_time_limit;
+
+	// this round's objective times become round 1's, replacing the old round 1 outright
+	for (i = 0; i < (int)(sizeof(perRound) / sizeof(perRound[0])); i++) {
+		trap_Cvar_VariableStringBuffer(va("siege_r2_%s", perRound[i]), value, sizeof(value));
+		trap_Cvar_Set(va("siege_r1_%s", perRound[i]), value);
+		trap_Cvar_Set(va("siege_r2_%s", perRound[i]), "");
+	}
+	for (i = 1; i <= MAX_STATS - 1; i++) {
+		trap_Cvar_VariableStringBuffer(va("siege_r2_obj%i", i), value, sizeof(value));
+		trap_Cvar_Set(va("siege_r1_obj%i", i), value);
+		trap_Cvar_Set(va("siege_r2_obj%i", i), "");
+	}
+	trap_Cvar_Set("siege_r1_matchid", "");
+	G_UpdateCvars();
+
+	for (i = 0; i < MAX_CLIENTS; i++) {
+		gclient_t *cl = &level.clients[i];
+
+		SIEGESTAT_TO_ROUND1(caps);
+		SIEGESTAT_TO_ROUND1(saves);
+		SIEGESTAT_TO_ROUND1(oKills);
+		SIEGESTAT_TO_ROUND1(dKills);
+		SIEGESTAT_TO_ROUND1(oDeaths);
+		SIEGESTAT_TO_ROUND1(dDeaths);
+		SIEGESTAT_TO_ROUND1(oDamageDealt);
+		SIEGESTAT_TO_ROUND1(oDamageTaken);
+		SIEGESTAT_TO_ROUND1(dDamageDealt);
+		SIEGESTAT_TO_ROUND1(dDamageTaken);
+		SIEGESTAT_TO_ROUND1(maxes);
+		SIEGESTAT_TO_ROUND1(maxed);
+		SIEGESTAT_TO_ROUND1(selfkills);
+		SIEGESTAT_TO_ROUND1(oTime);
+		SIEGESTAT_TO_ROUND1(dTime);
+		SIEGESTAT_TO_ROUND1(oAssists);
+		SIEGESTAT_TO_ROUND1(dAssists);
+		memcpy(cl->sess.siegeStats.mapSpecific[0], cl->sess.siegeStats.mapSpecific[1], sizeof(cl->sess.siegeStats.mapSpecific[0]));
+		memset(cl->sess.siegeStats.mapSpecific[1], 0, sizeof(cl->sess.siegeStats.mapSpecific[1]));
+	}
+
+	// no time to beat: clients count up from the unchanged round start
+	trap_SetConfigstring(CS_SIEGE_TIMEOVERRIDE, "0");
+
+	// same round start, so recordings can tell this from the stamp of a new round
+	trap_GetConfigstring(CS_MATCHINFO, matchInfo, sizeof(matchInfo));
+	start = atoi(Info_ValueForKey(matchInfo, "rst"));
+	if (start > 0)
+		trap_SetConfigstring(CS_MATCHINFO, va("\\rst\\%d\\rnd\\1", start));
+	else
+		G_SetMatchInfo();
+
+	G_LogPrintf("Round 2 converted to round 1.\n");
+	trap_SendServerCommand(-1, "print \"Round 2 converted to round 1.\n\"");
+	trap_SendServerCommand(-1, "cp \"Round 2 converted to round 1\n\"");
+	return qtrue;
+}
+
 void SiegeDoTeamAssign(void)
 {
 	int i = 0;

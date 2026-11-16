@@ -5265,11 +5265,12 @@ void Cmd_CallVote_f( gentity_t *ent, int pause ) {
 	} else if ( !Q_stricmp( arg1, "tffa" ) ) {
 	} else if ( !Q_stricmp( arg1, "siege" ) ) {
 	} else if ( !Q_stricmp( arg1, "siege_restart" ) ) {
+	} else if ( !Q_stricmp( arg1, "siege_round1" ) ) {
 	} else if ( !Q_stricmp( arg1, "ctf" ) ) {
 	} else {
 		trap_SendServerCommand( ent-g_entities, "print \"Invalid vote string.\n\"" );
 		trap_SendServerCommand( ent-g_entities, "print \"Vote commands are: map_restart, nextmap, map <mapname>, g_gametype <n>, "
-			"kick <player>, clientkick <clientnum>, g_doWarmup, timelimit <time>, fraglimit <frags>, cointoss, forceround2, killturrets, quickspawns,"
+			"kick <player>, clientkick <clientnum>, g_doWarmup, timelimit <time>, fraglimit <frags>, cointoss, forceround2, siege_round1, killturrets, quickspawns,"
 			"resetflags, q <question>, pause, unpause, endmatch, randomcapts, randomteams <numRedPlayers> <numBluePlayers>, shuffleteams <numRedPlayers> <numBluePlayers>, g_redTeam, g_blueTeam, zombies, lockTeams <numPlayers>, newpug, nextpug, randompugmap\n\"" );
 		return;
 	}
@@ -6052,6 +6053,20 @@ void Cmd_CallVote_f( gentity_t *ent, int pause ) {
 		}
 		Com_sprintf(level.voteString, sizeof(level.voteString), "%s %s", arg1, arg2);
 		Com_sprintf(level.voteDisplayString, sizeof(level.voteDisplayString), "Force round 2 siege with %i:%i timer", mins, secs);
+	}
+	else if (!Q_stricmp(arg1, "siege_round1"))
+	{
+		const char *refusal = G_SiegeRound1Refusal();
+		if (!g_allow_vote_siege_round1.integer) {
+			trap_SendServerCommand(ent - g_entities, "print \"Vote siege_round1 is disabled.\n\"");
+			return;
+		}
+		if (refusal) {
+			trap_SendServerCommand(ent - g_entities, va("print \"%s\n\"", refusal));
+			return;
+		}
+		Q_strncpyz(level.voteString, "siege_round1", sizeof(level.voteString));
+		Q_strncpyz(level.voteDisplayString, "Convert Round 2 to Round 1", sizeof(level.voteDisplayString));
 	}
 	else if (!Q_stricmp(arg1, "killturrets"))
 	{
@@ -10663,6 +10678,7 @@ void Cmd_ServerStatus2_f(gentity_t *ent)
 	PrintCvar(g_allow_vote_kick);
 	PrintCvar(g_allow_vote_killturrets);
 	PrintCvar(g_allow_vote_quickSpawns);
+	PrintCvar(g_allow_vote_siege_round1);
 	PrintCvar(g_allow_vote_lockteams);
 	PrintCvar(g_allow_vote_map);
 	PrintCvar(g_allow_vote_maprandom);

@@ -2731,6 +2731,14 @@ void Svcmd_SiegeRestart_f() {
 	SiegeClearSwitchData(); //gives a way for the server to reset siege to round 1
 	trap_SendConsoleCommand(EXEC_APPEND, "map_restart 0\n");
 }
+void Svcmd_SiegeRound1_f() {
+	const char *refusal = G_SiegeRound1Refusal();
+	if (refusal) {
+		G_Printf("%s\n", refusal);
+		return;
+	}
+	G_SiegeConvertToRound1();
+}
 extern siegePers_t g_siegePersistant;
 void Svcmd_ForceRound2_f() {
 	char count[32];
@@ -4115,6 +4123,12 @@ qboolean	ConsoleCommand( void ) {
 	if (Q_stricmp(cmd, "siege_restart") == 0)
 	{
 		Svcmd_SiegeRestart_f();
+		return qtrue;
+	}
+
+	if (Q_stricmp(cmd, "siege_round1") == 0)
+	{
+		Svcmd_SiegeRound1_f();
 		return qtrue;
 	}
 

@@ -2359,6 +2359,8 @@ void G_SiegeRoundComplete(int winningteam, int winningclient, qboolean completed
 void SpeedRunModeRuined(const char *reason);
 void LivePugRuined(const char *reason, qboolean announce);
 void SiegeClearSwitchData(void);
+const char *G_SiegeRound1Refusal(void);
+qboolean G_SiegeConvertToRound1(void);
 
 qboolean FileExists(const char *fileName);
 
@@ -3467,6 +3469,7 @@ extern vmCvar_t		g_allow_vote_randomcapts;
 extern vmCvar_t		g_allow_vote_cointoss;
 extern vmCvar_t		g_allow_vote_q;
 extern vmCvar_t		g_allow_vote_killturrets;
+extern vmCvar_t		g_allow_vote_siege_round1;
 extern vmCvar_t		g_allow_vote_quickSpawns;
 extern vmCvar_t     g_allow_vote_pug;
 extern vmCvar_t     g_allow_vote_pub;
