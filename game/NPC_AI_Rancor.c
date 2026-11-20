@@ -91,39 +91,49 @@ g_fixRancor targeting: anyone valid within FIXRANCOR_RANGE in the same area (PVS
 priority: visible and in front of me > visible behind or beside me > heard only; nearest wins within a tier
 -------------------------
 */
-static gentity_t *Rancor_PickTarget( void )
+static int Rancor_TargetsInRange( int *entNums )
 {
-	int			entNums[MAX_GENTITIES];
-	vec3_t		mins, maxs;
-	int			i, num;
-	gentity_t	*best = NULL;
-	int			bestTier = 3;
-	float		bestDistSq = 0;
-	const float	rangeSq = (float)FIXRANCOR_RANGE * (float)FIXRANCOR_RANGE;
+	vec3_t	mins, maxs;
+	int		i;
 
 	for ( i = 0; i < 3; i++ )
 	{
 		mins[i] = NPC->r.currentOrigin[i] - FIXRANCOR_RANGE;
 		maxs[i] = NPC->r.currentOrigin[i] + FIXRANCOR_RANGE;
 	}
-	num = trap_EntitiesInBox( mins, maxs, entNums, MAX_GENTITIES );
+	return trap_EntitiesInBox( mins, maxs, entNums, MAX_GENTITIES );
+}
 
+static qboolean Rancor_TargetCandidate( gentity_t *ent, float *distSq )
+{
+	if ( ent == NPC || !ent->client || !NPC_ValidEnemy( ent ) )
+		return qfalse;
+	if ( (ent->s.eFlags & EF_NODRAW) || ent->client->tempSpectate >= level.time )
+		return qfalse;
+	if ( G_RancorBoxActive( NPC ) && !G_RancorBoxEnemyAllowed( ent->r.currentOrigin ) )
+		return qfalse;
+	*distSq = DistanceSquared( ent->r.currentOrigin, NPC->r.currentOrigin );
+	if ( *distSq > (float)FIXRANCOR_RANGE * (float)FIXRANCOR_RANGE )
+		return qfalse;
+	return (qboolean)trap_InPVS( ent->r.currentOrigin, NPC->r.currentOrigin );
+}
+
+static gentity_t *Rancor_PickTarget( void )
+{
+	int			entNums[MAX_GENTITIES];
+	int			i, num;
+	gentity_t	*best = NULL;
+	int			bestTier = 3;
+	float		bestDistSq = 0;
+
+	num = Rancor_TargetsInRange( entNums );
 	for ( i = 0; i < num; i++ )
 	{
 		gentity_t *ent = &g_entities[entNums[i]];
 		float distSq;
 		int tier;
 
-		if ( ent == NPC || !ent->client || !NPC_ValidEnemy( ent ) )
-			continue;
-		if ( (ent->s.eFlags & EF_NODRAW) || ent->client->tempSpectate >= level.time )
-			continue;
-		if ( G_RancorBoxActive( NPC ) && !G_RancorBoxEnemyAllowed( ent->r.currentOrigin ) )
-			continue;
-		distSq = DistanceSquared( ent->r.currentOrigin, NPC->r.currentOrigin );
-		if ( distSq > rangeSq )
-			continue;
-		if ( !trap_InPVS( ent->r.currentOrigin, NPC->r.currentOrigin ) )
+		if ( !Rancor_TargetCandidate( ent, &distSq ) )
 			continue;
 
 		if ( NPC_ClearLOS4( ent ) )
@@ -139,6 +149,68 @@ static gentity_t *Rancor_PickTarget( void )
 		}
 	}
 	return best;
+}
+
+// nearest candidate other than the current enemy that is closer than it, seen or only heard, any direction
+static gentity_t *Rancor_NearestCloserTarget( void )
+{
+	int			entNums[MAX_GENTITIES];
+	int			i, num;
+	gentity_t	*best = NULL;
+	float		bestDistSq = DistanceSquared( NPC->enemy->r.currentOrigin, NPC->r.currentOrigin );
+
+	num = Rancor_TargetsInRange( entNums );
+	for ( i = 0; i < num; i++ )
+	{
+		gentity_t *ent = &g_entities[entNums[i]];
+		float distSq;
+
+		if ( ent == NPC->enemy || !Rancor_TargetCandidate( ent, &distSq ) )
+			continue;
+		if ( distSq < bestDistSq )
+		{
+			best = ent;
+			bestDistSq = distSq;
+		}
+	}
+	return best;
+}
+
+/*
+g_fixRancor anti-tunneling: after 7 s on one enemy without starting a swing at him (or at once if he is far
+away), every 2 s there is a 50% chance to switch to whoever is closer
+*/
+#define RANCOR_CHASE_COMMIT_MS		7000
+#define RANCOR_CLOSER_ROLL_MS		2000
+#define RANCOR_FAR_TARGET_DIST		1514	// 75% of the korriban rancor box's long side
+
+static void Rancor_MaybeSwitchToCloser( void )
+{
+	gentity_t	*closer;
+	const float	farSq = (float)RANCOR_FAR_TARGET_DIST * (float)RANCOR_FAR_TARGET_DIST;
+
+	if ( NPC->rancorChaseNum != NPC->enemy->s.number + 1 )
+	{//new enemy, by whatever path
+		NPC->rancorChaseNum = NPC->enemy->s.number + 1;
+		NPC->rancorChaseTime = level.time;
+		NPC->rancorCloserRollTime = 0;
+	}
+	if ( level.time < NPC->rancorCloserRollTime )
+		return;
+	if ( level.time - NPC->rancorChaseTime < RANCOR_CHASE_COMMIT_MS &&
+		DistanceSquared( NPC->enemy->r.currentOrigin, NPC->r.currentOrigin ) <= farSq )
+		return;
+
+	closer = Rancor_NearestCloserTarget();
+	if ( !closer )
+		return;//no roll spent
+	NPC->rancorCloserRollTime = level.time + RANCOR_CLOSER_ROLL_MS;
+	if ( Q_irand( 0, 1 ) )
+	{
+		NPC->lastEnemy = NPC->enemy;
+		G_SetEnemy( NPC, closer );
+		TIMER_Set( NPC, "lookForNewEnemy", Q_irand( 5000, 15000 ) );
+	}
 }
 
 // g_fixRancor: for two seconds after losing sight of its enemy it still knows where he is (so it doesn't lose people
@@ -699,11 +771,13 @@ void Rancor_Attack( float distance, qboolean doCharge )
 		}
 		else if ( !Q_irand(0, 1) )
 		{//smash
+			NPC->rancorChaseTime = level.time;//a swing at him restarts the anti-tunneling clock
 			NPC_SetAnim( NPC, SETANIM_BOTH, BOTH_MELEE1, SETANIM_FLAG_OVERRIDE | SETANIM_FLAG_HOLD );
 			TIMER_Set( NPC, "attack_dmg", 1000 );
 		}
 		else
 		{//try to grab
+			NPC->rancorChaseTime = level.time;
 			NPC_SetAnim( NPC, SETANIM_BOTH, BOTH_ATTACK2, SETANIM_FLAG_OVERRIDE | SETANIM_FLAG_HOLD );
 			NPC->rancorSwipeGrab = !Q_irand( 0, 2 );//g_fixRancor: one roll for everyone in this swipe
 			TIMER_Set( NPC, "attack_dmg", 1000 );
@@ -1156,6 +1230,8 @@ static void Rancor_Think( void )
 					return;
 				}
 			}
+			if ( g_fixRancor.integer )
+				Rancor_MaybeSwitchToCloser();
 			if ( TIMER_Done( NPC, "lookForNewEnemy" ) && !Rancor_RememberingHiddenEnemy() )
 			{//(don't trade him for someone else while we still know where he went)
 				gentity_t *newEnemy, *sav_enemy = NPC->enemy;//FIXME: what about NPC->lastEnemy?
@@ -1180,8 +1256,9 @@ static void Rancor_Think( void )
 		}
 		Rancor_Combat();
 	}
-	else 
+	else
 	{
+		NPC->rancorChaseNum = 0;//so re-taking the same player later starts a fresh chase clock
 		if ( TIMER_Done(NPC,"idlenoise") )
 		{
 			G_Sound( NPC, CHAN_AUTO, G_SoundIndex( va("sound/chars/rancor/snort_%d.wav", Q_irand(1, 2))) );

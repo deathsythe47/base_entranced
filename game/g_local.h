@@ -382,6 +382,9 @@ struct gentity_s {
 	int			rancorStockWalkSpeed;
 	int			rancorEnemySeenTime;	// on the rancor: last time it had line of sight to rancorEnemySeenNum
 	int			rancorEnemySeenNum;
+	int			rancorChaseNum;		// on the rancor: enemy number + 1 that rancorChaseTime belongs to
+	int			rancorChaseTime;	// on the rancor: when it took this enemy or last started a swing at him
+	int			rancorCloserRollTime;	// on the rancor: earliest time for the next switch-to-closer roll
 	qboolean	fullChargeOneShot;	// on a missile: fully charged pistol shot from a fullchargepistoloneshot class
 
 	gentity_t	*chain;
