@@ -176,8 +176,40 @@ static gentity_t *Rancor_NearestCloserTarget( void )
 	return best;
 }
 
+// within smack/grab reach (the advance-or-attack test in Rancor_Combat) and in sight
+static float Rancor_SwingRangeSq( void )
+{
+	const float range = NPC->r.maxs[0] + MIN_DISTANCE;
+	return range * range;
+}
+
+static gentity_t *Rancor_NearestInSwingRange( void )
+{
+	int			entNums[MAX_GENTITIES];
+	int			i, num;
+	gentity_t	*best = NULL;
+	float		bestDistSq = Rancor_SwingRangeSq();
+
+	num = Rancor_TargetsInRange( entNums );
+	for ( i = 0; i < num; i++ )
+	{
+		gentity_t *ent = &g_entities[entNums[i]];
+		float distSq;
+
+		if ( ent == NPC->enemy || !Rancor_TargetCandidate( ent, &distSq ) )
+			continue;
+		if ( distSq <= bestDistSq && NPC_ClearLOS4( ent ) )
+		{
+			best = ent;
+			bestDistSq = distSq;
+		}
+	}
+	return best;
+}
+
 /*
-g_fixRancor anti-tunneling: after 7 s on one enemy without starting a swing at him (or at once if he is far
+g_fixRancor: anyone in swing reach while the enemy isn't becomes the enemy at once, any time.
+anti-tunneling: after 7 s on one enemy without starting a swing at him (or at once if he is far
 away), every 2 s there is a 50% chance to switch to whoever is closer
 */
 #define RANCOR_CHASE_COMMIT_MS		7000
@@ -194,6 +226,17 @@ static void Rancor_MaybeSwitchToCloser( void )
 		NPC->rancorChaseNum = NPC->enemy->s.number + 1;
 		NPC->rancorChaseTime = level.time;
 		NPC->rancorCloserRollTime = 0;
+	}
+	if ( DistanceSquared( NPC->enemy->r.currentOrigin, NPC->r.currentOrigin ) > Rancor_SwingRangeSq() )
+	{
+		gentity_t *reachable = Rancor_NearestInSwingRange();
+		if ( reachable )
+		{
+			NPC->lastEnemy = NPC->enemy;
+			G_SetEnemy( NPC, reachable );
+			TIMER_Set( NPC, "lookForNewEnemy", Q_irand( 5000, 15000 ) );
+			return;
+		}
 	}
 	if ( level.time < NPC->rancorCloserRollTime )
 		return;
