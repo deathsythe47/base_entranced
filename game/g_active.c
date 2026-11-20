@@ -1158,7 +1158,7 @@ void SpectatorThink( gentity_t *ent, usercmd_t *ucmd ) {
 			client->ps.basespeed = 0;
 		}
 		else {
-			pm.noSpecMove = g_noSpecMove.integer;
+			pm.noSpecMove = G_MultiSpec_Active( ent ) ? 1 : g_noSpecMove.integer;	// multi spec rides its players
 			client->ps.speed = 400;	// faster than normal
 			client->ps.basespeed = 400;
 		}
@@ -1176,7 +1176,7 @@ void SpectatorThink( gentity_t *ent, usercmd_t *ucmd ) {
 		// save results of pmove
 		VectorCopy( client->ps.origin, ent->s.origin );
 
-		if (ent->client->tempSpectate < level.time)
+		if (ent->client->tempSpectate < level.time && !G_MultiSpec_Active( ent ))
 		{
 			G_TouchTriggers( ent );
 		}
@@ -1187,13 +1187,25 @@ void SpectatorThink( gentity_t *ent, usercmd_t *ucmd ) {
 	client->oldbuttons = client->buttons;
 	client->buttons = ucmd->buttons;
 
+	if ( G_MultiSpec_Active( ent ) ) {
+		// the buttons step the two halves; none of the follow controls below apply
+		G_MultiSpec_Buttons( ent, client->buttons, client->oldbuttons );
+		return;
+	}
+
 	if (client->tempSpectate < level.time)
 	{
+		// a client that starts multi spec with both buttons gets its follow clicks stepped there instead
+		const int msHeld = G_MultiSpec_FollowButtons( ent, client->buttons, client->oldbuttons );
+
+		if ( client->buttons & ~client->oldbuttons & ( BUTTON_ATTACK | BUTTON_ALT_ATTACK ) ) {
+			G_MultiSpec_NoteFollowClick( ent );
+		}
 		// attack button cycles through spectators
-		if ( ( client->buttons & BUTTON_ATTACK ) && ! ( client->oldbuttons & BUTTON_ATTACK ) ) {
+		if ( ( client->buttons & BUTTON_ATTACK ) && ! ( client->oldbuttons & BUTTON_ATTACK ) && !( msHeld & BUTTON_ATTACK ) ) {
 			Cmd_FollowCycle_f( ent, 1 );
 		} else if ( client->sess.spectatorState == SPECTATOR_FOLLOW && 
-			(client->buttons & BUTTON_ALT_ATTACK) && !(client->oldbuttons & BUTTON_ALT_ATTACK) ) {
+			(client->buttons & BUTTON_ALT_ATTACK) && !(client->oldbuttons & BUTTON_ALT_ATTACK) && !( msHeld & BUTTON_ALT_ATTACK ) ) {
 			Cmd_FollowCycle_f( ent, -1 );
 		} else if ( ucmd->generic_cmd == GENCMD_SABERATTACKCYCLE ) {
 			// saberattackcycle cycles flag carriers
@@ -1265,7 +1277,8 @@ qboolean CheckSpectatorInactivityTimer(gclient_t *client)
         client->sess.inactivityTime = getGlobalTime() + 60;
         client->inactivityWarning = qfalse;
     }
-    else if (IsInputting(client, qtrue, qtrue, qtrue) || client->sess.spectatorState == SPECTATOR_FOLLOW)
+    else if (IsInputting(client, qtrue, qtrue, qtrue) || client->sess.spectatorState == SPECTATOR_FOLLOW
+		|| G_MultiSpec_Active(&g_entities[client - level.clients]))
     {
         client->sess.inactivityTime = getGlobalTime() + g_spectatorInactivity.integer;
         
@@ -5790,6 +5803,7 @@ void SpectatorClientEndFrame( gentity_t *ent ) {
     {
 		int time_delta = level.time - level.previousTime;
 		qboolean increasedEnterTime = qfalse;
+		G_MultiSpec_EndFrame( ent );
 		if (level.intermissiontime) {
 			ent->client->pers.enterTime += time_delta;
 			increasedEnterTime = qtrue;
@@ -6121,3 +6135,22 @@ void ClientEndFrame( gentity_t *ent ) {
 }
 
 
+
+/*
+	for multi spec: whether a client is a siege ghost (dead, waiting for the respawn wave), and if so the
+	living teammate it watches, -1 = nobody
+*/
+int G_MultiSpec_GhostWatching( const gclient_t *cl, qboolean *ghost ) {
+	const gclient_t *w;
+
+	*ghost = (qboolean)( g_gametype.integer == GT_SIEGE && cl->tempSpectate >= level.time );
+	if ( !*ghost || !cl->fakeSpec || cl->fakeSpecClient < 0 || cl->fakeSpecClient >= level.maxclients ) {
+		return -1;
+	}
+	w = &level.clients[cl->fakeSpecClient];
+	if ( w == cl || w->pers.connected != CON_CONNECTED || w->sess.sessionTeam != cl->sess.sessionTeam
+		|| w->tempSpectate >= level.time ) {
+		return -1;
+	}
+	return cl->fakeSpecClient;
+}

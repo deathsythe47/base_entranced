@@ -3352,6 +3352,22 @@ extern vmCvar_t		g_nmFlags;
 extern vmCvar_t		g_enableNmAuth;
 extern vmCvar_t		g_specInfo;
 extern vmCvar_t		g_specInfoEncrypted;
+extern vmCvar_t		g_multiSpec;
+
+// g_multispec.c
+void		G_MultiSpec_Init( void );
+void		G_MultiSpec_Cmd( gentity_t *ent );
+qboolean	G_MultiSpec_Active( gentity_t *ent );
+void		G_MultiSpec_Stop( gentity_t *ent, qboolean resumeFollow );
+void		G_MultiSpec_Buttons( gentity_t *ent, int buttons, int oldbuttons );
+void		G_MultiSpec_EndFrame( gentity_t *ent );
+void		G_MultiSpec_ClientGone( int clientNum );
+void		G_MultiSpec_Sweep( void );
+int			G_MultiSpec_ListState( int clientNum, int shown[2], qboolean *anyAuto );
+void		G_MultiSpec_NoteFollowClick( gentity_t *ent );
+int			G_MultiSpec_FollowButtons( gentity_t *ent, int buttons, int oldbuttons );
+int			G_MultiSpec_GhostWatching( const gclient_t *cl, qboolean *ghost );
+void		G_MultiSpec_NoteGave( int clientNum, int which );
 #endif
 
 extern vmCvar_t     g_strafejump_mod;

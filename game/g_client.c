@@ -3367,6 +3367,9 @@ void G_BroadcastServerFeatureList( int clientNum ) {
 	if (g_specInfoEncrypted.integer)
 		Q_strcat(featureListConfigString, sizeof(featureListConfigString), "esi ");
 
+	if (g_multiSpec.integer)
+		Q_strcat(featureListConfigString, sizeof(featureListConfigString), "msp ");
+
 	trap_SetConfigstring(CS_SERVERFEATURELIST, featureListConfigString);
 
 	static char locationsListConfigString[MAX_TOKEN_CHARS] = { 0 };
@@ -5368,6 +5371,7 @@ void ClientDisconnect( int clientNum ) {
 	// cleanup if we are kicking a bot that
 	// hasn't spawned yet
 	G_RemoveQueuedBotBegin( clientNum );
+	G_MultiSpec_ClientGone( clientNum );
 	G_ObitResendClientReset( clientNum );
 
 	ent = g_entities + clientNum;

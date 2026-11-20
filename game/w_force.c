@@ -1578,6 +1578,7 @@ void ForceTeamHeal( gentity_t *self )
 		healthadd = 25;
 	}
 
+	G_MultiSpec_NoteGave( self - g_entities, 0 );
 	self->client->ps.fd.forcePowerDebounce[FP_TEAM_HEAL] = level.time + 2000;
 	i = 0;
 
@@ -1692,6 +1693,7 @@ void ForceTeamForceReplenish( gentity_t *self )
 	{
 		poweradd = 25;
 	}
+	G_MultiSpec_NoteGave( self - g_entities, 1 );
 	self->client->ps.fd.forcePowerDebounce[FP_TEAM_FORCE] = level.time + 2000;
 
 	BG_ForcePowerDrain( &self->client->ps, FP_TEAM_FORCE, forcePowerNeeded[self->client->ps.fd.forcePowerLevel[FP_TEAM_FORCE]][FP_TEAM_FORCE] );

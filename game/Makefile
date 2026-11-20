@@ -60,6 +60,7 @@ FILES =     ai_main.o               ai_util.o               ai_wpnav.o          
             collections.o           xxhash.o                g_accounts.o            cJSON.o					g_generators.o			g_transfers.o \
 			g_table.o				sha3.o \
 			g_tick.o \
+			g_multispec.o \
 			g_ticktest.o
 			
 

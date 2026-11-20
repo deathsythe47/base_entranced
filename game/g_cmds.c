@@ -75,15 +75,26 @@ void DeathmatchScoreboardMessage( gentity_t *ent ) {
 		statsMix = cl->pers.teamState.th;
 		statsMix |= ((cl->pers.teamState.te) << 16);
 
-		// first 16 bits are unused
-		// next 10 bits are real ping
-		// next 5 bits are followed client #
-		// final bit is whether you are following someone or not
+		// from the lowest bit: following someone (1), followed client # (5), real ping (10),
+		// multi spec with a half on auto (1), multi spec second watched player present (1) and its client # (5)
 		int specMix = 0; // this was previously scoreFlags
 		if (cl->pers.connected == CON_CONNECTED && cl->sess.sessionTeam == TEAM_SPECTATOR && cl->sess.spectatorState == SPECTATOR_FOLLOW &&
 			!cl->sess.isInkognito && !(g_lockdown.integer && !G_ClientIsWhitelisted(level.sortedClients[i]))) {
 			specMix = 0b1;
 			specMix |= ((cl->sess.spectatorClient & 0b11111) << 1);
+		}
+		else if (cl->pers.connected == CON_CONNECTED &&
+			!cl->sess.isInkognito && !(g_lockdown.integer && !G_ClientIsWhitelisted(level.sortedClients[i]))) {
+			// multi spec: the players its halves show, left first, and whether a half is on auto
+			int msShown[2];
+			qboolean msAuto;
+			int msCount = G_MultiSpec_ListState(cl - level.clients, msShown, &msAuto);
+			if (msCount >= 1)
+				specMix = 0b1 | ((msShown[0] & 0b11111) << 1);
+			if (msCount >= 2)
+				specMix |= (1 << 17) | ((msShown[1] & 0b11111) << 18);
+			if (msAuto)
+				specMix |= 1 << 16;
 		}
 		int realPing;
 		if (cl->pers.connected != CON_CONNECTED)
@@ -11655,6 +11666,8 @@ void ClientCommand( int clientNum ) {
 	else if (!Q_stricmp(cmd, "use_anybacta"))
 		Cmd_UseAnyBacta_f(ent);
 #ifdef NEWMOD_SUPPORT
+	else if ( !Q_stricmp( cmd, "multispec" ) )
+		G_MultiSpec_Cmd( ent );
 	else if ( Q_stricmp( cmd, "svauth" ) == 0 && ent->client->sess.auth > PENDING && ent->client->sess.auth < AUTHENTICATED )
 		Cmd_Svauth_f( ent );
 	else if (!Q_stricmp(cmd, "sci"))

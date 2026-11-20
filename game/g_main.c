@@ -735,6 +735,7 @@ vmCvar_t	g_nmFlags;
 vmCvar_t	g_enableNmAuth;
 vmCvar_t	g_specInfo;
 vmCvar_t	g_specInfoEncrypted;
+vmCvar_t	g_multiSpec;
 #endif
 
 vmCvar_t     g_strafejump_mod;
@@ -1169,6 +1170,7 @@ static cvarTable_t		gameCvarTable[] = {
 	{ &g_enableNmAuth, "g_enableNmAuth", "1", CVAR_ARCHIVE | CVAR_LATCH, 0, qfalse },
 	{ &g_specInfo, "g_specInfo", "1", CVAR_ARCHIVE, 0, qtrue },
 	{ &g_specInfoEncrypted, "g_specInfoEncrypted", "0", CVAR_ARCHIVE | CVAR_LATCH, 0, qtrue },
+	{ &g_multiSpec, "g_multiSpec", "1", CVAR_ARCHIVE, 0, qtrue },
 #endif
 	{ &g_strafejump_mod,	"g_strafejump_mod"	, "0"	, CVAR_ARCHIVE, 0, qtrue },
 
@@ -2554,6 +2556,7 @@ void G_InitGame( int levelTime, int randomSeed, int restart, void *serverDbPtr )
 
 	// set some level globals
 	memset( &level, 0, sizeof( level ) );
+	G_MultiSpec_Init();
 	level.time = levelTime;
 	level.startTime = levelTime;
 
@@ -7721,6 +7724,7 @@ void G_RunFrame( int levelTime ) {
 	level.framenum++;
 	level.previousTime = level.time;
 	level.time = levelTime;
+	G_MultiSpec_Sweep();
 
 	//OSP: pause
 	if (level.pause.state != PAUSE_NONE)
@@ -8409,6 +8413,7 @@ void G_RunFrame( int levelTime ) {
 			ClientEndFrame( ent );
 		}
 	}
+	G_MultiSpec_Sweep();	// before the snapshots: somebody put on a team this frame keeps no view entities
 
 	if (level.tickTest.active)
 		TickTest_RunFrame();

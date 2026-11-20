@@ -128,6 +128,7 @@
     <ClCompile Include="g_table.c" />
     <ClCompile Include="g_target.c" />
     <ClCompile Include="g_team.c" />
+    <ClCompile Include="g_multispec.c" />
     <ClCompile Include="g_tick.c" />
     <ClCompile Include="g_ticktest.c" />
     <ClCompile Include="g_timer.c" />
