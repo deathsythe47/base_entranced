@@ -1172,7 +1172,9 @@ void respawn( gentity_t *ent ) {
 			UpdateNewmodSiegeTimers();
 			return;
 		}
-        if ( (ent->client->tempSpectate <= level.time) && (level.siegeRespawnCheck >= level.time) ) {
+		// with the fix a wave fires on its deadline frame, and a respawn in that frame is the wave's, not a ghost
+        if ( (ent->client->tempSpectate <= level.time) &&
+			(TICKFIX(Siege) ? level.siegeRespawnCheck > level.time : level.siegeRespawnCheck >= level.time) ) {
 			int minDel = g_siegeRespawn.integer* 2000;
 			if (minDel < 20000)
 			{
