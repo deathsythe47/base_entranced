@@ -3135,8 +3135,8 @@ void ClientThink_real( gentity_t *ent ) {
 	// to check for follow toggles
 	if ( msec < 1 && client->sess.spectatorState != SPECTATOR_FOLLOW ) {
 		// a command stamped before the spawn is dropped here: a speed press in it still counts
-		if (ucmd->generic_cmd == GENCMD_FORCE_SPEED && ent - g_entities < MAX_CLIENTS && !(ent->r.svFlags & SVF_BOT) &&
-			ent->health > 0 && client->sess.sessionTeam != TEAM_SPECTATOR && !client->emoted &&
+		if (ucmd->generic_cmd == GENCMD_FORCE_SPEED && g_preActivateSpeedWhileDead.integer && ent - g_entities < MAX_CLIENTS && !(ent->r.svFlags & SVF_BOT) &&
+			ent->health > 0 && client->tempSpectate < level.time && client->sess.sessionTeam != TEAM_SPECTATOR && !client->emoted &&
 			level.time - client->respawnTime < 1000 && GenCmdReady(client, GENCMD_DELAY_SPEED, 300)) {
 			ForceSpeed(ent, 0);
 		}
@@ -3173,6 +3173,12 @@ void ClientThink_real( gentity_t *ent ) {
 			ClientIntermissionThink( client );
 			return;
 		}
+	}
+
+	// a ghost's speed press counts toward its next spawn
+	if (ucmd->generic_cmd == GENCMD_FORCE_SPEED && g_preActivateSpeedWhileDead.integer && client->tempSpectate >= level.time &&
+		client->sess.sessionTeam != TEAM_SPECTATOR && ent - g_entities < MAX_CLIENTS && !(ent->r.svFlags & SVF_BOT)) {
+		client->pers.pressedSpeedWhileDeadTime = level.time - level.startTime;
 	}
 
 	if (g_siegeGhosting.integer && g_gametype.integer == GT_SIEGE && client->tempSpectate > level.time && client->ps.clientNum < MAX_CLIENTS && !(g_entities[client->ps.clientNum].r.svFlags & SVF_BOT)) {

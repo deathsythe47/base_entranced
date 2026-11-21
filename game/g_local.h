@@ -956,6 +956,7 @@ typedef struct {
 	int			heldWallTimes[MAX_HELD_CMDS], heldLagBases[MAX_HELD_CMDS]; // the flag timers' clock at arrival (G_ResetAccurateTimerOnTrigger)
 	int			heldSeqs[MAX_HELD_CMDS];	// level-wide arrival order (level.heldSeq)
 	int			numHeldCmds, nextHeldCmd;
+	int			pressedSpeedWhileDeadTime;
 } clientPersistant_t;
 
 typedef struct renderInfo_s
@@ -2628,6 +2629,7 @@ void respawn (gentity_t *ent);
 void BeginIntermission (void);
 void InitBodyQue (void);
 void ClientSpawn( gentity_t *ent, qboolean forceUpdateInfo );
+void G_PreActivateSpeed( gentity_t *ent );
 void player_die (gentity_t *self, gentity_t *inflictor, gentity_t *attacker, int damage, int mod);
 void G_ObitResendRecord( gentity_t *ev );
 void G_ObitResendExpired( gentity_t *ev );
@@ -3601,6 +3603,7 @@ extern vmCvar_t		g_classChangeLimit;
 extern vmCvar_t		g_classChangeLimitPeriodMilliseconds;
 extern vmCvar_t		g_corpseExplosivesBounce;
 extern vmCvar_t		g_corpseLimit;
+extern vmCvar_t		g_preActivateSpeedWhileDead;
 extern vmCvar_t		g_ownMineDetpackCollision;
 extern vmCvar_t		g_greenshieldBlocksSelfDamage;
 extern vmCvar_t		g_fuck;

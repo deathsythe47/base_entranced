@@ -5181,6 +5181,23 @@ void ClientSpawn(gentity_t *ent, qboolean forceUpdateInfo) {
 	{
 		level.antiSpawnSpamTime = level.time + 6000; //disable spamming d spawn at nar 3rd obj for 6 seconds after spawn
 	}
+
+	G_PreActivateSpeed(ent);
+}
+
+// a speed press while dead or a ghost, up to 1 s before the spawn, turns speed on at the spawn
+void G_PreActivateSpeed(gentity_t *ent) {
+	gclient_t *client = ent->client;
+
+	if (!client || !g_preActivateSpeedWhileDead.integer || ent - g_entities >= MAX_CLIENTS || (ent->r.svFlags & SVF_BOT))
+		return;
+	if (ent->health <= 0)
+		return;
+	if (client->pers.pressedSpeedWhileDeadTime && (level.time - level.startTime) - client->pers.pressedSpeedWhileDeadTime <= 1000 &&
+		client->ps.fd.forcePowerLevel[FP_SPEED] > 0 && !(client->ps.fd.forcePowersActive & (1 << FP_SPEED))) {
+		client->pers.pressedSpeedWhileDeadTime = 0;
+		ForceSpeed(ent, 0);
+	}
 }
 
 static qboolean DisconnectedPlayerMatches(genericNode_t *node, void *userData) {

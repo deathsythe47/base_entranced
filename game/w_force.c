@@ -1845,6 +1845,8 @@ void ForceSpeed( gentity_t *self, int forceDuration )
 {
 	if ( self->health <= 0 )
 	{
+		if (g_preActivateSpeedWhileDead.integer && self->client->sess.sessionTeam != TEAM_SPECTATOR)
+			self->client->pers.pressedSpeedWhileDeadTime = (level.time - level.startTime);
 		return;
 	}
 
@@ -5116,7 +5118,7 @@ int WP_DoSpecificPower( gentity_t *self, usercmd_t *ucmd, forcePowers_t forcepow
             return 0;
 
 	// OVERRIDEFIXME
-	if ( !WP_ForcePowerAvailable( self, forcepower, 0 ) )
+	if ( !WP_ForcePowerAvailable( self, forcepower, 0 ) && !(self->health <= 0 && forcepower == FP_SPEED && g_preActivateSpeedWhileDead.integer) )
 	{
 		return 0;
 	}
