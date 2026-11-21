@@ -3134,6 +3134,12 @@ void ClientThink_real( gentity_t *ent ) {
 	// following others may result in bad times, but we still want
 	// to check for follow toggles
 	if ( msec < 1 && client->sess.spectatorState != SPECTATOR_FOLLOW ) {
+		// a command stamped before the spawn is dropped here: a speed press in it still counts
+		if (ucmd->generic_cmd == GENCMD_FORCE_SPEED && ent - g_entities < MAX_CLIENTS && !(ent->r.svFlags & SVF_BOT) &&
+			ent->health > 0 && client->sess.sessionTeam != TEAM_SPECTATOR && !client->emoted &&
+			level.time - client->respawnTime < 1000 && GenCmdReady(client, GENCMD_DELAY_SPEED, 300)) {
+			ForceSpeed(ent, 0);
+		}
 		return;
 	}
 
