@@ -2364,6 +2364,8 @@ void SpeedRunModeRuined(const char *reason);
 void LivePugRuined(const char *reason, qboolean announce);
 void SiegeClearSwitchData(void);
 const char *G_SiegeRound1Refusal(void);
+qboolean G_ParseForceRound2(const char *timeStr, const char *objsStr, int *ms, int *objs, char *err, size_t errSize);
+void G_ForceRound2Description(int ms, int objs, const char *suffix, char *out, size_t outSize);
 qboolean G_SiegeConvertToRound1(void);
 
 qboolean FileExists(const char *fileName);

@@ -6031,39 +6031,25 @@ void Cmd_CallVote_f( gentity_t *ent, int pause ) {
     }
 	else if (!Q_stricmp(arg1, "forceround2"))
 	{
-		char count[32];
-		int mins = 0;
-		int secs = 0;
-		int time;
+		char timeStr[32], objsStr[32], err[512], desc[64];
+		int ms, objs;
 		if (g_gametype.integer != GT_SIEGE)
 		{
 			trap_SendServerCommand(ent - g_entities, "print \"Must be in siege gametype.\n\"");
 			return;
 		}
-		trap_Argv(2, count, sizeof(count));
-		if (!count[0]) {
-			trap_SendServerCommand(ent - g_entities, "print \"Usage: forceround2 <mm:ss> (e.g. 'forceround2 7:30' for 7 minutes, 30 seconds)\n\"");
+		trap_Argv(2, timeStr, sizeof(timeStr));
+		trap_Argv(3, objsStr, sizeof(objsStr));
+		if (!G_ParseForceRound2(timeStr, objsStr, &ms, &objs, err, sizeof(err))) {
+			trap_SendServerCommand(ent - g_entities, va("print \"%s\n\"", err));
 			return;
 		}
-		if (!atoi(count) || atoi(count) <= 0 || !(strstr(count, ":") != NULL) || strstr(count, ".") != NULL || strstr(count, "-") != NULL || strstr(count, ",") != NULL)
-		{
-			trap_SendServerCommand(ent - g_entities, "print \"Usage: forceround2 <mm:ss> (e.g. 'forceround2 7:30' for 7 minutes, 30 seconds)\n\"");
-			return;
-		}
-		sscanf(count, "%d:%d", &mins, &secs);
-		time = (mins * 60) + secs;
-		if (!mins || secs > 59 || secs < 0 || mins < 0 || time <= 0)
-		{
-			trap_SendServerCommand(ent - g_entities, "print \"Invalid time.\n\"");
-			return;
-		}
-		if (time > 3600)
-		{
-			trap_SendServerCommand(ent - g_entities, "print \"Time must be under 60 minutes.\n\"");
-			return;
-		}
-		Com_sprintf(level.voteString, sizeof(level.voteString), "%s %s", arg1, arg2);
-		Com_sprintf(level.voteDisplayString, sizeof(level.voteDisplayString), "Force round 2 siege with %i:%i timer", mins, secs);
+		if (objs)
+			Com_sprintf(level.voteString, sizeof(level.voteString), "%s %s %d", arg1, timeStr, objs);
+		else
+			Com_sprintf(level.voteString, sizeof(level.voteString), "%s %s", arg1, timeStr);
+		G_ForceRound2Description(ms, objs, " timer", desc, sizeof(desc));
+		Com_sprintf(level.voteDisplayString, sizeof(level.voteDisplayString), "Force round 2 siege with %s", desc);
 	}
 	else if (!Q_stricmp(arg1, "siege_round1"))
 	{

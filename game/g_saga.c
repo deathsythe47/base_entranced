@@ -4061,7 +4061,7 @@ void SiegeObjectiveCompleted(int team, int objective, int final, int client) {
 		SiegeBroadcast_OBJECTIVECOMPLETE(team, client, objective);
 		G_SiegeRoundComplete(team, client, qtrue);
 	}
-	else if (g_siegeTiebreakEnd.integer && g_siegePersistant.beatingTime && g_siegeTeamSwitch.integer && siege_r2_objscompleted.integer >= siege_r1_objscompleted.integer) {
+	else if (g_siegeTiebreakEnd.integer && g_siegePersistant.beatingTime && g_siegeTeamSwitch.integer && siege_r1_heldformaxat.integer > 0 && siege_r2_objscompleted.integer >= siege_r1_objscompleted.integer) {
 //		G_Printf("[RNDDBG] SiegeObjectiveCompleted: DECISION = TIEBREAK EARLY END fired (siege_r2_objscompleted %i >= siege_r1_objscompleted %i) -> G_SiegeRoundComplete(completedEntireMap=false, winner=team%i)\n",
 //			siege_r2_objscompleted.integer, siege_r1_objscompleted.integer, team);
 		SiegeBroadcast_OBJECTIVECOMPLETE(team, client, objective);

@@ -2740,46 +2740,129 @@ void Svcmd_SiegeRound1_f() {
 	G_SiegeConvertToRound1();
 }
 extern siegePers_t g_siegePersistant;
+
+// parses "<m:ss[.fff]> [objectives]"; *objs is 0 when round 2 must complete the map
+qboolean G_ParseForceRound2(const char *timeStr, const char *objsStr, int *ms, int *objs, char *err, size_t errSize) {
+	const char *p = timeStr;
+	int mins = 0, secs = 0, frac = 0, digits;
+
+	*ms = *objs = 0;
+	if (!VALIDSTRING(timeStr)) {
+		Q_strncpyz(err,
+			"Usage: forceround2 <m:ss[.fff]> [objectives]\n"
+			"Restarts as round 2; the new offense has the given time to beat.\n"
+			"Without objectives, round 2 must complete the map.\n"
+			"With objectives, round 2 wins once it completes that many (tiebreak end).\n"
+			"e.g. forceround2 18:05.643, forceround2 20:00 3", errSize);
+		return qfalse;
+	}
+
+	for (digits = 0; *p >= '0' && *p <= '9'; p++, digits++)
+		mins = mins * 10 + (*p - '0');
+	if (!digits || digits > 2 || *p++ != ':') {
+		Q_strncpyz(err, "Invalid time; use m:ss or m:ss.fff (e.g. 18:05.643).", errSize);
+		return qfalse;
+	}
+	for (digits = 0; *p >= '0' && *p <= '9'; p++, digits++)
+		secs = secs * 10 + (*p - '0');
+	if (digits != 2 || secs > 59) {
+		Q_strncpyz(err, "Invalid time; use m:ss or m:ss.fff (e.g. 18:05.643).", errSize);
+		return qfalse;
+	}
+	if (*p == '.') {
+		p++;
+		for (digits = 0; *p >= '0' && *p <= '9'; p++, digits++) {
+			if (digits < 3)
+				frac = frac * 10 + (*p - '0');
+		}
+		if (!digits || digits > 3) {
+			Q_strncpyz(err, "Invalid time; use up to 3 digits after the decimal point (e.g. 18:05.643).", errSize);
+			return qfalse;
+		}
+		for (; digits < 3; digits++)
+			frac *= 10;
+	}
+	if (*p) {
+		Q_strncpyz(err, "Invalid time; use m:ss or m:ss.fff (e.g. 18:05.643).", errSize);
+		return qfalse;
+	}
+
+	*ms = (mins * 60 + secs) * 1000 + frac;
+	if (*ms <= 0) {
+		Q_strncpyz(err, "Invalid time.", errSize);
+		return qfalse;
+	}
+	if (*ms > 3600 * 1000) {
+		Q_strncpyz(err, "Time must be 60 minutes or less.", errSize);
+		return qfalse;
+	}
+
+	if (VALIDSTRING(objsStr)) {
+		int n = 0;
+		for (p = objsStr, digits = 0; *p >= '0' && *p <= '9' && digits < 3; p++, digits++)
+			n = n * 10 + (*p - '0');
+		if (!digits || *p || n < 1 || (level.numSiegeObjectivesOnMap > 0 && n > level.numSiegeObjectivesOnMap)) {
+			Q_strncpyz(err, va("Invalid number of objectives; use 1 to %d.", level.numSiegeObjectivesOnMap), errSize);
+			return qfalse;
+		}
+		if (n < level.numSiegeObjectivesOnMap)
+			*objs = n; // all of them is the same as completing the map
+	}
+
+	return qtrue;
+}
+
+// "7:05", "18:05.643", then suffix, then ", 3 objs to win" when not the whole map
+void G_ForceRound2Description(int ms, int objs, const char *suffix, char *out, size_t outSize) {
+	if (ms % 1000)
+		Com_sprintf(out, outSize, "%d:%02d.%03d", ms / 60000, (ms / 1000) % 60, ms % 1000);
+	else
+		Com_sprintf(out, outSize, "%d:%02d", ms / 60000, (ms / 1000) % 60);
+	Q_strcat(out, outSize, suffix);
+	if (objs)
+		Q_strcat(out, outSize, va(", %d obj%s to win", objs, objs == 1 ? "" : "s"));
+}
+
 void Svcmd_ForceRound2_f() {
-	char count[32];
-	int mins = 0;
-	int secs = 0;
-	int time;
+	char timeStr[32], objsStr[32], err[512], desc[64];
+	int ms, objs, i;
 	if (g_gametype.integer != GT_SIEGE)
 	{
 		G_Printf("Must be in siege gametype.\n");
 		return;
 	}
-	trap_Argv(1, count, sizeof(count));
-	if (!count[0]) {
-		trap_Printf("Usage: forceround2 <mm:ss> (e.g. 'forceround2 7:30' for 7 minutes, 30 seconds)\n");
-		return;
-	}
-	if (!atoi(count) || atoi(count) <= 0 || !(strstr(count, ":") != NULL) || strstr(count, ".") != NULL || strstr(count, "-") != NULL || strstr(count, ",") != NULL)
-	{
-		trap_Printf("Usage: forceround2 <mm:ss> (e.g. 'forceround2 7:30' for 7 minutes, 30 seconds)\n");
-		return;
-	}
-	sscanf(count, "%d:%d", &mins, &secs);
-	time = (mins * 60) + secs;
-	if (!mins || secs > 59 || secs < 0 || mins < 0 || time <= 0)
-	{
-		trap_Printf("Invalid time.\n");
-		return;
-	}
-	if (time > 3600)
-	{
-		trap_Printf("Time must be under 60 minutes.\n");
+	trap_Argv(1, timeStr, sizeof(timeStr));
+	trap_Argv(2, objsStr, sizeof(objsStr));
+	if (!G_ParseForceRound2(timeStr, objsStr, &ms, &objs, err, sizeof(err))) {
+		trap_Printf(va("%s\n", err));
 		return;
 	}
 	trap_Cvar_Set("g_siegeObjStorage", "none");
 	trap_Cvar_Set("g_objscompleted_old", "0");
+
+	/* round 2 reads round 1's record, which nothing else writes here: without a count, round 1 is taken
+	to have completed the map (no tiebreak end); with one, to have been held at that objective */
+	for (i = 1; i <= MAX_STATS - 1; i++)
+		trap_Cvar_Set(va("siege_r1_obj%i", i), "");
+	trap_Cvar_Set("siege_r1_heldformaxtime", "");
+	trap_Cvar_Set("siege_r1_matchid", "");
+	trap_Cvar_Set("siege_r1_total", va("%i", ms));
+	if (objs) {
+		trap_Cvar_Set("siege_r1_objscompleted", va("%i", objs - 1));
+		trap_Cvar_Set("siege_r1_heldformaxat", va("%i", objs));
+	}
+	else {
+		trap_Cvar_Set("siege_r1_objscompleted", va("%i", level.numSiegeObjectivesOnMap));
+		trap_Cvar_Set("siege_r1_heldformaxat", "");
+	}
+
 	g_siegePersistant.beatingTime = qtrue;
 	g_siegePersistant.lastTeam = 1;
-	g_siegePersistant.lastTime = time * 1000;
+	g_siegePersistant.lastTime = ms;
 	trap_SiegePersSet(&g_siegePersistant);
 	trap_SendConsoleCommand(EXEC_APPEND, "map_restart 0\n");
-	trap_SendServerCommand(-1, va("print \"Round 2 beginning with countdown of %s.\n\"", count));
+	G_ForceRound2Description(ms, objs, "", desc, sizeof(desc));
+	trap_SendServerCommand(-1, va("print \"Round 2 beginning with countdown of %s.\n\"", desc));
 }
 
 void Svcmd_RemovePassword_f()
