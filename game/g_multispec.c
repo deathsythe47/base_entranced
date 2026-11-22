@@ -81,17 +81,21 @@ static team_t MS_Side( int half ) {
 	return half == 0 ? TEAM_RED : TEAM_BLUE;
 }
 
-static qboolean MS_ValidTarget( int half, int clientNum ) {
-	gclient_t *cl;
+// a player either half can follow
+static qboolean MS_OnTeam( int clientNum ) {
+	const gclient_t *cl;
 
 	if ( clientNum < 0 || clientNum >= level.maxclients ) {
 		return qfalse;
 	}
 	cl = &level.clients[clientNum];
-	if ( cl->pers.connected != CON_CONNECTED || cl->sess.sessionTeam == TEAM_SPECTATOR ) {
-		return qfalse;
-	}
-	return (qboolean)( g_gametype.integer < GT_TEAM || cl->sess.sessionTeam == MS_Side( half ) );
+	return (qboolean)( cl->pers.connected == CON_CONNECTED && cl->sess.sessionTeam != TEAM_SPECTATOR );
+}
+
+// ...on the half's side, which only auto and the starting players go by
+static qboolean MS_OnSide( int half, int clientNum ) {
+	return (qboolean)( MS_OnTeam( clientNum )
+		&& ( g_gametype.integer < GT_TEAM || level.clients[clientNum].sess.sessionTeam == MS_Side( half ) ) );
 }
 
 /*
@@ -104,21 +108,45 @@ static int MS_Viewpoint( int t, qboolean *ghost ) {
 	return *ghost ? watched : t;
 }
 
-// the next player on the half's side after `from`; without teams never the other half's player
-static int MS_NextTarget( multiSpec_t *m, int half, int from, int dir ) {
-	int i, c;
+/*
+	the next player for a half after `from` (-1 = the first, or the last going backwards): the half's side in
+	client order, then the other team unless `sideOnly`. without teams never the other half's player.
+	`wrapped` (may be NULL) is set when the step went past either end
+*/
+static int MS_NextTarget( multiSpec_t *m, int half, int from, int dir, qboolean sideOnly, qboolean *wrapped ) {
+	int order[MAX_CLIENTS], count = 0, pos = -1, i, pass;
 
-	for ( i = 1; i <= level.maxclients; i++ ) {
-		c = ( ( from < 0 ? ( dir > 0 ? -1 : 0 ) : from ) + i * dir + level.maxclients * 2 ) % level.maxclients;
-		if ( !MS_ValidTarget( half, c ) ) {
-			continue;
-		}
-		if ( g_gametype.integer < GT_TEAM && c == m->target[!half] ) {
-			continue;
-		}
-		return c;
+	if ( wrapped ) {
+		*wrapped = qfalse;
 	}
-	return -1;
+	for ( pass = 0; pass < ( sideOnly || g_gametype.integer < GT_TEAM ? 1 : 2 ); pass++ ) {
+		for ( i = 0; i < level.maxclients; i++ ) {
+			if ( !MS_OnTeam( i ) || MS_OnSide( half, i ) != ( pass == 0 ) ) {
+				continue;
+			}
+			if ( g_gametype.integer < GT_TEAM && i == m->target[!half] ) {
+				continue;
+			}
+			if ( i == from ) {
+				pos = count;
+			}
+			order[count++] = i;
+		}
+	}
+	if ( !count ) {
+		return -1;
+	}
+	if ( pos < 0 ) {
+		return order[dir > 0 ? 0 : count - 1];
+	}
+	pos += dir;
+	if ( pos < 0 || pos >= count ) {
+		if ( wrapped ) {
+			*wrapped = qtrue;
+		}
+		pos = pos < 0 ? count - 1 : 0;
+	}
+	return order[pos];
 }
 
 /*
@@ -133,7 +161,7 @@ static int MS_FindAutoTarget( int half, vec3_t anchor ) {
 	int			i;
 
 	for ( i = 0; i < level.maxclients; i++ ) {
-		if ( MS_ValidTarget( half, i ) && level.clients[i].ps.powerups[flagPowerup]
+		if ( MS_OnSide( half, i ) && level.clients[i].ps.powerups[flagPowerup]
 			&& level.clients[i].ps.stats[STAT_HEALTH] > 0 ) {
 			return i;
 		}
@@ -239,16 +267,15 @@ void G_MultiSpec_Stop( gentity_t *ent, qboolean resumeFollow ) {
 	m->pressTime[0] = m->pressTime[1] = 0;
 	MS_ParkViews( m );
 	if ( resumeFollow && ent->client && ent->client->sess.sessionTeam == TEAM_SPECTATOR
-		&& MS_ValidTarget( 0, left ) ) {
+		&& MS_OnTeam( left ) ) {
 		ent->client->sess.spectatorState = SPECTATOR_FOLLOW;
 		ent->client->sess.spectatorClient = left;
 	}
 }
 
-// players named in a resume request go to the half of the team they are on now, once they are on one
+// players named in a resume request go back to their halves, once they are on a team
 static void MS_PlacePending( multiSpec_t *m ) {
-	qboolean	placed[MS_HALVES] = { qfalse, qfalse };
-	int			i, half;
+	int i;
 
 	for ( i = 0; i < MS_HALVES; i++ ) {
 		const int c = m->pending[i];
@@ -260,22 +287,12 @@ static void MS_PlacePending( multiSpec_t *m ) {
 			m->pending[i] = -1;
 			continue;
 		}
-		if ( g_gametype.integer < GT_TEAM ) {
-			half = MS_ValidTarget( i, c ) && c != m->target[!i] ? i : MS_HALVES;
-		} else {
-			for ( half = 0; half < MS_HALVES && !MS_ValidTarget( half, c ); half++ ) {
-			}
-		}
-		if ( half == MS_HALVES ) {
+		if ( !MS_OnTeam( c ) || ( g_gametype.integer < GT_TEAM && c == m->target[!i] ) ) {
 			continue;		// not on a team yet (a siege round's countdown)
 		}
 		m->pending[i] = -1;
-		if ( placed[half] ) {
-			continue;		// both are on one side now: the first keeps it
-		}
-		placed[half] = qtrue;
-		m->target[half] = c;
-		m->autoFlag[half] = qfalse;
+		m->target[i] = c;
+		m->autoFlag[i] = qfalse;
 	}
 }
 
@@ -318,7 +335,7 @@ static void MS_Start( gentity_t *ent, const int *resume ) {
 	m->autoFlag[0] = m->autoFlag[1] = MS_AutoAvailable();
 	for ( i = 0; i < MS_HALVES; i++ ) {
 		// the player being watched keeps their half; the other half starts on the other side
-		m->target[i] = MS_ValidTarget( i, was ) && was != m->target[!i] ? was : MS_NextTarget( m, i, -1, 1 );
+		m->target[i] = MS_OnSide( i, was ) && was != m->target[!i] ? was : MS_NextTarget( m, i, -1, 1, qtrue, NULL );
 	}
 	m->pending[0] = resume ? resume[0] : -1;
 	m->pending[1] = resume ? resume[1] : -1;
@@ -387,28 +404,29 @@ static void MS_Start( gentity_t *ent, const int *resume ) {
 void G_MultiSpec_Cycle( gentity_t *ent, int half, int dir ) {
 	multiSpec_t	*m = &ms[ent - g_entities];
 	int			next;
+	qboolean	wrapped;
 
 	if ( !m->on || half < 0 || half >= MS_HALVES ) {
 		return;
 	}
 	if ( !MS_AutoAvailable() ) {
-		next = MS_NextTarget( m, half, m->target[half], dir );
+		next = MS_NextTarget( m, half, m->target[half], dir, qfalse, NULL );
 		if ( next >= 0 ) {
 			m->target[half] = next;
 		}
 		return;
 	}
-	// auto is one stop of the cycle, between the side's last player and its first
+	// auto is one stop of the cycle, between the other team's last player and the side's first
 	if ( m->autoFlag[half] ) {
-		next = MS_NextTarget( m, half, -1, dir );
+		next = MS_NextTarget( m, half, -1, dir, qfalse, NULL );
 		if ( next >= 0 ) {
 			m->target[half] = next;
 			m->autoFlag[half] = qfalse;
 		}
 		return;
 	}
-	next = MS_NextTarget( m, half, m->target[half], dir );
-	if ( next < 0 || ( dir > 0 ? next <= m->target[half] : next >= m->target[half] ) ) {
+	next = MS_NextTarget( m, half, m->target[half], dir, qfalse, &wrapped );
+	if ( next < 0 || wrapped ) {
 		m->autoFlag[half] = qtrue;
 	} else {
 		m->target[half] = next;
@@ -417,7 +435,7 @@ void G_MultiSpec_Cycle( gentity_t *ent, int half, int dir ) {
 
 /*
 	multispec on [<left> <right>]|off, multispec left|right [next|prev], multispec auto [left|right].
-	on with two client numbers (-1 = none) resumes those players, each in the half of their team
+	on with two client numbers (-1 = none) resumes those players in the left and right halves
 */
 void G_MultiSpec_Cmd( gentity_t *ent ) {
 	char	arg[16], arg2[16];
@@ -712,7 +730,7 @@ static void MS_UpdateView( gentity_t *spec, multiSpec_t *m, int half, const vec3
 		v->s.time2 = 0xffff;
 		v->s.genericenemyindex = MS_VisibleMask( eye, -1 );
 		MS_SetVehicle( v, NULL );
-	} else if ( MS_ValidTarget( half, t ) && ( vp = MS_Viewpoint( t, &ghost ) ) < 0 ) {
+	} else if ( MS_OnTeam( t ) && ( vp = MS_Viewpoint( t, &ghost ) ) < 0 ) {
 		// a ghost with nobody alive to watch: what the ghost itself sees
 		const gclient_t *gc = &level.clients[t];
 
@@ -726,7 +744,7 @@ static void MS_UpdateView( gentity_t *spec, multiSpec_t *m, int half, const vec3
 		v->s.time2 = 0xffff;
 		v->s.genericenemyindex = MS_VisibleMask( eye, -1 );
 		MS_SetVehicle( v, NULL );
-	} else if ( MS_ValidTarget( half, t ) ) {
+	} else if ( MS_OnTeam( t ) ) {
 		// the half's player, or for a ghost the teammate it watches: eyes and vitals are theirs
 		gclient_t	*tc = &level.clients[vp];
 		int			maxHealth = tc->ps.stats[STAT_MAX_HEALTH], maxArmor = 100;
@@ -807,8 +825,8 @@ void G_MultiSpec_EndFrame( gentity_t *ent ) {
 			}
 		}
 		m->onFlag[i] = onFlag[i];
-		if ( !MS_ValidTarget( i, m->target[i] ) ) {
-			m->target[i] = MS_NextTarget( m, i, m->target[i], 1 );
+		if ( !MS_OnTeam( m->target[i] ) ) {
+			m->target[i] = MS_NextTarget( m, i, -1, 1, qfalse, NULL );
 		}
 	}
 
@@ -818,7 +836,7 @@ void G_MultiSpec_EndFrame( gentity_t *ent ) {
 		cl->ps.viewheight = 0;
 		VectorClear( cl->ps.velocity );
 		VectorCopy( cl->ps.origin, ent->s.origin );
-	} else if ( MS_ValidTarget( 0, m->target[0] ) ) {
+	} else if ( MS_OnTeam( m->target[0] ) ) {
 		qboolean	ghost;
 		const int	vp = MS_Viewpoint( m->target[0], &ghost );
 		gclient_t	*tc = &level.clients[vp >= 0 ? vp : m->target[0]];
@@ -887,7 +905,7 @@ int G_MultiSpec_ListState( int clientNum, int shown[MS_HALVES], qboolean *anyAut
 				continue;
 			}
 		}
-		if ( MS_ValidTarget( i, m->target[i] ) ) {
+		if ( MS_OnTeam( m->target[i] ) ) {
 			shown[n++] = m->target[i];
 		}
 	}
