@@ -7453,16 +7453,18 @@ void G_RunFrame( int levelTime ) {
 
 #ifdef NEWMOD_SUPPORT
 	static qboolean flagsSet = qfalse; // make sure it gets set at least once
-	static int saberFlags, netUnlock, anchorFlag;
+	static int saberFlags, netUnlock, anchorFlag, followFlag;
 	int numRed = 0, numBlue = 0;
 	CountPlayers(NULL, &numRed, &numBlue, NULL, NULL, NULL, NULL);
 	const qboolean wasRestartedNow = (level.wasRestarted && level.isLivePug != ISLIVEPUG_NO && numRed >= 2 && numBlue >= 2);
 	static qboolean lastWasRestartedNow = qfalse;
 	if (!flagsSet || saberFlags != g_balanceSaber.integer || netUnlock != g_netUnlock.integer || wasRestartedNow != lastWasRestartedNow ||
-		anchorFlag != (g_smoothClientsAnchor.integer >= 2)) {
+		anchorFlag != (g_smoothClientsAnchor.integer >= 2) ||
+		followFlag != (g_smoothClientsAnchor.integer >= 2 && g_smoothClientsFollow.integer && g_smoothClients.integer)) {
 		saberFlags = g_balanceSaber.integer;
 		netUnlock = g_netUnlock.integer;
 		anchorFlag = (g_smoothClientsAnchor.integer >= 2);
+		followFlag = (anchorFlag && g_smoothClientsFollow.integer && g_smoothClients.integer);
 
 		int sendFlags = 0;
 		if (saberFlags & SB_KICK)
@@ -7475,6 +7477,8 @@ void G_RunFrame( int levelTime ) {
 			sendFlags |= NMF_WASRESTARTED;
 		if (anchorFlag)
 			sendFlags |= NMF_SMOOTHANCHOR;
+		if (followFlag)
+			sendFlags |= NMF_SMOOTHFOLLOW;
 
 		trap_Cvar_Set("g_nmFlags", va("%i", sendFlags));
 		flagsSet = qtrue;

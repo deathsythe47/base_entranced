@@ -2978,6 +2978,8 @@ int G_CmdLevelTime( int cmdServerTime )
 	return Com_Clampi( level.previousTime + 1, level.time, cmdServerTime );
 }
 
+static void SmoothClientsSampleLatency(gclient_t *cl);
+
 void ClientThink_real( gentity_t *ent ) {
 	gclient_t	*client;
 	pmove_t		pm;
@@ -5204,6 +5206,18 @@ void ClientThink_real( gentity_t *ent ) {
 	if (g_smoothClients.integer) {
 		BG_PlayerStateToEntityStateExtraPolate( &ent->client->ps, &ent->s, ent->client->ps.commandTime, qfalse );
 		//rww - 12-03-02 - Don't snap the origin of players! It screws prediction all up.
+
+		// a piloted vehicle moves on its pilot's commands: give it his anchor so it does not move in jolts either
+		if (isNPC && g_smoothClientsAnchor.integer >= 2 && ent->s.NPC_class == CLASS_VEHICLE && ent->m_pVehicle &&
+			ent->m_pVehicle->m_pPilot && ent->m_pVehicle->m_pPilot->s.number < MAX_CLIENTS && level.pause.state == PAUSE_NONE) {
+			gentity_t *pilot = &g_entities[ent->m_pVehicle->m_pPilot->s.number];
+			if (pilot->client && !(pilot->r.svFlags & SVF_BOT) && pilot->client->pers.lastPacketLevelTime > 0) {
+				int lead = Com_Clampi(0, 200, g_smoothClientsLead.integer);
+				SmoothClientsSampleLatency(pilot->client);
+				ent->s.pos.trTime = ent->client->ps.commandTime + (int)(pilot->client->pers.cmdLatencyLow + 0.5f) - lead;
+				ent->s.pos.trDuration = Com_Clampi(0, 1000, g_smoothClientsCap.integer) + lead;
+			}
+		}
 	}
 	else {
 		BG_PlayerStateToEntityState( &ent->client->ps, &ent->s, qfalse );
@@ -5788,8 +5802,22 @@ void SpectatorClientEndFrame( gentity_t *ent ) {
 				// advance the followed player's view by the time since their last packet, up to the same cap
 				if (g_smoothClientsFollow.integer && !(g_entities[clientNum].r.svFlags & SVF_BOT) &&
 					level.pause.state == PAUSE_NONE && cl->pers.lastPacketLevelTime > 0) {
-					int elapsed = Com_Clampi(0, SmoothClientsCap(cl), level.time - cl->pers.lastPacketLevelTime);
-					VectorMA(ent->client->ps.origin, elapsed * 0.001f, cl->ps.velocity, ent->client->ps.origin);
+					if (g_smoothClientsAnchor.integer >= 2) {
+						/* count from his command time plus the lowest latency seen lately instead of from the arrival,
+						as for his entity: an irregular connection no longer moves the view in jolts. a pilot keeps the
+						velocity he boarded with, so he advances at his vehicle's */
+						const gentity_t *veh = cl->ps.m_iVehicleNum ? &g_entities[cl->ps.m_iVehicleNum] : NULL;
+						const float *vel = (veh && veh->inuse && veh->client) ? veh->client->ps.velocity : cl->ps.velocity;
+						float elapsed;
+						SmoothClientsSampleLatency(cl);
+						elapsed = level.time - cl->ps.commandTime - cl->pers.cmdLatencyLow;
+						elapsed = Com_Clamp(0.0f, Com_Clampi(0, 1000, g_smoothClientsCap.integer), elapsed);
+						VectorMA(ent->client->ps.origin, elapsed * 0.001f, vel, ent->client->ps.origin);
+					}
+					else {
+						int elapsed = Com_Clampi(0, SmoothClientsCap(cl), level.time - cl->pers.lastPacketLevelTime);
+						VectorMA(ent->client->ps.origin, elapsed * 0.001f, cl->ps.velocity, ent->client->ps.origin);
+					}
 				}
 
 				if (ent->client->sess.isInkognito || (g_lockdown.integer && !G_ClientIsWhitelisted(ent - g_entities))

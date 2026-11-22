@@ -3353,6 +3353,7 @@ extern vmCvar_t		g_netUnlock;
 #define NMF_NETUNLOCK		(1 << 2)
 #define NMF_WASRESTARTED	(1 << 3)
 #define NMF_SMOOTHANCHOR	(1 << 4)
+#define NMF_SMOOTHFOLLOW	(1 << 5)
 extern vmCvar_t		g_nmFlags;
 extern vmCvar_t		g_enableNmAuth;
 extern vmCvar_t		g_specInfo;
