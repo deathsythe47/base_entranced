@@ -98,6 +98,7 @@ vmCvar_t	g_optvehtrace;
 vmCvar_t	g_locationBasedDamage;
 
 vmCvar_t	g_fixSaberDefense;
+vmCvar_t	g_fixStMines;
 // 1 = angle-based blocking for disrupts
 // 2 = also fix projectile blocking
 
@@ -1088,6 +1089,7 @@ static cvarTable_t		gameCvarTable[] = {
 
 
 	{ &g_fixPitKills,	"g_fixPitKills"	, "1"	, CVAR_ARCHIVE, 0, qtrue },
+	{ &g_fixStMines,	"g_fixStMines"	, "1"	, CVAR_ARCHIVE, 0, qtrue },
 	{ &g_fixForceRegenTime,	"g_fixForceRegenTime"	, "0"	, CVAR_ARCHIVE, 0, qtrue },
 	{ &g_tickProbe, "g_tickProbe", "0", 0, 0, qfalse },
 	{ &g_tickFix, "g_tickFix", "0", CVAR_ARCHIVE, 0, qtrue },

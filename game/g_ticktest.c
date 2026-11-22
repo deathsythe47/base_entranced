@@ -40,6 +40,7 @@ extern void Use_BinaryMover_Go(gentity_t *ent);
 extern void InitMoverTrData(gentity_t *ent);
 extern void CreateLaserTrap(gentity_t *laserTrap, vec3_t start, gentity_t *owner, qboolean tripwire);
 extern void laserTrapStick(gentity_t *ent, vec3_t endpos, vec3_t normal);
+extern void drop_charge(gentity_t *self, vec3_t start, vec3_t dir);
 extern void rocketThink(gentity_t *ent);
 extern gentity_t *NPC_SpawnType(gentity_t *ent, char *npc_type, char *targetname, qboolean isVehicle);
 extern void EWebDisattach(gentity_t *owner, gentity_t *eweb);
@@ -1829,6 +1830,7 @@ static qboolean TTS_SaberClash(void) {
 }
 
 static int ttSavedStance;
+static void TT_SetupSaberThrower(gentity_t *a);
 
 /*
 A throws its saber (throw level 3) toward B every 2.5 s and lets go of alt attack 850 ms into the throw. B is 1000
@@ -1844,6 +1846,15 @@ static qboolean TT_SetupSaberThrow(float dist) {
 	a = TT_A();
 	b = TT_B();
 	TT_REQUIRE_LOS(a, b);
+	TT_SetupSaberThrower(a);
+	TT_GiveWeapon(b, WP_SABER);
+	b->client->ps.saberHolstered = 2;
+	TT_Pin(TT_BOT_B, b->client->ps.origin);
+	return qtrue;
+}
+
+// A gets a single lit Kyle saber, medium stance, saber offense and throw level 3 (undone by TTT_SaberThrow)
+static void TT_SetupSaberThrower(gentity_t *a) {
 	TT_GiveWeapon(a, WP_SABER);
 	// the class sabers may not be throwable and a staff stance kicks on alt attack: a single saber, stance unforced
 	TT.savedClass = -1;
@@ -1859,10 +1870,6 @@ static qboolean TT_SetupSaberThrow(float dist) {
 	a->client->ps.saberHolstered = 0;
 	TT_GivePower(a, FP_SABER_OFFENSE, FORCE_LEVEL_3);
 	TT_GivePower(a, FP_SABERTHROW, FORCE_LEVEL_3);
-	TT_GiveWeapon(b, WP_SABER);
-	b->client->ps.saberHolstered = 2;
-	TT_Pin(TT_BOT_B, b->client->ps.origin);
-	return qtrue;
 }
 
 static qboolean TTS_SaberThrow(void) {
@@ -1902,6 +1909,535 @@ static void TTT_SaberThrow(void) {
 	G_SetSaber(a, 0, scl->saber1[0] ? scl->saber1 : "Kyle", qtrue);
 	G_SetSaber(a, 1, scl->saber2[0] ? scl->saber2 : "none", qtrue);
 	G_SaberModelSetup(a);
+}
+
+/*
+============================================================================
+saber throws at planted mines (g_fixStMines)
+
+every STM_CYCLE_MS, A (throw level 3, godmode) stands at the thrower spot shifted by a random offset, a mine or
+detpack of A's is laid on a surface the kind picks, and A throws at a point a random distance from it along that
+surface: 0-15 u on even throws (probe stmine_near), 40-70 u on odd ones (stmine_far). v = 1 when the throw destroyed
+it. the thrower spot is the reported one in siege_hoth3_v6's window room for the hoth kinds, else a random spawn point
+(or that spot) that sees a surface of the kind.
+kinds (arg % 10; arg >= 10 lays detpacks):
+	hoth: the wall above that room's window, behind its 64 u deep player clip (siege_hoth3_v6 only)
+	clip: a plain wall with a player clip box 16-64 u deep laid in front of it
+	plain: a world wall with no clip in front
+	behind: the back of a 4-16 u solid slab standing 12-32 u off a plain wall, aimed at its front face (must never hit)
+	deepclip: a plain wall with a player clip box 128-160 u deep in front, beyond reach plus margin (must never hit)
+============================================================================
+*/
+
+#define STM_CYCLE_MS	3500
+#define STM_AIM_MS		300		// into the cycle: earliest moment A takes aim and starts holding alt attack
+#define STM_HOLD_MS		1200	// alt attack held this long after the throw (a release after 500 ms returns it)
+
+enum { STM_HOTH, STM_CLIP, STM_PLAIN, STM_BEHIND, STM_DEEPCLIP };
+
+static const vec3_t stmHothSpot = { -868.4f, 154.5f, -231.8f };
+
+static struct {
+	int			cycle;
+	int			throws;
+	qboolean	aimed;
+	qboolean	thrown;
+	int			mine;			// entity number, -1 none
+	int			mineSetTime;	// tells the laid mine from a reused slot
+	float		offset;
+	float		realOffset;		// aim point to where the mine actually settled
+	qboolean	near;
+	vec3_t		eye, aim;
+	float		depth;			// player clip crossed by the aim line in front of the surface
+	qboolean	failed;
+	int			killMod;		// how the mine was destroyed: MOD_ of its die call, -1 not through die
+	char		killBy[32];		// inflictor classname
+	float		closest;		// the thrown saber's closest approach to the mine
+	qboolean	stopped;
+	vec3_t		stop;			// where the outbound saber turned back
+	void		(*origDie)(gentity_t *self, gentity_t *inflictor, gentity_t *attacker, int damage, int mod);
+	int			clip;			// the synthetic player clip box, -1 none
+	int			failStreak;
+	float		slabGap;		// behind: open space between the wall and the slab the mine is stuck behind
+	float		lineOffset;		// the mine to the line of sight through the aim point, from the eye to the surface
+	vec3_t		spots[64];		// thrower spot candidates
+	int			numSpots;
+} stm;
+
+static void STM_Die(gentity_t *self, gentity_t *inflictor, gentity_t *attacker, int damage, int mod) {
+	if (self->s.number == stm.mine && stm.killMod < 0) {
+		stm.killMod = mod;
+		Q_strncpyz(stm.killBy, inflictor && VALIDSTRING(inflictor->classname) ? inflictor->classname : "?", sizeof(stm.killBy));
+	}
+	if (stm.origDie)
+		stm.origDie(self, inflictor, attacker, damage, mod);
+}
+
+// arg: kind + 10 detpack + 100 sweep (offsets 0-45 on every throw) + 1000 * throw level (0 = 3)
+static qboolean STM_Detpack(void) {
+	return (TT_ScenarioArg() / 10) % 10 != 0;
+}
+
+static qboolean STM_Sweep(void) {
+	return (TT_ScenarioArg() / 100) % 10 != 0;
+}
+
+static int STM_ThrowLevel(void) {
+	return TT_ScenarioArg() / 1000 ? TT_ScenarioArg() / 1000 : FORCE_LEVEL_3;
+}
+
+static int STM_Kind(void) {
+	return TT_ScenarioArg() % 10;
+}
+
+static qboolean STM_OnHoth(void) {
+	return !Q_stricmp(level.mapname, "siege_hoth3_v6");
+}
+
+static gentity_t *STM_Mine(void) {
+	gentity_t *e;
+
+	if (stm.mine < 0)
+		return NULL;
+	e = &g_entities[stm.mine];
+	if (!e->inuse || e->setTime != stm.mineSetTime || !VALIDSTRING(e->classname) ||
+		(Q_stricmp(e->classname, "laserTrap") && Q_stricmp(e->classname, "detpack")))
+		return NULL;
+	return e;
+}
+
+// the mine was destroyed (gone, or dying: both die functions clear takedamage)
+static qboolean STM_MineDestroyed(void) {
+	gentity_t *e = STM_Mine();
+	return !e || !e->takedamage || e->health <= 0;
+}
+
+static void STM_TangentBasis(const vec3_t normal, vec3_t u, vec3_t v) {
+	vec3_t ref = { 0, 0, 1 };
+
+	if (fabs(normal[2]) > 0.9f)
+		VectorSet(ref, 1, 0, 0);
+	CrossProduct(normal, ref, u);
+	VectorNormalize(u);
+	CrossProduct(normal, u, v);
+	VectorNormalize(v);
+}
+
+/*
+a surface for the kind seen from eye: spot = the point on it (just off the surface), normal = its facing, front = the
+same point (behind moves both onto its slab). *depth: in, the box depth the clip kinds and behind need room for; out,
+the clip crossed by the aim line. qfalse when this ray does not qualify
+*/
+static qboolean STM_TrySurface(const vec3_t eye, const vec3_t dir, int kind, vec3_t spot, vec3_t normal, vec3_t front, float *depth) {
+	trace_t shot, body;
+	vec3_t end;
+	float dShot, dBody, clipDepth = *depth;
+
+	VectorMA(eye, 600, dir, end);
+	trap_Trace(&shot, eye, NULL, NULL, end, TT_A()->s.number, MASK_SHOT);
+	trap_Trace(&body, eye, NULL, NULL, end, TT_A()->s.number, MASK_PLAYERSOLID);
+	if (shot.startsolid || body.startsolid || shot.fraction >= 1.0f || shot.entityNum != ENTITYNUM_WORLD ||
+		(shot.surfaceFlags & (SURF_SKY | SURF_NOIMPACT)) || DotProduct(shot.plane.normal, dir) > -0.5f)
+		return qfalse;
+
+	dShot = shot.fraction * 600;
+	dBody = body.fraction * 600;
+	if (dShot < 120 || dShot > 450)
+		return qfalse;
+	VectorCopy(shot.endpos, front);
+
+	if (kind == STM_HOTH) {
+		return qfalse;
+	} else if (kind == STM_CLIP || kind == STM_DEEPCLIP || kind == STM_BEHIND) {
+		// a plain wall facing along x or y, far enough out that the box laid in front of it misses the thrower
+		int axis = fabs(shot.plane.normal[0]) > 0.99f ? 0 : fabs(shot.plane.normal[1]) > 0.99f ? 1 : -1;
+
+		if (dShot - dBody > 0.5f || axis < 0 || fabs(eye[axis] - shot.endpos[axis]) < clipDepth + 48)
+			return qfalse;
+	} else if (dShot - dBody > 0.5f) {
+		return qfalse;
+	} else {
+		*depth = 0;
+	}
+
+	VectorCopy(shot.endpos, spot);
+	VectorCopy(shot.plane.normal, normal);
+	return qtrue;
+}
+
+static qboolean STM_FindSurface(const vec3_t eye, int kind, vec3_t spot, vec3_t normal, vec3_t front, float *depth) {
+	int tries;
+
+	for (tries = 0; tries < 400; tries++) {
+		vec3_t angles, dir, start, end;
+		trace_t tr;
+
+		if (kind == STM_HOTH) {
+			// the wall above the window, inside the clip's footprint: lay from just in front of the wall
+			VectorSet(start, -700, flrand(-56, 56), flrand(-150, -110));
+			VectorSet(end, -600, start[1], start[2]);
+			trap_Trace(&tr, start, NULL, NULL, end, ENTITYNUM_NONE, MASK_SHOT);
+			if (tr.startsolid || tr.fraction >= 1.0f || tr.entityNum != ENTITYNUM_WORLD || tr.plane.normal[0] > -0.99f ||
+				fabs(tr.endpos[0] + 640) > 2)
+				return TT_Fail("siege_hoth3_v6 window wall not where expected (hit %.1f %.1f %.1f)", tr.endpos[0], tr.endpos[1], tr.endpos[2]);
+			VectorCopy(tr.endpos, spot);
+			VectorCopy(tr.plane.normal, normal);
+			VectorCopy(tr.endpos, front);
+			// the 64 u player clip in front of it
+			VectorSet(start, -760, spot[1], spot[2]);
+			trap_Trace(&tr, start, NULL, NULL, spot, ENTITYNUM_NONE, MASK_PLAYERSOLID);
+			if (tr.fraction >= 1.0f || fabs(tr.endpos[0] + 704) > 2)
+				return TT_Fail("siege_hoth3_v6 window clip not where expected (hit %.1f)", tr.endpos[0]);
+			*depth = 64;
+			return qtrue;
+		}
+
+		VectorSet(angles, flrand(-35, 10), flrand(0, 360), 0);
+		AngleVectors(angles, dir, NULL, NULL);
+		if (STM_TrySurface(eye, dir, kind, spot, normal, front, depth))
+			return qtrue;
+	}
+	return TT_Fail("no surface of kind %d seen from %.0f %.0f %.0f", kind, eye[0], eye[1], eye[2]);
+}
+
+static qboolean STM_LayMine(const vec3_t spot, const vec3_t normal) {
+	gentity_t *mine;
+
+	TT_MarkEntities();
+	if (STM_Detpack()) {
+		vec3_t start, dir;
+
+		// dropped 8 u off the surface straight at it, as a real one lands
+		VectorMA(spot, 8, normal, start);
+		VectorNegate(normal, dir);
+		drop_charge(TT_A(), start, dir);
+		mine = TT_TrackNew("detpack");
+	} else {
+		mine = G_Spawn();
+		CreateLaserTrap(mine, (float *)spot, TT_A(), qfalse);
+		mine->setTime = level.time;
+		trap_LinkEntity(mine);
+		laserTrapStick(mine, (float *)spot, (float *)normal);
+		TT_TrackNew(NULL);
+	}
+	if (!mine)
+		return TT_Fail("mine not spawned");
+	stm.mine = mine->s.number;
+	stm.mineSetTime = mine->setTime;
+	stm.origDie = mine->die;
+	mine->die = STM_Die;
+	return qtrue;
+}
+
+static void STM_FreeMine(void) {
+	gentity_t *e = STM_Mine();
+	if (e)
+		G_FreeEntity(e);
+	stm.mine = -1;
+	if (stm.clip > 0 && g_entities[stm.clip].inuse && g_entities[stm.clip].classname && !strcmp(g_entities[stm.clip].classname, "stmine_clip"))
+		G_FreeEntity(&g_entities[stm.clip]);
+	stm.clip = -1;
+}
+
+/*
+a box filling `from`..`to` u in front of the wall at spot (along its normal), like a map brush: traces see entity
+contents. player clip for the clip kinds, a solid slab for behind
+*/
+static void STM_SpawnBox(const vec3_t spot, const vec3_t normal, float from, float to, int contents) {
+	int a = fabs(normal[0]) > 0.99f ? 0 : 1, b = 1 - a;
+	float w = spot[a] + normal[a] * from, f = spot[a] + normal[a] * to;
+	gentity_t *c = G_Spawn();
+
+	c->classname = "stmine_clip";
+	G_SetOrigin(c, vec3_origin);
+	c->r.mins[a] = w < f ? w : f;
+	c->r.maxs[a] = w < f ? f : w;
+	c->r.mins[b] = spot[b] - 160;
+	c->r.maxs[b] = spot[b] + 160;
+	c->r.mins[2] = spot[2] - 96;
+	c->r.maxs[2] = spot[2] + 96;
+	c->r.contents = contents;
+	c->r.svFlags |= SVF_NOCLIENT;
+	trap_LinkEntity(c);
+	TT_Track(c);
+	stm.clip = c->s.number;
+}
+
+// the hoth kind's reported spot, else the map's spawn points (and the hoth spot on that map)
+static void STM_GatherSpots(void) {
+	static const char *classes[] = { "info_player_siegeteam1", "info_player_siegeteam2", "info_player_deathmatch", "info_player_start", NULL };
+	int i;
+
+	stm.numSpots = 0;
+	if (STM_OnHoth()) {
+		VectorCopy(stmHothSpot, stm.spots[0]);
+		stm.numSpots = 1;
+	}
+	if (STM_Kind() == STM_HOTH)
+		return;
+	for (i = 0; classes[i]; i++) {
+		gentity_t *spot = NULL;
+
+		while ((spot = G_Find(spot, FOFS(classname), classes[i])) != NULL && stm.numSpots < (int)(sizeof(stm.spots) / sizeof(stm.spots[0]))) {
+			VectorCopy(spot->s.origin, stm.spots[stm.numSpots]);
+			stm.spots[stm.numSpots][2] += 8;
+			stm.numSpots++;
+		}
+	}
+}
+
+static void STM_ThrowerSpot(const vec3_t base, vec3_t out) {
+	int tries;
+
+	for (tries = 0; tries < 64; tries++) {
+		vec3_t p;
+
+		VectorCopy(base, p);
+		p[0] += flrand(-32, 32);
+		p[1] += flrand(-32, 32);
+		if (TT_HullClear(p, p) && TT_HasFloor(p)) {
+			VectorCopy(p, out);
+			return;
+		}
+	}
+	VectorCopy(base, out);
+}
+
+// a new throw: thrower spot, mine, aim point
+static void STM_NewThrow(void) {
+	gentity_t *a = TT_A();
+	vec3_t origin, spot, normal, front, u, v, dir, angles;
+	int tries;
+
+	TT_RecallSaber(a);
+	STM_FreeMine();
+	stm.aimed = qfalse;
+	stm.thrown = qfalse;
+	stm.killMod = -1;
+	stm.killBy[0] = 0;
+	stm.closest = 99999;
+	stm.stopped = qfalse;
+	VectorClear(stm.stop);
+	stm.near = !(stm.throws & 1);
+
+	// a random candidate spot until one sees a surface of the kind
+	for (tries = 0; tries < 32; tries++) {
+		if (STM_Kind() == STM_CLIP)
+			stm.depth = flrand(16, 64);
+		else if (STM_Kind() == STM_DEEPCLIP)
+			stm.depth = flrand(128, 160);
+		else if (STM_Kind() == STM_BEHIND) { // gap behind the slab, then its thickness
+			stm.slabGap = flrand(12, 32);
+			stm.depth = stm.slabGap + flrand(4, 16);
+		}
+		STM_ThrowerSpot(stm.spots[tries ? Q_irand(0, stm.numSpots - 1) : (STM_OnHoth() ? 0 : Q_irand(0, stm.numSpots - 1))], origin);
+		TT_Place(a, origin, 0, 0);
+		TT_Pin(TT_BOT_A, origin);
+		VectorCopy(origin, stm.eye);
+		stm.eye[2] += a->client->ps.viewheight;
+		if (STM_FindSurface(stm.eye, STM_Kind(), spot, normal, front, &stm.depth))
+			break;
+		if (STM_Kind() == STM_HOTH) // fixed geometry: no point retrying
+			tries = 32;
+	}
+	if (tries >= 32) {
+		stm.failed = qtrue;
+		return;
+	}
+
+	if (STM_Kind() == STM_BEHIND) {
+		vec3_t from, to;
+		trace_t tr;
+
+		STM_SpawnBox(spot, normal, stm.slabGap, stm.depth, CONTENTS_SOLID);
+		// the mine goes on the slab's back face, facing the wall; the aim is at its front face
+		VectorMA(spot, 1, normal, from);
+		VectorMA(spot, stm.depth + 8, normal, to);
+		trap_Trace(&tr, from, NULL, NULL, to, ENTITYNUM_NONE, MASK_SHOT);
+		if (tr.entityNum != stm.clip) {
+			stm.failed = qtrue;
+			TT_Fail("slab back face not found (hit ent %d)", tr.entityNum);
+			return;
+		}
+		VectorMA(spot, stm.depth, normal, front);
+		VectorCopy(tr.endpos, spot);
+		VectorCopy(tr.plane.normal, normal);
+	}
+
+	// an aim point on the front face at the bucket's distance from the mine's spot, seen from the eye
+	STM_TangentBasis(normal, u, v);
+	for (tries = 0; tries < 64; tries++) {
+		float ang = flrand(0, 2 * M_PI);
+		vec3_t base, want, end;
+		trace_t tr;
+
+		stm.offset = STM_Sweep() ? flrand(0, 45) : stm.near ? flrand(0, 15) : flrand(40, 70);
+		VectorCopy(spot, base);
+		if (STM_Kind() == STM_BEHIND) // straight opposite the mine on the slab's front face
+			VectorMA(spot, -(stm.depth - stm.slabGap), normal, base);
+		VectorMA(base, stm.offset * cos(ang), u, want);
+		VectorMA(want, stm.offset * sin(ang), v, want);
+		VectorSubtract(want, stm.eye, dir);
+		VectorNormalize(dir);
+		VectorMA(stm.eye, 800, dir, end);
+		trap_Trace(&tr, stm.eye, NULL, NULL, end, a->s.number, MASK_SHOT);
+		if (tr.fraction < 1.0f && Distance(tr.endpos, want) < 4.0f) {
+			VectorCopy(want, stm.aim);
+			break;
+		}
+	}
+	if (tries == 64) {
+		stm.failed = qtrue;
+		TT_Fail("no clear aim point %.0f u from the mine", stm.offset);
+		return;
+	}
+
+	if (!STM_LayMine(spot, normal)) {
+		stm.failed = qtrue;
+		return;
+	}
+	if (STM_Kind() == STM_CLIP || STM_Kind() == STM_DEEPCLIP) {
+		trace_t tr;
+
+		STM_SpawnBox(spot, normal, 0, stm.depth, CONTENTS_PLAYERCLIP);
+		// the aim line must meet the box, as the real clip would block it
+		trap_Trace(&tr, stm.eye, NULL, NULL, stm.aim, a->s.number, MASK_PLAYERSOLID);
+		if (tr.entityNum != stm.clip) {
+			stm.failed = qtrue;
+			TT_Fail("clip box not hit by the aim line (hit ent %d at %.0f %.0f %.0f)", tr.entityNum, tr.endpos[0], tr.endpos[1], tr.endpos[2]);
+			return;
+		}
+	}
+
+	vectoangles(dir, angles);
+	TT_Place(a, origin, angles[YAW], angles[PITCH]);
+}
+
+static void STM_Report(void) {
+	gentity_t *mine = STM_Mine();
+	int hit;
+	vec3_t p;
+
+	if (stm.mine < 0)
+		return;
+	if (!stm.aimed || !stm.thrown) {
+		G_LogPrintf("[stmine] %s throw=%d skipped (%s)\n", TT.name, stm.throws, stm.aimed ? "no throw" : "mine never settled");
+		return;
+	}
+	hit = STM_MineDestroyed();
+	if (mine)
+		VectorCopy(mine->r.currentOrigin, p);
+	else
+		VectorClear(p);
+	if (stm.near)
+		TICKPROBE("stmine_near", stm.mine, hit);
+	else
+		TICKPROBE("stmine_far", stm.mine, hit);
+	G_LogPrintf("[stmine] %s throw=%d ent=%d %s off=%.1f realoff=%.1f lineoff=%.1f depth=%.1f hit=%d mod=%d by=%s closest=%.1f stop=%.1f %.1f %.1f eye=%.1f %.1f %.1f aim=%.1f %.1f %.1f mine=%.1f %.1f %.1f\n",
+		TT.name, stm.throws, stm.mine, stm.near ? "near" : "far", stm.offset, stm.realOffset, stm.lineOffset, stm.depth, hit, stm.killMod, stm.killBy[0] ? stm.killBy : "-",
+		stm.closest, stm.stop[0], stm.stop[1], stm.stop[2], stm.eye[0], stm.eye[1], stm.eye[2],
+		stm.aim[0], stm.aim[1], stm.aim[2], p[0], p[1], p[2]);
+}
+
+static qboolean TTS_StMine(void) {
+	gentity_t *a = TT_A();
+
+	if (STM_Kind() == STM_HOTH && !STM_OnHoth())
+		return TT_Fail("needs siege_hoth3_v6");
+	memset(&stm, 0, sizeof(stm));
+	STM_GatherSpots();
+	if (!stm.numSpots)
+		return TT_Fail("no thrower spot");
+	VectorCopy(stm.spots[0], TT.origin);
+	TT_SetupSaberThrower(a);
+	TT_GivePower(a, FP_SABERTHROW, STM_ThrowLevel());
+	a->flags |= FL_GODMODE | FL_NOTARGET; // the mines go off next to it; the map's turrets would shoot them
+	stm.cycle = -1;
+	stm.mine = -1;
+	stm.clip = -1;
+	TT_Place(a, TT.origin, 0, 0);
+	TT_Pin(TT_BOT_A, TT.origin);
+	return qtrue;
+}
+
+static void TTF_StMine(void) {
+	gentity_t *a = TT_A();
+	gclient_t *cl = a->client;
+	int elapsed = level.time - TT.startTime;
+	int cycle = elapsed / STM_CYCLE_MS, c = elapsed % STM_CYCLE_MS;
+	gentity_t *mine;
+
+	TT_FillForce(a, 100);
+	TT.botButtons[TT_BOT_A] = 0;
+
+	if (cycle != stm.cycle) {
+		if (stm.cycle >= 0) {
+			STM_Report();
+			stm.throws++;
+		}
+		stm.cycle = cycle;
+		stm.failed = qfalse;
+		STM_NewThrow();
+		// a throw that could not be set up is skipped; the scenario fails only when it keeps happening
+		if (stm.failed) {
+			G_LogPrintf("[stmine] %s throw=%d skipped (%s)\n", TT.name, stm.throws, ttFailText);
+			if (++stm.failStreak < 5)
+				ttFailText[0] = '\0';
+		} else {
+			stm.failStreak = 0;
+		}
+	}
+	if (stm.failed)
+		return;
+
+	mine = STM_Mine();
+	if (!stm.aimed) {
+		// a detpack has to stick first
+		if (c < STM_AIM_MS || !mine || mine->s.pos.trType != TR_STATIONARY)
+			return;
+		stm.aimed = qtrue;
+		stm.realOffset = Distance(mine->r.currentOrigin, stm.aim);
+		{
+			vec3_t los, toMine, closest;
+			float len, t;
+
+			VectorSubtract(stm.aim, stm.eye, los);
+			len = VectorNormalize(los);
+			VectorSubtract(mine->r.currentOrigin, stm.eye, toMine);
+			t = DotProduct(toMine, los);
+			t = t < 0 ? 0 : t > len ? len : t;
+			VectorMA(stm.eye, t, los, closest);
+			stm.lineOffset = Distance(closest, mine->r.currentOrigin);
+		}
+	}
+
+	// one throw per cycle
+	if (cl->ps.saberInFlight) {
+		gentity_t *saber = &g_entities[cl->ps.saberEntityNum];
+
+		stm.thrown = qtrue;
+		if (mine && cl->ps.saberEntityNum > 0 && saber->inuse) {
+			float d = Distance(saber->r.currentOrigin, mine->r.currentOrigin);
+			if (d < stm.closest)
+				stm.closest = d;
+			if (!stm.stopped && saber->think == saberBackToOwner) {
+				stm.stopped = qtrue;
+				VectorCopy(saber->r.currentOrigin, stm.stop);
+			}
+		}
+		TT.botButtons[TT_BOT_A] = level.time - cl->ps.saberDidThrowTime < STM_HOLD_MS ? BUTTON_ALT_ATTACK : 0;
+	} else if (!stm.thrown && c < STM_CYCLE_MS - 1500) {
+		TT.botButtons[TT_BOT_A] = BUTTON_ALT_ATTACK;
+	}
+}
+
+static void TTT_StMine(void) {
+	if (stm.cycle >= 0 && !stm.failed)
+		STM_Report();
+	STM_FreeMine();
+	if (TT_BotValid(TT_BOT_A))
+		TT_A()->flags &= ~(FL_GODMODE | FL_NOTARGET);
+	TTT_SaberThrow();
 }
 
 /*
@@ -3276,6 +3812,18 @@ static const tickTestScenario_t ttScenarios[] = {
 	{ "saber_clash",			TTS_SaberClash,			TTF_Nothing,			NULL,		2,	0,	TTC_SaberClash },
 	{ "saberthrow",				TTS_SaberThrow,			TTF_SaberThrow,			TTT_SaberThrow,	2 },
 	{ "saberthrow_hit",			TTS_SaberThrowHit,		TTF_SaberThrow,			TTT_SaberThrow,	2 },
+	{ "stmine_hoth",			TTS_StMine,				TTF_StMine,				TTT_StMine,		1,	0 },
+	{ "stmine_hoth_det",		TTS_StMine,				TTF_StMine,				TTT_StMine,		1,	10 },
+	{ "stmine_clip",			TTS_StMine,				TTF_StMine,				TTT_StMine,		1,	1 },
+	{ "stmine_clip_det",		TTS_StMine,				TTF_StMine,				TTT_StMine,		1,	11 },
+	{ "stmine_plain",			TTS_StMine,				TTF_StMine,				TTT_StMine,		1,	2 },
+	{ "stmine_behind",			TTS_StMine,				TTF_StMine,				TTT_StMine,		1,	3 },
+	{ "stmine_deepclip",		TTS_StMine,				TTF_StMine,				TTT_StMine,		1,	4 },
+	{ "stmine_hoth_sweep",		TTS_StMine,				TTF_StMine,				TTT_StMine,		1,	100 },
+	{ "stmine_hoth_l2",			TTS_StMine,				TTF_StMine,				TTT_StMine,		1,	2000 },
+	{ "stmine_hoth_l1",			TTS_StMine,				TTF_StMine,				TTT_StMine,		1,	1000 },
+	{ "stmine_hoth_l1_sweep",	TTS_StMine,				TTF_StMine,				TTT_StMine,		1,	1100 },
+	{ "stmine_plain_l1",		TTS_StMine,				TTF_StMine,				TTT_StMine,		1,	1002 },
 	TT_CELL_M("fast", 0),
 	TT_CELL_M("medium", 1),
 	TT_CELL_M("strong", 2),

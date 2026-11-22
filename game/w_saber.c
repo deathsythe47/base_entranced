@@ -6694,6 +6694,103 @@ void saberFirstThrown(gentity_t *saberent);
 #define KORRI_MINE_DETECTION_RADIUS 96.0f
 
 /*
+g_fixStMines: maps put player clip in front of walls that mines stick to (mines and shots pass through clip, a thrown
+saber does not), so the saber turns back on the clip face short of mines it was aimed right at. when the saber is
+stopped by something that takes no damage, hit a planted mine or detpack within ST_MINE_MARGIN of the thrower's
+crosshair line and at most ST_MINE_REACH beyond the stop point along it, if a shot from the stop point reaches it
+(through clip, never through solid)
+*/
+#define ST_MINE_REACH 80.0f
+#define ST_MINE_MARGIN 24.0f
+
+static qboolean G_IsPlantedMine(gentity_t *ent)
+{
+	if (!ent->inuse || !ent->takedamage || ent->health <= 0 || ent->client || !VALIDSTRING(ent->classname))
+		return qfalse;
+	if (Q_stricmp(ent->classname, "laserTrap") && Q_stricmp(ent->classname, "detpack"))
+		return qfalse;
+	// a thrown detpack takes damage before it sticks to anything
+	return ent->s.pos.trType == TR_STATIONARY;
+}
+
+// whether a thrown saber stopped by blocker may be redirected to a mine behind it
+static qboolean G_SaberThrowBlockerPassable(gentity_t *blocker)
+{
+	if (!blocker)
+		return qtrue;
+	return !blocker->client && !blocker->takedamage && !(blocker->r.contents & CONTENTS_LIGHTSABER);
+}
+
+static gentity_t *G_SaberThrowMineAhead(gentity_t *saberent, const vec3_t start, const vec3_t moveDir)
+{
+	vec3_t eye, fwd, toStart, end;
+	trace_t tr;
+	float startAlong, bestDistSq = ST_MINE_MARGIN * ST_MINE_MARGIN;
+	gentity_t *best = NULL;
+	gentity_t *owner = saberent->r.ownerNum < MAX_CLIENTS ? &g_entities[saberent->r.ownerNum] : NULL;
+	int i;
+
+	if (!owner || !owner->inuse || !owner->client)
+		return NULL;
+
+	// judged by the thrower's aim, the same at every throw level: the crosshair line, from abreast of the stop point
+	VectorCopy(owner->client->ps.origin, eye);
+	eye[2] += owner->client->ps.viewheight;
+	AngleVectors(owner->client->ps.viewangles, fwd, NULL, NULL);
+	if (DotProduct(fwd, moveDir) <= 0.0f) // coming back toward the thrower
+		return NULL;
+	VectorSubtract(start, eye, toStart);
+	startAlong = DotProduct(toStart, fwd);
+	if (startAlong <= 0.0f)
+		return NULL;
+
+	VectorMA(start, ST_MINE_REACH, fwd, end);
+	trap_Trace(&tr, start, NULL, NULL, end, saberent->s.number, MASK_SHOT);
+	if (tr.startsolid || tr.allsolid)
+		return NULL;
+	if (tr.entityNum >= 0 && tr.entityNum < ENTITYNUM_MAX_NORMAL && G_IsPlantedMine(&g_entities[tr.entityNum]))
+	{
+		TICKPROBE("stmine_redirect", tr.entityNum, 0);
+		return &g_entities[tr.entityNum];
+	}
+
+	for (i = MAX_CLIENTS; i < level.num_entities; i++)
+	{
+		gentity_t *ent = &g_entities[i];
+		vec3_t toMine, closest, diff;
+		float along, distSq;
+		trace_t los;
+
+		if (!G_IsPlantedMine(ent))
+			continue;
+
+		VectorSubtract(ent->r.currentOrigin, eye, toMine);
+		along = DotProduct(toMine, fwd);
+		if (along < startAlong)
+			along = startAlong;
+		else if (along > startAlong + ST_MINE_REACH)
+			along = startAlong + ST_MINE_REACH;
+		VectorMA(eye, along, fwd, closest);
+		VectorSubtract(ent->r.currentOrigin, closest, diff);
+		distSq = VectorLengthSquared(diff);
+		if (distSq >= bestDistSq)
+			continue;
+
+		// a shot from where the saber stopped reaches it (through clip, not solid)
+		trap_Trace(&los, start, NULL, NULL, ent->r.currentOrigin, saberent->s.number, MASK_SHOT);
+		if (los.fraction < 1.0f && los.entityNum != i)
+			continue;
+
+		best = ent;
+		bestDistSq = distSq;
+	}
+
+	if (best)
+		TICKPROBE("stmine_redirect", best->s.number, sqrt(bestDistSq));
+	return best;
+}
+
+/*
 "now" for a thrown saber's timers: carried, the scheduled time of its think when that think ran this frame (the
 outbound think is carried on a 100 ms grid, the return think on a 50 ms one), else level.time. a think armed at
 level.time runs a frame later and is timed by level.time
@@ -7138,8 +7235,16 @@ static GAME_INLINE void saberMoveBack( gentity_t *ent, qboolean goingBack )
 
 			//Unfortunately doing this would defeat the purpose of the compensation. We will have to settle for a jerk on the client.
 
+			gentity_t *blocker = &g_entities[tr.entityNum];
+			if (g_fixStMines.integer && !G_IsPlantedMine(blocker) && G_SaberThrowBlockerPassable(blocker))
+			{
+				gentity_t *mine = G_SaberThrowMineAhead(ent, oldOrg, calcComp);
+				if (mine)
+					blocker = mine;
+			}
+
 			//we'll skip the dist check, since we don't really care about that (we just hit it physically)
-			CheckThrownSaberDamaged(ent, &g_entities[ent->r.ownerNum], &g_entities[tr.entityNum], 256, 0, qtrue);
+			CheckThrownSaberDamaged(ent, &g_entities[ent->r.ownerNum], blocker, 256, 0, qtrue);
 
 			if (ent->s.pos.trType == TR_GRAVITY)
 			{ //got blocked and knocked away in the damage func
@@ -8116,6 +8221,14 @@ void thrownSaberTouch (gentity_t *saberent, gentity_t *other, trace_t *trace)
 		{
 			hitEnt = nearbyMine;
 		}
+	}
+
+	if (trace && g_fixStMines.integer && hitEnt == other && !(other && G_IsPlantedMine(other)) &&
+		G_SaberThrowBlockerPassable(other))
+	{
+		gentity_t *mine = G_SaberThrowMineAhead(saberent, saberent->r.currentOrigin, saberent->s.pos.trDelta);
+		if (mine)
+			hitEnt = mine;
 	}
 
 	VectorClear(saberent->s.pos.trDelta);

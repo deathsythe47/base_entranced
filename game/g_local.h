@@ -3390,6 +3390,7 @@ extern vmCvar_t		g_traceSQL;
 extern vmCvar_t     g_hackLog;
 
 extern vmCvar_t     g_fixPitKills;
+extern vmCvar_t     g_fixStMines;
 extern vmCvar_t     g_fixForceRegenTime;
 extern vmCvar_t		g_tickProbe;
 extern vmCvar_t		g_tickFix;
