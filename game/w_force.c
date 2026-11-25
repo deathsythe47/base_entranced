@@ -1218,6 +1218,7 @@ void WP_ForcePowerStart( gentity_t *self, forcePowers_t forcePower, int override
 	{
 		return;
 	}
+	FD_PowerStarted(self, forcePower);
 
 	if ( BG_FullBodyTauntAnim( self->client->ps.legsAnim ) )
 	{//stop taunt
@@ -4304,6 +4305,7 @@ void WP_ForcePowerStop( gentity_t *self, forcePowers_t forcePower )
 {
  	int wasActive = self->client->ps.fd.forcePowersActive;
 
+	FD_PowerStopped(self, forcePower, wasActive);
 	self->client->ps.fd.forcePowersActive &= ~( 1 << forcePower );
 
 	switch( (int)forcePower )
@@ -5757,6 +5759,7 @@ void WP_ForcePowersUpdate( gentity_t *self, usercmd_t *ucmd )
 	{
 		return;
 	}
+	FD_ButtonsFrame(self, ucmd);
 
 	//The stance in relation to power level is no longer applicable with the crazy new akimbo/staff stances.
 	if (!self->client->ps.fd.saberAnimLevel)

@@ -2980,7 +2980,15 @@ int G_CmdLevelTime( int cmdServerTime )
 
 static void SmoothClientsSampleLatency(gclient_t *cl);
 
+static void ClientThink_real2( gentity_t *ent );
+
 void ClientThink_real( gentity_t *ent ) {
+	FD_CmdBegin(ent);
+	ClientThink_real2(ent);
+	FD_CmdEnd(ent);
+}
+
+static void ClientThink_real2( gentity_t *ent ) {
 	gclient_t	*client;
 	pmove_t		pm;
 	int			oldEventSequence;
@@ -4889,6 +4897,7 @@ void ClientThink_real( gentity_t *ent ) {
 		pm.checkDuelLoss = 0;
 	}
 
+	FD_PreGenCmd(ent, &pm.cmd);
 	//if (pm.cmd.generic_cmd && (pm.cmd.generic_cmd != ent->client->lastGenCmd || ent->client->lastGenCmdTime < level.time))
 	if (pm.cmd.generic_cmd)
 	{
@@ -5198,6 +5207,7 @@ void ClientThink_real( gentity_t *ent ) {
 			break;
 		}
 	}
+	FD_PostGenCmd(ent);
 
 	// save results of pmove
 	if ( ent->client->ps.eventSequence != oldEventSequence ) {
@@ -5694,6 +5704,7 @@ void G_RunClient( gentity_t *ent ) {
 		ent->client->pers.cmd.forwardmove = ent->client->pers.cmd.rightmove = ent->client->pers.cmd.upmove = 0;
 		//ent->client->pers.cmd.buttons = 0;
 
+		FD_MarkForcedThink(ent);
 		ClientThink_real(ent);
 		return;
 	}
@@ -5934,6 +5945,8 @@ while a slow client may have multiple ClientEndFrame between ClientThink.
 void ClientEndFrame( gentity_t *ent ) {
 	int			i;
 	qboolean isNPC = qfalse;
+
+	FD_EndFrame(ent);
 
 	if (ent->s.eType == ET_NPC)
 	{

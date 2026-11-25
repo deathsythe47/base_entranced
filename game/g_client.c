@@ -3229,6 +3229,8 @@ char *ClientConnect(int clientNum, qboolean firstTime, qboolean isBot) {
 		client->sess.sessionTeam = TEAM_SPECTATOR;
 	}
 
+	FD_ClientReset(clientNum);
+
 	// get and distribute relevent paramters
 	if (firstTime)
 		G_LogPrintf( "ClientConnect: %i (%s) from %s%s\n", clientNum, Info_ValueForKey(userinfo, "name") , Info_ValueForKey(userinfo, "ip"), client->sess.country[0] ? va(" (%s)", client->sess.country) : "");

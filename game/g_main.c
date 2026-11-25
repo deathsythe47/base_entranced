@@ -293,6 +293,7 @@ vmCvar_t	g_unlagged;
 vmCvar_t	g_friendlyFreeze;
 vmCvar_t	d_debugRegen;
 vmCvar_t	d_debugRegenPrintIngameClient;
+vmCvar_t	d_debugForcePowers;
 #ifdef _DEBUG
 vmCvar_t	g_unlaggedMaxCompensation;
 vmCvar_t	g_unlaggedSkeletonTime;
@@ -1352,6 +1353,7 @@ static cvarTable_t		gameCvarTable[] = {
 	{ &g_fixLiftkillTraps, "g_fixLiftkillTraps", "1", CVAR_ARCHIVE, 0, qtrue },
 	{ &d_debugRegen, "d_debugRegen", "-1", CVAR_ARCHIVE, 0, qfalse },
 	{ &d_debugRegenPrintIngameClient, "d_debugRegenPrintIngameClient", "-1", CVAR_ARCHIVE, 0, qfalse },
+	{ &d_debugForcePowers, "d_debugForcePowers", "0", 0, 0, qfalse },
 
 	{ &lastMapName, "lastMapName", "", CVAR_ARCHIVE | CVAR_ROM, 0, qtrue },
 
@@ -7732,6 +7734,7 @@ void G_RunFrame( int levelTime ) {
 	level.framenum++;
 	level.previousTime = level.time;
 	level.time = levelTime;
+	FD_RunFrame();
 	G_MultiSpec_Sweep();
 
 	//OSP: pause

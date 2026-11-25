@@ -49,6 +49,7 @@
     <ClInclude Include="g_nav.h" />
     <ClInclude Include="g_public.h" />
     <ClInclude Include="g_team.h" />
+    <ClInclude Include="g_forcedebug.h" />
     <ClInclude Include="g_tick.h" />
     <ClInclude Include="holocronicons.h" />
     <ClInclude Include="interpreter.h" />
@@ -129,6 +130,7 @@
     <ClCompile Include="g_target.c" />
     <ClCompile Include="g_team.c" />
     <ClCompile Include="g_multispec.c" />
+    <ClCompile Include="g_forcedebug.c" />
     <ClCompile Include="g_tick.c" />
     <ClCompile Include="g_ticktest.c" />
     <ClCompile Include="g_timer.c" />

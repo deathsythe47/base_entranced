@@ -11570,6 +11570,8 @@ void ClientCommand( int clientNum ) {
 		Cmd_Join_f(ent);
 	else if (Q_stricmp(cmd, "forcechanged") == 0)
 		Cmd_ForceChanged_f(ent);
+	else if (Q_stricmp(cmd, "forcebug") == 0)
+		Cmd_ForceBug_f(ent);
 	else if (Q_stricmp(cmd, "where") == 0)
 		Cmd_Where_f(ent);
 	else if (Q_stricmp(cmd, "targetinfo") == 0)

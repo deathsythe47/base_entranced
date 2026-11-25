@@ -3653,6 +3653,7 @@ extern vmCvar_t    g_unlagged;
 extern vmCvar_t		g_friendlyFreeze;
 extern vmCvar_t		d_debugRegen;
 extern vmCvar_t		d_debugRegenPrintIngameClient;
+extern vmCvar_t		d_debugForcePowers;
 #ifdef _DEBUG
 extern vmCvar_t    g_unlaggedMaxCompensation;
 extern vmCvar_t	   g_unlaggedSkeletonTime;
@@ -4273,6 +4274,8 @@ int trap_kd_insertf(const float *pos, void *data);
 void *trap_kd_nearestf(const float *pos);
 void trap_kd_res_free(void *set);
 #endif
+
+#include "g_forcedebug.h"
 
 #include "namespace_end.h"
 
