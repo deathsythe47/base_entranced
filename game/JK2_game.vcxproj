@@ -130,6 +130,7 @@
     <ClCompile Include="g_target.c" />
     <ClCompile Include="g_team.c" />
     <ClCompile Include="g_multispec.c" />
+    <ClCompile Include="g_specbatch.c" />
     <ClCompile Include="g_forcedebug.c" />
     <ClCompile Include="g_tick.c" />
     <ClCompile Include="g_ticktest.c" />

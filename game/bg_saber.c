@@ -2337,7 +2337,7 @@ saberMoveName_t PM_SaberAttackForMovement(saberMoveName_t curmove)
 		{//forward= T2B slash
 			if (!noSpecials&&
 				(pm->ps->fd.saberAnimLevel == SS_DUAL || pm->ps->fd.saberAnimLevel == SS_STAFF) &&
-				pm->ps->fd.forceRageRecoveryTime < pm->cmd.serverTime &&
+				(pm->ps->fd.forceRageRecoveryTime < pm->cmd.serverTime || (g_fixForceTimers.integer && pm->ps->fd.forceRageRecoveryTime <= pm->cmd.serverTime)) &&
 				//pm->ps->fd.forcePowerLevel[FP_LEVITATION] > FORCE_LEVEL_1 &&
 				(pm->ps->groundEntityNum != ENTITYNUM_NONE || PM_GroundDistance() <= 40) &&
 				pm->ps->velocity[2] >= 0 &&
@@ -2431,7 +2431,7 @@ saberMoveName_t PM_SaberAttackForMovement(saberMoveName_t curmove)
 		{//backward= T2B slash//B2T uppercut?
 			if (!noSpecials&&
 				(pm->ps->fd.saberAnimLevel == SS_STAFF || (g_balanceSaber.integer & SB_BACKFLIP)) &&
-				pm->ps->fd.forceRageRecoveryTime < pm->cmd.serverTime &&
+				(pm->ps->fd.forceRageRecoveryTime < pm->cmd.serverTime || (g_fixForceTimers.integer && pm->ps->fd.forceRageRecoveryTime <= pm->cmd.serverTime)) &&
 				pm->ps->fd.forcePowerLevel[FP_LEVITATION] > FORCE_LEVEL_1 &&
 				(pm->ps->groundEntityNum != ENTITYNUM_NONE || PM_GroundDistance() <= 40) &&
 				pm->ps->velocity[2] >= 0 &&

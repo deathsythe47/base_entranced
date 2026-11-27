@@ -2643,7 +2643,7 @@ evasionType_t Jedi_SaberBlockGo( gentity_t *self, usercmd_t *cmd, vec3_t pHitloc
 				//FIXME: check the jump, if can't, then block
 				if ( self->NPC 
 					&& !(self->NPC->scriptFlags&SCF_NO_ACROBATICS) 
-					&& self->client->ps.fd.forceRageRecoveryTime < level.time
+					&& (self->client->ps.fd.forceRageRecoveryTime < level.time || (g_fixForceTimers.integer && self->client->ps.fd.forceRageRecoveryTime <= level.time))
 					&& !(self->client->ps.fd.forcePowersActive&(1<<FP_RAGE)) 
 					&& !PM_InKnockDown( &self->client->ps ) )
 				{
@@ -2660,7 +2660,7 @@ evasionType_t Jedi_SaberBlockGo( gentity_t *self, usercmd_t *cmd, vec3_t pHitloc
 				//FIXME: check the jump, if can't, then block
 				if ( self->NPC 
 					&& !(self->NPC->scriptFlags&SCF_NO_ACROBATICS) 
-					&& self->client->ps.fd.forceRageRecoveryTime < level.time
+					&& (self->client->ps.fd.forceRageRecoveryTime < level.time || (g_fixForceTimers.integer && self->client->ps.fd.forceRageRecoveryTime <= level.time))
 					&& !(self->client->ps.fd.forcePowersActive&(1<<FP_RAGE)) )
 				{
 					if ( self->client->NPC_class == CLASS_BOBAFETT && !Q_irand( 0, 1 ) )
@@ -2811,7 +2811,7 @@ evasionType_t Jedi_SaberBlockGo( gentity_t *self, usercmd_t *cmd, vec3_t pHitloc
 					//FIXME: check the jump, if can't, then block
 					if ( self->NPC 
 						&& !(self->NPC->scriptFlags&SCF_NO_ACROBATICS) 
-						&& self->client->ps.fd.forceRageRecoveryTime < level.time
+						&& (self->client->ps.fd.forceRageRecoveryTime < level.time || (g_fixForceTimers.integer && self->client->ps.fd.forceRageRecoveryTime <= level.time))
 						&& !(self->client->ps.fd.forcePowersActive&(1<<FP_RAGE)) 
 						&& !PM_InKnockDown( &self->client->ps ) )
 					{
@@ -2828,7 +2828,7 @@ evasionType_t Jedi_SaberBlockGo( gentity_t *self, usercmd_t *cmd, vec3_t pHitloc
 					//FIXME: check the jump, if can't, then block
 					if ( self->NPC 
 						&& !(self->NPC->scriptFlags&SCF_NO_ACROBATICS) 
-						&& self->client->ps.fd.forceRageRecoveryTime < level.time
+						&& (self->client->ps.fd.forceRageRecoveryTime < level.time || (g_fixForceTimers.integer && self->client->ps.fd.forceRageRecoveryTime <= level.time))
 						&& !(self->client->ps.fd.forcePowersActive&(1<<FP_RAGE)))
 					{
 						if ( self == NPC )
@@ -3283,7 +3283,7 @@ static void Jedi_EvasionSaber( vec3_t enemy_movedir, float enemy_dist, vec3_t en
 							}
 							else if ( (NPCInfo->rank==RANK_CREWMAN||NPCInfo->rank>RANK_LT_JG) 
 								&& !(NPCInfo->scriptFlags&SCF_NO_ACROBATICS) 
-								&& NPC->client->ps.fd.forceRageRecoveryTime < level.time
+								&& (NPC->client->ps.fd.forceRageRecoveryTime < level.time || (g_fixForceTimers.integer && NPC->client->ps.fd.forceRageRecoveryTime <= level.time))
 								&& !(NPC->client->ps.fd.forcePowersActive&(1<<FP_RAGE)) 
 								&& !PM_InKnockDown( &NPC->client->ps ) )
 							{//FIXME: make this a function call?
@@ -3325,7 +3325,7 @@ static void Jedi_EvasionSaber( vec3_t enemy_movedir, float enemy_dist, vec3_t en
 						Com_Printf( "def strafe\n" );
 					}
 					if ( !(NPCInfo->scriptFlags&SCF_NO_ACROBATICS) 
-						&& NPC->client->ps.fd.forceRageRecoveryTime < level.time
+						&& (NPC->client->ps.fd.forceRageRecoveryTime < level.time || (g_fixForceTimers.integer && NPC->client->ps.fd.forceRageRecoveryTime <= level.time))
 						&& !(NPC->client->ps.fd.forcePowersActive&(1<<FP_RAGE)) 
 						&& (NPCInfo->rank == RANK_CREWMAN || NPCInfo->rank > RANK_LT_JG ) 
 						&& !PM_InKnockDown( &NPC->client->ps )

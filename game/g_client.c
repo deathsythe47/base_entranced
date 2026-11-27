@@ -3369,10 +3369,13 @@ void G_BroadcastServerFeatureList( int clientNum ) {
 		Q_strcat(featureListConfigString, sizeof(featureListConfigString), "fxdm ");
 
 	if (g_specInfoEncrypted.integer)
-		Q_strcat(featureListConfigString, sizeof(featureListConfigString), "esi ");
+		Q_strcat(featureListConfigString, sizeof(featureListConfigString), "esb ");
 
 	if (g_multiSpec.integer)
 		Q_strcat(featureListConfigString, sizeof(featureListConfigString), "msp ");
+
+	if (g_fixForceTimers.integer)
+		Q_strcat(featureListConfigString, sizeof(featureListConfigString), "fft ");
 
 	trap_SetConfigstring(CS_SERVERFEATURELIST, featureListConfigString);
 
@@ -5277,6 +5280,8 @@ qboolean RestoreDisconnectedPlayerData(gentity_t *ent) {
 	ent->client->homingLockTarget = data->homingLockTarget;
 	ent->client->fakeSpec = data->fakeSpec;
 	ent->client->fakeSpecClient = data->fakeSpecClient;
+	ent->client->rageRecoveryActiveUntil = data->rageRecoveryActiveUntil;
+	memcpy(ent->client->forcePowerActiveUntil, data->forcePowerActiveUntil, sizeof(ent->client->forcePowerActiveUntil));
 	memcpy(ent->client->lastAiredOtherClientTime, data->lastAiredOtherClientTime, sizeof(ent->client->lastAiredOtherClientTime));
 	memcpy(ent->client->lastAiredOtherClientMeansOfDeath, data->lastAiredOtherClientMeansOfDeath, sizeof(ent->client->lastAiredOtherClientMeansOfDeath));
 	ent->client->isMedHealed = data->isMedHealed;
@@ -5367,6 +5372,11 @@ qboolean RestoreDisconnectedPlayerData(gentity_t *ent) {
 		}
 	}
 
+	SendForceTimers(ent, NULL);
+#ifdef NEWMOD_SUPPORT
+	G_SpecBatch_Restored(ent - g_entities);
+#endif
+
 	ListRemove(&level.disconnectedPlayerList, data);
 
 	return qtrue;
@@ -5456,6 +5466,8 @@ void ClientDisconnect( int clientNum ) {
 			data->homingLockTarget = ent->client->homingLockTarget;
 			data->fakeSpec = ent->client->fakeSpec;
 			data->fakeSpecClient = ent->client->fakeSpecClient;
+			data->rageRecoveryActiveUntil = ent->client->rageRecoveryActiveUntil;
+			memcpy(data->forcePowerActiveUntil, ent->client->forcePowerActiveUntil, sizeof(data->forcePowerActiveUntil));
 			memcpy(data->lastAiredOtherClientTime, ent->client->lastAiredOtherClientTime, sizeof(data->lastAiredOtherClientTime));
 			memcpy(data->lastAiredOtherClientMeansOfDeath, ent->client->lastAiredOtherClientMeansOfDeath, sizeof(data->lastAiredOtherClientMeansOfDeath));
 			data->isMedHealed = ent->client->isMedHealed;

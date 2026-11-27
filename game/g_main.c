@@ -662,6 +662,8 @@ vmCvar_t	g_tickProbe;
 vmCvar_t	g_tickFix;
 vmCvar_t	g_tickFixInput;
 vmCvar_t	g_tickFixForce;
+vmCvar_t	g_fixForceTimers;
+vmCvar_t	g_sendForceTimers;
 vmCvar_t	g_tickFixSabers;
 vmCvar_t	g_tickFixSaberDamage;
 vmCvar_t	g_tickFixSaberAnim;
@@ -1096,6 +1098,8 @@ static cvarTable_t		gameCvarTable[] = {
 	{ &g_tickFix, "g_tickFix", "0", CVAR_ARCHIVE, 0, qtrue },
 	{ &g_tickFixInput, "g_tickFixInput", "0", CVAR_ARCHIVE, 0, qtrue },
 	{ &g_tickFixForce, "g_tickFixForce", "0", CVAR_ARCHIVE, 0, qtrue },
+	{ &g_fixForceTimers, "g_fixForceTimers", "1", CVAR_ARCHIVE, 0, qtrue },
+	{ &g_sendForceTimers, "g_sendForceTimers", "1", CVAR_ARCHIVE, 0, qtrue },
 	{ &g_tickFixSabers, "g_tickFixSabers", "0", CVAR_ARCHIVE, 0, qtrue },
 	{ &g_tickFixSaberDamage, "g_tickFixSaberDamage", "0", CVAR_ARCHIVE, 0, qtrue }, // 1 per-window damage, 2 sweeps on the 50 ms grid
 	{ &g_tickFixSaberAnim, "g_tickFixSaberAnim", "0", CVAR_ARCHIVE, 0, qtrue }, // with sweeps on the grid: saber wielders' skeleton anims start at grid times
@@ -1173,7 +1177,7 @@ static cvarTable_t		gameCvarTable[] = {
 	{ &g_nmFlags, "g_nmFlags", "0", CVAR_ROM | CVAR_SERVERINFO, 0, qfalse },
 	{ &g_enableNmAuth, "g_enableNmAuth", "1", CVAR_ARCHIVE | CVAR_LATCH, 0, qfalse },
 	{ &g_specInfo, "g_specInfo", "1", CVAR_ARCHIVE, 0, qtrue },
-	{ &g_specInfoEncrypted, "g_specInfoEncrypted", "0", CVAR_ARCHIVE | CVAR_LATCH, 0, qtrue },
+	{ &g_specInfoEncrypted, "g_specInfoEncrypted", "1", CVAR_ARCHIVE | CVAR_LATCH, 0, qtrue },
 	{ &g_multiSpec, "g_multiSpec", "1", CVAR_ARCHIVE, 0, qtrue },
 #endif
 	{ &g_strafejump_mod,	"g_strafejump_mod"	, "0"	, CVAR_ARCHIVE, 0, qtrue },
@@ -2563,6 +2567,9 @@ void G_InitGame( int levelTime, int randomSeed, int restart, void *serverDbPtr )
 	// set some level globals
 	memset( &level, 0, sizeof( level ) );
 	G_MultiSpec_Init();
+#ifdef NEWMOD_SUPPORT
+	G_SpecBatch_Init();
+#endif
 	level.time = levelTime;
 	level.startTime = levelTime;
 
@@ -3811,6 +3818,7 @@ void BeginIntermission(void) {
 	}
 
 #ifdef NEWMOD_SUPPORT
+	G_SpecBatch_Intermission();	// everything still pending goes out before the key
 	if ( level.specInfoKeyValid && g_specInfoEncrypted.integer ) {
 		trap_SendServerCommand( -1, va( "kls -1 -1 enck %d \"%s\"",
 			SPECINFO_ENC_PROTOCOL, level.specInfoKey.keyHex ) );
@@ -6685,94 +6693,7 @@ void UpdateNewmodSiegeItems(void) {
 
 static void BuildSpecInfoPlayerToken( int i, char *playerString, size_t playerStringSize, qboolean forTeammate );
 
-#define SPECINFO_ENC_MAX_PARTS			4		// one tick's payload may span this many messages
 #define SPECINFO_PLAIN_MAX_CHARS		1000	// one server command; the engine drops longer ones
-
-static void SendEncryptedSpecInfoPart( int viewTeam, int seq, int part, const char *plaintext, const qboolean *encRecipient ) {
-	unsigned char	cipher[SPECINFO_ENC_PLAINTEXT_SIZE];
-	char			packed[SPECINFO_ENC_PACKED_SIZE];
-	char			cmd[MAX_STRING_CHARS];
-	int				i;
-
-	/*
-		the stream counter names the part as well as the tick, so no two messages under one key
-		ever share key stream: nonce = team, counter = (seq * parts + part) * blocks per message.
-	*/
-	if ( Crypto_StreamXor( &level.specInfoKey, (uint64_t)viewTeam,
-		(uint64_t)( seq * SPECINFO_ENC_MAX_PARTS + part ) * SPECINFO_ENC_BLOCKS_PER_MSG,
-		(const unsigned char *)plaintext, cipher, SPECINFO_ENC_PLAINTEXT_SIZE ) == CRYPTO_ERROR ) {
-		return;
-	}
-
-	if ( !Crypto_Pack7Bit( cipher, SPECINFO_ENC_PLAINTEXT_SIZE, packed, sizeof( packed ) ) ) {
-		return;
-	}
-
-	Com_sprintf( cmd, sizeof( cmd ), "kls -1 -1 encs %d %d %d %d \"%s\"",
-		SPECINFO_ENC_PROTOCOL, seq, viewTeam, part, packed );
-
-	for ( i = 0; i < MAX_CLIENTS; i++ ) {
-		if ( !encRecipient[i] ) {
-			continue;
-		}
-		if ( g_gametype.integer >= GT_TEAM && level.clients[i].sess.sessionTeam != viewTeam ) {
-			continue;
-		}
-		trap_SendServerCommand( i, cmd );
-	}
-}
-
-static void SendEncryptedSpecInfo( int viewTeam, int seq, const qboolean *include, const qboolean *encRecipient ) {
-	char	plaintext[SPECINFO_ENC_PLAINTEXT_SIZE];
-	size_t	used = 0;
-	int		part = 0;
-	int		i;
-
-	memset( plaintext, 0, sizeof( plaintext ) );
-
-	for ( i = 0; i < MAX_CLIENTS; i++ ) {
-		char	token[MAX_STRING_CHARS];
-		size_t	tokenLen;
-
-		if ( !include[i] ) {
-			continue;
-		}
-		/*
-			teammates are in here too: this is the only copy that lands in a player's own demo,
-			and the team overlay does not carry ammo, saber style or the rest. What the overlay
-			DOES carry is left out of a teammate's token.
-		*/
-
-		BuildSpecInfoPlayerToken( i, token, sizeof( token ),
-			(qboolean)( g_gametype.integer >= GT_TEAM && level.clients[i].sess.sessionTeam == viewTeam ) );
-		tokenLen = strlen( token );
-
-		if ( used + tokenLen >= sizeof( plaintext ) ) {
-			/*
-				this token does not fit: send what is there as one part and start the next. A
-				token is never split, so every part holds whole players. past the last part the
-				rest are dropped, with the rate-limited warning.
-			*/
-			if ( part + 1 >= SPECINFO_ENC_MAX_PARTS || tokenLen >= sizeof( plaintext ) ) {
-				if ( level.time - level.specInfoOverflowWarnTime > 60000 ) {
-					level.specInfoOverflowWarnTime = level.time;
-					G_LogPrintf( "Warning: encrypted specinfo payload full, dropping remaining players (this message is rate limited)\n" );
-				}
-				break;
-			}
-			SendEncryptedSpecInfoPart( viewTeam, seq, part, plaintext, encRecipient );
-			part++;
-			memset( plaintext, 0, sizeof( plaintext ) );
-			used = 0;
-		}
-
-		memcpy( plaintext + used, token, tokenLen );
-		used += tokenLen;
-	}
-
-	// always at least part 0, empty when nobody is listed: the client clears what it had
-	SendEncryptedSpecInfoPart( viewTeam, seq, part, plaintext, encRecipient );
-}
 
 /*
 	what a viewer cycled to this player cannot get any other way. The weapon in
@@ -6993,7 +6914,7 @@ void CheckSpecInfo(void) {
 	int i, numPlayers[3] = { 0 };
 	qboolean gotRecipient = qfalse, include[MAX_CLIENTS] = { qfalse }, sendTo[MAX_CLIENTS] = { qfalse };
 
-	qboolean encRecipient[MAX_CLIENTS] = { qfalse }, gotEncRecipient = qfalse;
+	qboolean gotEncRecipient = qfalse;
 	qboolean encEnabled = (qboolean)( g_specInfoEncrypted.integer && level.specInfoKeyValid );
 	for (i = 0; i < MAX_CLIENTS; i++) {
 		gentity_t *ent = &g_entities[i];
@@ -7016,10 +6937,8 @@ void CheckSpecInfo(void) {
 				numPlayers[cl->sess.sessionTeam]++;
 			}
 
-			if (encEnabled && !cl->isLagging) {
-				encRecipient[i] = qtrue;
+			if (encEnabled)
 				gotEncRecipient = qtrue;
-			}
 		}
 	}
 	if (!gotRecipient && !gotEncRecipient)
@@ -7049,15 +6968,15 @@ void CheckSpecInfo(void) {
 		SendPlainSpecInfo(totalString, sendTo);
 	}
 
+	// the batched copy for players' demos: every included player's whole token (teammates' too), one copy for everyone
 	if (gotEncRecipient) {
-		int seq = level.specInfoSeq++;
+		for (i = 0; i < MAX_CLIENTS; i++) {
+			char playerString[MAX_STRING_CHARS] = { 0 };
 
-		if (g_gametype.integer >= GT_TEAM) {
-			SendEncryptedSpecInfo(TEAM_RED, seq, include, encRecipient);
-			SendEncryptedSpecInfo(TEAM_BLUE, seq, include, encRecipient);
-		}
-		else {
-			SendEncryptedSpecInfo(TEAM_FREE, seq, include, encRecipient);
+			if (!include[i])
+				continue;
+			BuildSpecInfoPlayerToken(i, playerString, sizeof(playerString), qfalse);
+			G_SpecBatch_Sample(i, playerString);
 		}
 	}
 }
@@ -7907,6 +7826,10 @@ void G_RunFrame( int levelTime ) {
 			level.pause.state = PAUSE_NONE;
 			level.pause.unpauseTime = level.time;
 			trap_SendServerCommand(-1, "cp \"^2Go!^7\n\"");
+			for (int i = 0; i < MAX_CLIENTS; i++) {
+				if (g_entities[i].inuse && g_entities[i].client && g_entities[i].client->pers.connected == CON_CONNECTED)
+					SendForceTimers(&g_entities[i], NULL);
+			}
 			trap_SendServerCommand(-1, "lchat \"unpause\"");
 		}
 	}
@@ -8446,9 +8369,13 @@ void G_RunFrame( int levelTime ) {
 	// update to team status?
 	CheckTeamStatus();
 
+	for (i = 0; i < MAX_CLIENTS; i++)
+		G_CheckForceTimersWatched(&g_entities[i]);
+
 #ifdef NEWMOD_SUPPORT
 	// send extra data to specs
 	CheckSpecInfo();
+	G_SpecBatch_Frame();
 #endif
 
 	// cancel vote if timed out

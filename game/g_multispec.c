@@ -25,6 +25,7 @@
 #define MS_FLAG_GHOST		0x08		// the player is a siege ghost: otherEntityNum2 is the teammate it watches
 #define MS_FLAG_FIXED		0x10		// ...a ghost with nobody to watch: the viewpoint is its own spot, angles its view
 #define MS_FLAG_VEHLINK		0x20		// the viewpoint player's vehicle has its weapons linked
+#define MS_FLAG_FALLPOS		0x40		// ext: angles is where the viewpoint player's fall to death began
 
 #define MS_FLAG_ANCHOR_UP	40.0f		// a flag viewpoint sits this far above the flag's origin
 
@@ -55,6 +56,8 @@ typedef struct {
 
 static multiSpec_t ms[MAX_CLIENTS];
 static int msGave[MAX_CLIENTS][2];		// level.time until which a client's team heal / team energize notice shows
+static int		msFallStamp[MAX_CLIENTS];	// the fallingToDeath whose start msFallOrigin holds, 0 = none
+static vec3_t	msFallOrigin[MAX_CLIENTS];
 
 // what auto shows per half, found once a frame for every spectator
 static int		msAutoTime;
@@ -64,13 +67,32 @@ static vec3_t	msAutoAnchor[MS_HALVES];
 void G_MultiSpec_Init( void ) {
 	memset( ms, 0, sizeof( ms ) );
 	memset( msGave, 0, sizeof( msGave ) );
+	memset( msFallStamp, 0, sizeof( msFallStamp ) );
 	msAutoTime = -1;
+}
+
+// where a client's fall to death began: its origin the first frame the fall shows. qfalse = not falling
+static qboolean MS_NoteFall( int clientNum ) {
+	const gclient_t *cl = g_entities[clientNum].client;
+
+	if ( !cl || cl->pers.connected != CON_CONNECTED || !cl->ps.fallingToDeath ) {
+		msFallStamp[clientNum] = 0;
+		return qfalse;
+	}
+	if ( msFallStamp[clientNum] != cl->ps.fallingToDeath ) {
+		msFallStamp[clientNum] = cl->ps.fallingToDeath;
+		VectorCopy( cl->ps.origin, msFallOrigin[clientNum] );
+	}
+	return qtrue;
 }
 
 // a client just used team heal (0) or team energize (1) on somebody
 void G_MultiSpec_NoteGave( int clientNum, int which ) {
 	if ( clientNum >= 0 && clientNum < MAX_CLIENTS && ( which == 0 || which == 1 ) ) {
 		msGave[clientNum][which] = level.time + MS_GAVE_MS;
+#ifdef NEWMOD_SUPPORT
+		G_SpecBatch_NoteGave( clientNum, which );
+#endif
 	}
 }
 
@@ -636,6 +658,7 @@ static int MS_SetVehicle( gentity_t *v, const gclient_t *tc ) {
 	| forcePowersActive, pos.trTime | level.time the "gave team heal" / "gave team energize" notice ends |
 	| bolt2, pos.trDuration | rocket lock target (ENTITYNUM_NONE = none) and the level.time it began |
 	| boneAngles1[0] | ms spent falling to death, 1-4000 (0 = not falling) |
+	| angles | with MS_FLAG_FALLPOS: where that fall began |
 	| boneAngles2[0..2], boneAngles3[0] | seconds left of force enlightenment light, dark, force boon, ysalamiri (0 = none) |
 	| health, maxhealth | weapons owned, bits 0-9 and 10-19 |
 	| boneAngles4[0..2], angles2[0..2] | medal counts: impressive, excellent, gauntlet, defend, assist, captures |
@@ -678,6 +701,12 @@ static void MS_UpdateExt( multiSpec_t *m, int half, const vec3_t specEye, const 
 	v->s.forcePowersActive = ( tc && msGave[n][0] > level.time ) ? msGave[n][0] : 0;
 	v->s.bolt2 = ( tc && tc->ps.rocketLockIndex >= 0 && tc->ps.rocketLockIndex < ENTITYNUM_NONE ) ? tc->ps.rocketLockIndex : ENTITYNUM_NONE;
 	v->s.boneAngles1[0] = ( tc && tc->ps.fallingToDeath ) ? Com_Clampi( 1, 4000, level.time - tc->ps.fallingToDeath ) : 0;
+	if ( tc && MS_NoteFall( n ) ) {
+		VectorCopy( msFallOrigin[n], v->s.angles );
+		v->s.teamowner |= MS_FLAG_FALLPOS;
+	} else {
+		VectorClear( v->s.angles );
+	}
 	v->s.boneAngles2[0] = left[0];
 	v->s.boneAngles2[1] = left[1];
 	v->s.boneAngles2[2] = left[2];
@@ -859,6 +888,7 @@ void G_MultiSpec_ClientGone( int clientNum ) {
 		MS_FreeViews( &ms[clientNum] );
 		memset( &ms[clientNum], 0, sizeof( ms[clientNum] ) );
 		msGave[clientNum][0] = msGave[clientNum][1] = 0;
+		msFallStamp[clientNum] = 0;
 	}
 }
 
@@ -873,6 +903,7 @@ void G_MultiSpec_Sweep( void ) {
 		gentity_t	*ent = &g_entities[i];
 		multiSpec_t	*m = &ms[i];
 
+		MS_NoteFall( i );
 		if ( m->on && !MS_Allowed( ent ) ) {
 			G_MultiSpec_Stop( ent, qfalse );
 		}

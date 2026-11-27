@@ -154,6 +154,213 @@ const int mindTrickTime[NUM_FORCE_POWER_LEVELS] =
 };
 
 
+#define RAGE_RECOVERY_TIME	(10000)
+
+extern int g_LastFrameTime;
+
+/*
+with g_tickFixForce, how long a 20 Hz server let a timed power run: forcePowerDuration is then checked with <=.
+g_fixForceTimers expires on the tick at or past the duration, stock on the first tick past it
+*/
+static int ForceDurationTicks(int duration) {
+	return g_fixForceTimers.integer ? G_TickIncl(duration) : G_TickStrict(duration);
+}
+
+static int FixDuration(int duration) {
+	if (TICKFIX(Force)) // in a frame, g_fixForceTimers counts from the previous 20 Hz frame; a held command arrived between frames
+		return ForceDurationTicks(duration) - (g_fixForceTimers.integer && level.time != g_LastFrameTime && !level.cmdStamp ? TICK_BASE_MSEC : 0);
+
+	if (!g_fixForceTimers.integer)
+		return duration;
+
+	const int frameTime = 1000 / Com_Clampi(1, 1000, g_svfps.integer);
+	const int fixedDuration = duration + ((frameTime - (duration % frameTime)) % frameTime);
+	const int timeSinceLastFrame = level.cmdStamp ? 0 : level.time - g_LastFrameTime;
+	return fixedDuration - timeSinceLastFrame;
+}
+
+/*
+the rage recovery timer's readers keep their stock < / >= checks, so without g_fixForceTimers the raw duration
+matches the 20 Hz expiry
+*/
+static int RageRecoveryDuration(void)
+{
+	if (TICKFIX(Force) && !g_fixForceTimers.integer)
+		return RAGE_RECOVERY_TIME;
+	return FixDuration(RAGE_RECOVERY_TIME);
+}
+
+/*
+whose view a client sees: the player it follows, the teammate a siege ghost watches (directly or through a
+spectator following that ghost), or -1 for its own
+*/
+int G_WatchedClient(const gentity_t *viewer) {
+	const gclient_t *cl = viewer->client;
+
+	if (!cl)
+		return -1;
+	if (cl->sess.sessionTeam == TEAM_SPECTATOR) {
+		const gentity_t *f;
+
+		if (cl->sess.spectatorState != SPECTATOR_FOLLOW || cl->sess.spectatorClient < 0 || cl->sess.spectatorClient >= MAX_CLIENTS)
+			return -1;
+		f = &g_entities[cl->sess.spectatorClient];
+		if (!f->inuse || !f->client)
+			return -1;
+		if (f->client->fakeSpec && f->client->fakeSpecClient >= 0 && f->client->fakeSpecClient < MAX_CLIENTS)
+			return f->client->fakeSpecClient;
+		return cl->sess.spectatorClient;
+	}
+	if (g_gametype.integer == GT_SIEGE && cl->fakeSpec && cl->fakeSpecClient >= 0 && cl->fakeSpecClient < MAX_CLIENTS)
+		return cl->fakeSpecClient;
+	return -1;
+}
+
+// use null sendTo to send to the player himself and everyone watching him
+void SendForceTimers(gentity_t *user, gentity_t *sendTo) {
+	if (!user || !user->client) {
+		assert(qfalse);
+		return;
+	}
+
+	if (!g_sendForceTimers.integer)
+		return;
+
+	char commandBuf[MAX_STRING_CHARS] = { 0 };
+	Com_sprintf(commandBuf, sizeof(commandBuf), "kls -1 -1 fpt %d", user - g_entities);
+	qboolean gotOne = qfalse;
+
+	for (int i = FP_FIRST; i < NUM_FORCE_POWERS; i++) {
+		const int fpLevel = Com_Clampi(1, 3, user->client->ps.fd.forcePowerLevel[i]);
+		int duration;
+		switch (i) {
+		case FP_SABER_OFFENSE:
+			duration = RAGE_RECOVERY_TIME; break;
+		case FP_SPEED:
+			switch (fpLevel) {
+			case 1: duration = 10000; break;
+			case 2: duration = 15000; break;
+			case 3: duration = 20000; break;
+			}
+			break;
+		case FP_TELEPATHY:
+			switch (fpLevel) {
+			case 1: duration = 20000; break;
+			case 2: duration = 25000; break;
+			case 3: duration = 30000; break;
+			}
+			break;
+		case FP_PROTECT:
+			duration = 20000; break;
+		case FP_ABSORB:
+			duration = 20000; break;
+		case FP_RAGE:
+			switch (fpLevel) {
+			case 1: duration = 8000; break;
+			case 2: duration = 14000; break;
+			case 3: duration = 20000; break;
+			}
+			break;
+		case FP_SEE:
+			switch (fpLevel) {
+			case 1: duration = 10000; break;
+			case 2: duration = 20000; break;
+			case 3: duration = 30000; break;
+			}
+			break;
+		default: continue;
+		}
+
+		if (i == FP_SABER_OFFENSE) {
+			// a pause doesn't hold rage recovery here: it ends at forceRageRecoveryTime, maybe before its level-relative end
+			const int realEnd = user->client->ps.fd.forceRageRecoveryTime - level.startTime;
+			const int until = realEnd < user->client->rageRecoveryActiveUntil ? realEnd : user->client->rageRecoveryActiveUntil;
+			if (user->client->rageRecoveryActiveUntil && until > level.time - level.startTime) {
+				Q_strcat(commandBuf, sizeof(commandBuf), va(" %d %d %d", i, duration, until));
+				gotOne = qtrue;
+			}
+		}
+		else {
+			if (user->client->forcePowerActiveUntil[i] > level.time - level.startTime) {
+				Q_strcat(commandBuf, sizeof(commandBuf), va(" %d %d %d", i, duration, user->client->forcePowerActiveUntil[i]));
+				gotOne = qtrue;
+			}
+		}
+	}
+
+	if (!gotOne)
+		Com_sprintf(commandBuf, sizeof(commandBuf), "kls -1 -1 sfpt %d", user - g_entities);
+
+	if (sendTo) {
+		trap_SendServerCommand(sendTo - g_entities, commandBuf);
+	}
+	else {
+		for (int i = 0; i < MAX_CLIENTS; i++) {
+			gentity_t *other = &g_entities[i];
+			if (!other->inuse || !other->client || other->client->pers.connected != CON_CONNECTED)
+				continue;
+			// the player himself only while he isn't watching somebody else
+			if (G_WatchedClient(other) != (other == user ? -1 : user - g_entities))
+				continue;
+			trap_SendServerCommand(i, commandBuf);
+		}
+	}
+}
+
+// a client starting to watch somebody else (or himself again) gets that player's timers at once
+void G_CheckForceTimersWatched(gentity_t *ent) {
+	int watched;
+
+	if (!ent->inuse || !ent->client || ent->client->pers.connected != CON_CONNECTED)
+		return;
+	watched = G_WatchedClient(ent);
+	if (ent->client->pers.forceTimersWatched == watched + 2)
+		return;
+	ent->client->pers.forceTimersWatched = watched + 2;
+	SendForceTimers(watched >= 0 ? &g_entities[watched] : ent, ent);
+}
+
+// rage recovery cleared outright (spawn, ghosting): its timer goes too
+static void StopRageRecoveryTimer(gentity_t *ent) {
+	if (ent->client && ent->client->rageRecoveryActiveUntil) {
+		ent->client->rageRecoveryActiveUntil = 0;
+		SendForceTimers(ent, NULL);
+	}
+}
+
+// use FP_SABER_OFFENSE for postrage (shitty hack)
+static void StartForceTimer(gentity_t *user, int forcePower, int duration) {
+	assert(user && user->client && forcePower >= FP_FIRST && forcePower < NUM_FORCE_POWERS);
+
+	switch (forcePower) {
+	case FP_SABER_OFFENSE: case FP_SPEED: case FP_TELEPATHY: case FP_PROTECT: case FP_ABSORB: case FP_RAGE: case FP_SEE: break;
+	default: assert(qfalse); return;
+	}
+
+	int activeUntil;
+	if (duration > 0) {
+		activeUntil = (level.time - level.startTime) + duration;
+
+		if (forcePower == FP_SABER_OFFENSE) {
+			user->client->rageRecoveryActiveUntil = activeUntil;
+			user->client->forcePowerActiveUntil[FP_RAGE] = 0; // shitty hack, starting rage recovery stops rage
+		}
+		else {
+			user->client->forcePowerActiveUntil[forcePower] = activeUntil;
+			if (forcePower == FP_RAGE)
+				user->client->rageRecoveryActiveUntil = 0; // inverse of above shitty hack
+		}
+	}
+	else {
+		activeUntil = user->client->forcePowerActiveUntil[forcePower] = 0;
+	}
+
+#ifdef NEWMOD_SUPPORT
+	G_SpecBatch_PowerTimer(user - g_entities, forcePower, duration);
+#endif
+	SendForceTimers(user, NULL);
+}
+
 /* *CHANGE 7a* anti force crash */
 // default force
 // by Gamall
@@ -691,6 +898,7 @@ void WP_SpawnInitForcePowers( gentity_t *ent )
 	ent->client->ps.fd.forceHealTime = 0;
 	ent->client->ps.fd.forceHealAmount = 0;
 	ent->client->ps.fd.forceRageRecoveryTime = 0;
+	StopRageRecoveryTimer(ent);
 	ent->client->ps.fd.forceDrainEntNum = ENTITYNUM_NONE;
 	ent->client->ps.fd.forceDrainTime = 0;
 
@@ -1211,6 +1419,7 @@ void WP_ForcePowerRegenerate( gentity_t *self, int overrideAmt )
 void WP_ForcePowerStart( gentity_t *self, forcePowers_t forcePower, int overrideAmt )
 { //activate the given force power
 	int	duration = 0;
+	qboolean fixed = qfalse;	// duration already through FixDuration
 	qboolean hearable = qfalse;
 	float hearDist = 0;
 
@@ -1267,6 +1476,10 @@ void WP_ForcePowerStart( gentity_t *self, forcePowers_t forcePower, int override
 			duration = overrideAmt;
 		}
 
+		duration = FixDuration(duration);
+		fixed = qtrue;
+		StartForceTimer(self, (int)forcePower, duration);
+
 		self->client->ps.fd.forcePowersActive |= ( 1 << forcePower );
 		break;
 	case FP_PUSH:
@@ -1296,6 +1509,10 @@ void WP_ForcePowerStart( gentity_t *self, forcePowers_t forcePower, int override
 		{
 			break;
 		}
+
+		duration = FixDuration(duration);
+		fixed = qtrue;
+		StartForceTimer(self, (int)forcePower, duration);
 
 		self->client->ps.fd.forcePowersActive |= ( 1 << forcePower );
 		break;
@@ -1335,6 +1552,9 @@ void WP_ForcePowerStart( gentity_t *self, forcePowers_t forcePower, int override
 			break;
 		}
 
+		duration = FixDuration(duration);
+		fixed = qtrue;
+		StartForceTimer(self, (int)forcePower, duration);
 		self->client->ps.fd.forcePowersActive |= ( 1 << forcePower );
 		break;
 	case FP_PROTECT:
@@ -1343,12 +1563,18 @@ void WP_ForcePowerStart( gentity_t *self, forcePowers_t forcePower, int override
 		duration = 20000;
 		self->client->ps.fd.forcePowersActive |= ( 1 << forcePower );
 		self->client->pers.protsince = level.time; // force stats
+		duration = FixDuration(duration);
+		fixed = qtrue;
+		StartForceTimer(self, (int)forcePower, duration);
 		break;
 	case FP_ABSORB:
 		hearable = qtrue;
 		hearDist = 256;
 		duration = 20000;
 		self->client->ps.fd.forcePowersActive |= ( 1 << forcePower );
+		duration = FixDuration(duration);
+		fixed = qtrue;
+		StartForceTimer(self, (int)forcePower, duration);
 		break;
 	case FP_TEAM_HEAL:
 		hearable = qtrue;
@@ -1389,6 +1615,9 @@ void WP_ForcePowerStart( gentity_t *self, forcePowers_t forcePower, int override
 			break;
 		}
 
+		duration = FixDuration(duration);
+		fixed = qtrue;
+		StartForceTimer(self, (int)forcePower, duration);
 		self->client->ps.fd.forcePowersActive |= ( 1 << forcePower );
 		break;
 	case FP_SABER_OFFENSE:
@@ -1402,8 +1631,8 @@ void WP_ForcePowerStart( gentity_t *self, forcePowers_t forcePower, int override
 	}
 
 	if ( duration )
-	{ // with g_tickFixForce, as long as a 20 Hz server ran it (expiry is then checked with <=)
-		self->client->ps.fd.forcePowerDuration[forcePower] = level.time + (TICKFIX(Force) ? G_TickStrict(duration) : duration);
+	{ // with g_tickFixForce, as long as a 20 Hz server ran it (expiry is then checked with <=); timed powers already are
+		self->client->ps.fd.forcePowerDuration[forcePower] = level.time + (TICKFIX(Force) && !fixed ? G_TickStrict(duration) : duration);
 	}
 	else
 	{
@@ -4320,6 +4549,7 @@ void WP_ForcePowerStop( gentity_t *self, forcePowers_t forcePower )
 		if (wasActive & (1 << FP_SPEED))
 		{
 			G_MuteSound(self->client->ps.fd.killSoundEntIndex[TRACK_CHANNEL_2-50], CHAN_VOICE);
+			StartForceTimer(self, (int)forcePower, 0);
 		}
 		break;
 	case FP_PUSH:
@@ -4330,6 +4560,7 @@ void WP_ForcePowerStop( gentity_t *self, forcePowers_t forcePower )
 		if (wasActive & (1 << FP_TELEPATHY))
 		{
 			G_Sound( self, CHAN_AUTO, G_SoundIndex("sound/weapons/force/distractstop.wav") );
+			StartForceTimer(self, (int)forcePower, 0);
 		}
 		self->client->ps.fd.forceMindtrickTargetIndex = 0;
 		self->client->ps.fd.forceMindtrickTargetIndex2 = 0;
@@ -4340,6 +4571,7 @@ void WP_ForcePowerStop( gentity_t *self, forcePowers_t forcePower )
 		if (wasActive & (1 << FP_SEE))
 		{
 			G_MuteSound(self->client->ps.fd.killSoundEntIndex[TRACK_CHANNEL_5-50], CHAN_VOICE);
+			StartForceTimer(self, (int)forcePower, 0);
 		}
 		break;
 	case FP_GRIP:
@@ -4394,7 +4626,8 @@ void WP_ForcePowerStop( gentity_t *self, forcePowers_t forcePower )
 		self->client->ps.activeForcePass = 0;
 		break;
 	case FP_RAGE:
-		self->client->ps.fd.forceRageRecoveryTime = level.time + 10000;
+		self->client->ps.fd.forceRageRecoveryTime = level.time + RageRecoveryDuration();
+		StartForceTimer(self, FP_SABER_OFFENSE, RageRecoveryDuration());
 		if (wasActive & (1 << FP_RAGE))
 		{
 			G_MuteSound(self->client->ps.fd.killSoundEntIndex[TRACK_CHANNEL_3-50], CHAN_VOICE);
@@ -4404,12 +4637,14 @@ void WP_ForcePowerStop( gentity_t *self, forcePowers_t forcePower )
 		if (wasActive & (1 << FP_ABSORB))
 		{
 			G_MuteSound(self->client->ps.fd.killSoundEntIndex[TRACK_CHANNEL_3-50], CHAN_VOICE);
+			StartForceTimer(self, (int)forcePower, 0);
 		}
 		break;
 	case FP_PROTECT:
 		if (wasActive & (1 << FP_PROTECT))
 		{
 			G_MuteSound(self->client->ps.fd.killSoundEntIndex[TRACK_CHANNEL_3-50], CHAN_VOICE);
+			StartForceTimer(self, (int)forcePower, 0);
 
 			if ( self->client->pers.protsince && self->client->pers.protsince < level.time ) {
 				self->client->pers.protTimeUsed += level.time - self->client->pers.protsince;
@@ -5929,6 +6164,7 @@ void WP_ForcePowersUpdate( gentity_t *self, usercmd_t *ucmd )
 		{
 			self->client->ps.fd.forcePower = 100;
 			self->client->ps.fd.forceRageRecoveryTime = 0;
+			StopRageRecoveryTimer(self);
 		}
 
 		self->client->ps.fd.forceDeactivateAll = 0;
@@ -6175,7 +6411,7 @@ void WP_ForcePowersUpdate( gentity_t *self, usercmd_t *ucmd )
 	{
 		if ( self->client->ps.fd.forcePowerDuration[i] )
 		{
-			if ( TICKFIX(Force) ? self->client->ps.fd.forcePowerDuration[i] <= level.time : self->client->ps.fd.forcePowerDuration[i] < level.time )
+			if ( ( g_fixForceTimers.integer && i != FP_LIGHTNING && i != FP_DRAIN ) || TICKFIX(Force) ? self->client->ps.fd.forcePowerDuration[i] <= level.time : self->client->ps.fd.forcePowerDuration[i] < level.time )
 			{
 				if ( (self->client->ps.fd.forcePowersActive&( 1 << i )) )
 				{//turn it off

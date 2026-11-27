@@ -2359,7 +2359,7 @@ static qboolean PM_CheckJump( void )
 				}
 			}
 			else if ( pm->cmd.forwardmove > 0 //pushing forward
-				&& pm->ps->fd.forceRageRecoveryTime < pm->cmd.serverTime	//not in a force Rage recovery period
+				&& (pm->ps->fd.forceRageRecoveryTime < pm->cmd.serverTime || (g_fixForceTimers.integer && pm->ps->fd.forceRageRecoveryTime <= pm->cmd.serverTime))	//not in a force Rage recovery period
 				&& pm->ps->fd.forcePowerLevel[FP_LEVITATION] > FORCE_LEVEL_1 
 				&& PM_WalkableGroundDistance() <= 80 //unfortunately we do not have a happy ground timer like SP (this would use up more bandwidth if we wanted prediction workign right), so we'll just use the actual ground distance.
 				&& (pm->ps->legsAnim == BOTH_JUMP1 || pm->ps->legsAnim == BOTH_INAIR1 ) )//not in a flip or spin or anything

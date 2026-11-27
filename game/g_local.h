@@ -957,6 +957,7 @@ typedef struct {
 	int			heldSeqs[MAX_HELD_CMDS];	// level-wide arrival order (level.heldSeq)
 	int			numHeldCmds, nextHeldCmd;
 	int			pressedSpeedWhileDeadTime;
+	int			forceTimersWatched;	// 2 + whose force timers this client was last sent (1 = its own), 0 = none yet
 } clientPersistant_t;
 
 typedef struct renderInfo_s
@@ -1373,6 +1374,10 @@ struct gclient_s {
 
 	qboolean fakeSpec;
 	int fakeSpecClient;
+
+	// level-relative ends of the timed powers and rage recovery, as sent in fpt (0 = not running)
+	int forcePowerActiveUntil[NUM_FORCE_POWERS];
+	int rageRecoveryActiveUntil;
 
 	int lastAiredOtherClientTime[MAX_CLIENTS];
 	int lastAiredOtherClientMeansOfDeath[MAX_CLIENTS];
@@ -2677,6 +2682,8 @@ typedef struct {
 	int				homingLockTarget;
 	qboolean		fakeSpec;
 	int				fakeSpecClient;
+	int				forcePowerActiveUntil[NUM_FORCE_POWERS];
+	int				rageRecoveryActiveUntil;
 	int				lastAiredOtherClientTime[MAX_CLIENTS];
 	int				lastAiredOtherClientMeansOfDeath[MAX_CLIENTS];
 	int				isMedHealed;
@@ -2962,6 +2969,9 @@ gentity_t *G_PreDefSound(vec3_t org, int pdSound);
 qboolean HasSetSaberOnly(void);
 void WP_ForcePowerStop( gentity_t *self, forcePowers_t forcePower );
 void WP_ForcePowerStart( gentity_t *self, forcePowers_t forcePower, int overrideAmt );
+void SendForceTimers(gentity_t *user, gentity_t *sendTo);
+int G_WatchedClient(const gentity_t *viewer);
+void G_CheckForceTimersWatched(gentity_t *ent);
 void WP_SaberPositionUpdate( gentity_t *self, usercmd_t *ucmd );
 int G_ShotDefenseLevel(gentity_t *ent);
 int WP_SaberCanBlock(gentity_t *self, gentity_t* other, vec3_t point, int dflags, int mod, qboolean projectile, int attackStr, vec_t *overrideAngleCalculationSpot);
@@ -3376,6 +3386,15 @@ void		G_MultiSpec_NoteFollowClick( gentity_t *ent );
 int			G_MultiSpec_FollowButtons( gentity_t *ent, int buttons, int oldbuttons );
 int			G_MultiSpec_GhostWatching( const gclient_t *cl, qboolean *ghost );
 void		G_MultiSpec_NoteGave( int clientNum, int which );
+void		G_SpecBatch_Init( void );
+void		G_SpecBatch_Flush( void );
+void		G_SpecBatch_PowerTimer( int clientNum, int forcePower, int duration );
+void		G_SpecBatch_NoteGave( int clientNum, int which );
+void		G_SpecBatch_TimeBaseSnapped( int snap );
+void		G_SpecBatch_Sample( int clientNum, const char *token );
+void		G_SpecBatch_Frame( void );
+void		G_SpecBatch_Intermission( void );
+void		G_SpecBatch_Restored( int clientNum );
 #endif
 
 extern vmCvar_t     g_strafejump_mod;
@@ -3396,6 +3415,8 @@ extern vmCvar_t		g_tickProbe;
 extern vmCvar_t		g_tickFix;
 extern vmCvar_t		g_tickFixInput;
 extern vmCvar_t		g_tickFixForce;
+extern vmCvar_t		g_fixForceTimers;
+extern vmCvar_t		g_sendForceTimers;
 extern vmCvar_t		g_tickFixSabers;
 extern vmCvar_t		g_tickFixSaberDamage;
 extern vmCvar_t		g_tickFixSaberAnim;
