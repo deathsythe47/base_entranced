@@ -2144,6 +2144,15 @@ qboolean ShittySaberMoveEnabled(int move) {
 	return qtrue;
 }
 
+// whether the side jump attack has a move to do; a disabled butterfly/cartwheel must not cost force
+static qboolean PM_SideJumpAttackAvailable(qboolean allowCartwheels) {
+	if (pm->ps->fd.saberAnimLevel == SS_STAFF && ShittySaberMoveEnabled(SHITTYSABERMOVE_BUTTERFLY))
+		return qtrue;
+	if (!allowCartwheels)
+		return pm->ps->fd.saberAnimLevel != SS_STAFF; // stock: a saber without cartwheels still pays
+	return ShittySaberMoveEnabled(SHITTYSABERMOVE_CARTWHEEL);
+}
+
 saberMoveName_t PM_SaberAttackForMovement(saberMoveName_t curmove)
 {
 	saberMoveName_t newmove = LS_NONE;
@@ -2223,7 +2232,8 @@ saberMoveName_t PM_SaberAttackForMovement(saberMoveName_t curmove)
 			&& (pm->cmd.buttons&BUTTON_ATTACK)//hitting attack
 			&& PM_GroundDistance() < 70.0f //not too high above ground
 			&& ( pm->cmd.upmove > 0 || (pm->ps->pm_flags & PMF_JUMP_HELD) )//focus-holding player
-			&& BG_EnoughForcePowerForMove( SABER_ALT_ATTACK_POWER_LR ) )//have enough power
+			&& BG_EnoughForcePowerForMove( SABER_ALT_ATTACK_POWER_LR ) //have enough power
+			&& ( overrideJumpRightAttackMove != LS_INVALID || PM_SideJumpAttackAvailable( allowCartwheels ) ) )
 		{//cartwheel right
 			BG_ForcePowerDrain(pm->ps, FP_GRIP, SABER_ALT_ATTACK_POWER_LR);
 			if ( overrideJumpRightAttackMove != LS_INVALID )
@@ -2244,7 +2254,7 @@ saberMoveName_t PM_SaberAttackForMovement(saberMoveName_t curmove)
 					newmove = LS_BUTTERFLY_RIGHT;
 					pm->ps->velocity[2] = 350.0f;
 				}
-				else if (pm->ps->fd.saberAnimLevel != SS_STAFF && allowCartwheels && ShittySaberMoveEnabled(SHITTYSABERMOVE_CARTWHEEL) )
+				else if ( allowCartwheels && ShittySaberMoveEnabled(SHITTYSABERMOVE_CARTWHEEL) )
 				{
 					PM_AddEvent( EV_JUMP );
 					pm->ps->velocity[2] = 300.0f;
@@ -2281,7 +2291,8 @@ saberMoveName_t PM_SaberAttackForMovement(saberMoveName_t curmove)
 			&& (pm->cmd.buttons&BUTTON_ATTACK)//hitting attack
 			&& PM_GroundDistance() < 70.0f //not too high above ground
 			&& ( pm->cmd.upmove > 0 || (pm->ps->pm_flags & PMF_JUMP_HELD) )//focus-holding player
-			&& BG_EnoughForcePowerForMove( SABER_ALT_ATTACK_POWER_LR ) )//have enough power
+			&& BG_EnoughForcePowerForMove( SABER_ALT_ATTACK_POWER_LR ) //have enough power
+			&& ( overrideJumpLeftAttackMove != LS_INVALID || PM_SideJumpAttackAvailable( allowCartwheels ) ) )
 		{//cartwheel left
 			BG_ForcePowerDrain(pm->ps, FP_GRIP, SABER_ALT_ATTACK_POWER_LR);
 
