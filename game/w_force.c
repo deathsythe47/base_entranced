@@ -6475,7 +6475,8 @@ void WP_ForcePowersUpdate( gentity_t *self, usercmd_t *ucmd )
 		((self->client->ps.fd.forcePowersActive & FORCE_POWERS_ACTIVE_BITS) == (1 << FP_LEVITATION) && self->client->ps.m_iVehicleNum))
 	{//when not using the force, regenerate at 1 point per half second
 		if ( (!self->client->ps.saberInFlight || (g_improvedDisarm.integer && self->client->ps.saberInFlight && !self->client->ps.saberEntityNum)) && self->client->ps.fd.forcePowerRegenDebounceTime < level.time &&
-			(self->client->ps.weapon != WP_SABER || !BG_SaberInSpecial(self->client->ps.saberMove)) )
+			(self->client->ps.weapon != WP_SABER || !BG_SaberInSpecial(self->client->ps.saberMove)) &&
+			!(self->client->ps.pm_flags & PMF_STUCK_TO_WALL) ) // no regen while holding a wall, however the grab started
 		{
 			if (g_gametype.integer != GT_HOLOCRON || g_MaxHolocronCarry.value)
 			{
